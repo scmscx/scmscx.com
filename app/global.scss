@@ -1,0 +1,98 @@
+@use "./reset.scss" as *;
+@use "./michroma.css" as *;
+@use "./nanum_gothic.css" as *;
+
+// Actual color codes that you can use in-game, in the lobby menu.
+$menu-cyan: #a4b4f8;
+$menu-green: #4cc428;
+$menu-light-green: #b4fc74;
+$menu-grey: #585858;
+$menu-white: #ffffff;
+$menu-red: #fc0000;
+$menu-black: #000000;
+
+// from a picture on the internet of the non-highlighted red borders of the lobby ui
+$menu-dark-red: #780000;
+$menu-yellow: #adbf39;
+
+// New colors introduced because I need them for UI stuff.
+$menu-pink: rgb(169, 123, 131);
+$menu-dark-cyan: #93a6ff;
+
+// $menu-background: #202020;
+$menu-background: #111;
+// $menu-background-transparent: #202020c0;
+// $menu-background-transparent: #202020c0;
+
+// Global defaults
+.space-font {
+  font-family: "Michroma", "Nanum Gothic", Sans-Serif;
+}
+
+.menu-font {
+  font-family: "Helvetica", "Arial", Sans-Serif;
+}
+
+.monospace-font {
+  font-family: monospace;
+}
+
+html {
+  background-color: $menu-background;
+  width: 100%;
+  // height: 100%;
+  scrollbar-gutter: stable;
+}
+
+body {
+  margin: 6px;
+  // height: 100%;
+}
+
+.standard-panel {
+  @extend .standard-panel-no-padding;
+
+  padding: 6px 10px;
+  position: relative;
+}
+
+.standard-panel-disabled {
+  @extend .standard-panel;
+  color: $menu-grey;
+  border-color: $menu-grey;
+}
+
+.page-title {
+  @extend .space-font;
+  font-size: 32px;
+  text-align: center;
+  margin: 48px 0px;
+  color: $menu-cyan;
+}
+
+.vertical-container {
+  margin: auto;
+  max-width: 640px;
+  width: 100%;
+}
+
+// .standard-panel:before {
+//   @extend .background-protection;
+
+//   content: "";
+//   top: 0;
+//   left: 0;
+//   width: 100%;
+//   height: 100%;
+//   z-index: -1;
+//   position: absolute;
+// }
+
+.standard-panel-no-padding {
+  // @extend .background-protection;
+
+  border: 3px solid $menu-dark-red;
+  border-radius: 9px;
+
+  position: relative;
+}

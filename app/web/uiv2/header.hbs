@@ -1,0 +1,22 @@
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<link rel="icon" href="/{{favicon_ico}}" sizes="32x32" />
+<link rel="icon" href="/{{favicon_svg}}" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/uiv2/{{apple-touch-icon_png}}" />
+<link rel="manifest" href="/site.webmanifest" />
+<meta name="theme-color" content="#111111" />
+
+<link rel="preconnect" href="https://fonts.gstatic.com" />
+
+{{#if dev}}
+<script type="module" src="http://localhost:3000/@vite/client"></script>
+<script type="module" src="http://localhost:3000/src/index.tsx"></script>
+{{else}}
+{{#each css}}
+<link rel="stylesheet" href="/{{this}}" />
+{{/each}}
+
+<script type="module" src="/{{jsFile}}"></script>
+<link rel="modulepreload" href="/{{jsFile}}" />
+{{/if}}

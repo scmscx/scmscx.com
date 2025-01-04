@@ -1,0 +1,44 @@
+@use "../global.scss" as *;
+
+.h1 {
+  @extend .page-title;
+}
+
+.h2 {
+  @extend .space-font;
+  margin-top: 64px;
+  color: $menu-green;
+}
+
+.h4 {
+  @extend .menu-font;
+  margin-top: 32px;
+  margin-bottom: 0px;
+  color: $menu-green;
+}
+
+.h5 {
+  @extend .menu-font;
+  color: $menu-light-green;
+}
+
+.p {
+  @extend .menu-font;
+  color: $menu-cyan;
+  margin: 12px 0px;
+
+  text-align: left;
+}
+
+.p a:link {
+  color: $menu_dark_cyan;
+}
+
+.p a:visited {
+  color: $menu_pink;
+}
+
+.ul {
+  @extend .menu-font;
+  color: $menu-cyan;
+}

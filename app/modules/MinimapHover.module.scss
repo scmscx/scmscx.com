@@ -1,0 +1,10 @@
+@use "../global.scss" as *;
+
+.hover {
+  @extend .standard-panel-no-padding;
+  position: fixed;
+  z-index: 1;
+  pointer-events: none;
+  box-sizing: content-box;
+  border-color: $menu-red;
+}

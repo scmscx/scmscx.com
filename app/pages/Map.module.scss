@@ -1,0 +1,176 @@
+@use "../global.scss" as *;
+
+.vertical-container {
+  margin: auto;
+  max-width: 640px;
+  width: 100%;
+}
+
+.h1 {
+  @extend .page-title;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.h2 {
+  @extend .space-font;
+  color: $menu-green;
+  font-size: 18px;
+  margin: 64px 0px;
+  overflow: hidden;
+  white-space: pre-wrap;
+}
+
+.h3 {
+  @extend .space-font;
+  color: $menu-green;
+  font-size: 24px;
+  margin: 24px 0px;
+  overflow: hidden;
+}
+
+.minimap {
+  @extend .standard-panel-no-padding;
+  display: inline-block;
+}
+
+.force {
+  @extend .standard-panel;
+  @extend .space-font;
+  font-size: 12px;
+  margin: 4px 0px;
+}
+
+.force-player {
+  @extend .standard-panel;
+  @extend .space-font;
+  font-size: 12px;
+  margin: 4px 0px 4px 32px;
+  color: $menu-green;
+}
+
+.continue-random-button {
+  @extend .download-button;
+  display: block;
+  max-width: min-content;
+  text-wrap: nowrap;
+  margin: 16px auto;
+  cursor: pointer;
+  user-select: none;
+}
+
+.download-button {
+  @extend .space-font;
+  @extend .standard-panel;
+  color: $menu-green;
+  font-size: 18px;
+  text-decoration: none;
+}
+
+.download-button:hover {
+  border-color: $menu-red;
+  color: $menu-light-green;
+}
+
+.table-container {
+  @extend .standard-panel;
+  text-overflow: ellipsis;
+  overflow-x: scroll;
+  scrollbar-width: none;
+}
+
+.table {
+  @extend .menu-font;
+
+  color: $menu-cyan;
+
+  width: 100%;
+
+  // display: block;
+  // display: table;
+  // table-layout: fixed;
+
+  // display: block;
+  // border: 2px solid $menu_dark_red;
+  // border-collapse: collapse;
+  // border-radius: 6px;
+}
+
+// .table tbody {
+//   // width: 100%;
+//   // display: block;
+//   // overflow: hidden;
+//   // text-overflow: ellipsis;
+// }
+
+.table th {
+  @extend .menu-font;
+  text-align: left;
+  word-break: keep-all;
+  white-space: pre;
+  // overflow: visible;
+  border-right-color: $menu_dark_red;
+  padding-right: 8px;
+}
+
+.table td {
+  @extend .menu-font;
+  text-wrap: nowrap;
+}
+
+.table a:link {
+  color: $menu_dark_cyan;
+}
+
+.table a:visited {
+  color: $menu_pink;
+}
+
+.similar-maps {
+  @extend .standard-panel;
+  @extend .space-font;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 10px;
+
+  word-break: break-all;
+}
+
+.similar-maps a {
+  text-decoration: none;
+}
+
+.similar-maps-minimap {
+  @extend .standard-panel-no-padding;
+  display: inline-block;
+}
+
+.similar-maps-scenario {
+  @extend .space-font;
+  text-decoration: none;
+}
+
+.flags {
+  @extend .standard-panel;
+  @extend .space-font;
+  color: $menu-green;
+}
+
+.flag {
+  vertical-align: middle;
+}
+.flag input {
+  background-color: transparent;
+  transform: scale(1.5);
+  margin-right: 8px;
+  margin-top: 8px;
+}
+
+.monospace {
+  @extend .monospace-font;
+}
+
+.similar-maps-details {
+  @extend .monospace-font;
+  color: $menu-cyan;
+}

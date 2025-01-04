@@ -1,0 +1,18 @@
+[package]
+name = "common"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+actix-web = "*"
+anyhow = "*"
+tracing = "*"
+tracing-subscriber = { version = "*", features = ["registry", "env-filter", "tracing-log"] }
+#console-subscriber = "*"
+sha2 = "*"
+uuid = { version = "*", features = ["v4"] }
+futures-util = "*"
+bb8-postgres = "*"
+tokio = { version = "*", features = ["full"] }
+serde = "*"

@@ -1,0 +1,96 @@
+[package]
+name = "scmscx-com"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# bwreplay = { path = "../bwreplay" }
+bwmap = { path = "../bwmap" }
+bwcommon = { path = "../bwcommon" }
+backblaze = { path = "../backblaze" }
+bwminimaprender = { path = "../bwminimaprender" }
+bwmpq = { path = "../bwmpq" }
+
+cached = { version = "*", features = ["async", "proc_macro"] }
+
+#itertools = "*"
+base64 = "*"
+handlebars = { version = "*", features = ["dir_source"] }
+lazy_static = "*"
+#lru = "*"
+# rusqlite = "0.24.2"
+# rocket = { version = "" }
+# rocket_contrib = ""
+serde = { version = "*", features = ["derive"] }
+serde_json = "*"
+tokio-util = { version = "*", features = ["codec"] }
+tokio = { version = "*", features = ["rt-multi-thread","tracing","full"] }
+#tokio = { version = "*", features = ["rt-multi-thread"] }
+#console-subscriber = "*"
+sha2 = "*"
+sha1 = "*"
+# tempfile = "*"
+# url = "*"
+encoding_rs = "*"
+# widestring = ""
+walkdir = "*"
+# slog = ""
+# sloggers = ""
+# rocket-slog = ""
+image = { version = "*", default-features = false, features = ["png"] }
+# png = { version = "*", optional = true }
+# nude = ""
+regex = "*"
+anyhow = "*"
+actix-web = { version = "*", features = ["rustls"] }
+actix-proxy = "*"
+awc = "*"
+# actix-http = "*"
+# actix-session = ""
+actix-files = "*"
+# actix-service = "*"
+# actix-rt = "*"
+actix-multipart = "*"
+#env_logger = "*"
+#mime = "*"
+time = "0.2.27"
+reqwest = { version = "*", default-features = false, features = ["json", "stream", "http2", "h3", "rustls-tls"] }
+futures-core = "*"
+futures-util = "*"
+bytes = "*"
+async-stream = "*"
+
+# actix-web-middleware-redirect-scheme = ""
+futures = "*"
+# reqwest = "*"
+uuid = { version = "*", features = ["v4"] }
+# r2d2 = "*"
+# r2d2_sqlite = ""
+# r2d2_postgres = "*"
+bb8-postgres = "*"
+# bitreader = ""
+# flate2 = "*"
+# hex = "*"
+zstd = "*"
+
+log = "*"
+tracing = "*"
+tracing-subscriber = { version = "*", features = ["registry", "env-filter"] }
+tracing-log = "*"
+
+rand = "*"
+
+[dev-dependencies]
+
+
+#  ├─── "actix-session"
+#  ├─── "actix-web-middleware-redirect-scheme"
+#  ├─── "bitreader"
+#  ├─── "rustls-pemfile"
+#  └─── "widestring"
+
+#  ├─── "rocket"
+#  ├─── "rocket-slog"
+#  ├─── "rocket_contrib"
+#  ├─── "slog"
+#  └─── "sloggers"

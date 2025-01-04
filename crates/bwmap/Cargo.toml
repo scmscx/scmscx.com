@@ -1,0 +1,32 @@
+[package]
+name = "bwmap"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = ["full", "uchardet-bindings", "compact_enc_det-bindings"]
+full = []
+
+[dependencies]
+uchardet-bindings = { path = "../uchardet-bindings", optional = true }
+compact_enc_det-bindings = { path = "../compact_enc_det-bindings", optional = true }
+
+serde = { version = "*", features = ["derive"] }
+encoding_rs = "*"
+anyhow = { version = "*", features = ["backtrace"] }
+
+scopeguard = "*"
+phf = { version = "0.10", features = ["macros"] }
+
+tracing = "*"
+
+
+[dev-dependencies]
+
+reqwest = { version = "*", default-features = false, features = ["json", "http2", "rustls-tls"] }
+tokio = { version = "1", features = ["full"] }
+futures = { version = "*" }
+sha2 = "*"
+
+async-stream = "*"

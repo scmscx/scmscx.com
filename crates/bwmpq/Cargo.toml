@@ -1,0 +1,19 @@
+[package]
+name = "bwmpq"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+stormlib-bindings = { path = "../stormlib-bindings" }
+
+anyhow = { version = "*", features = ["backtrace"] }
+scopeguard = "*"
+lazy_static = "*"
+tracing = "*"
+uuid = { version = "*", features = ["v4"] }
+
+[dev-dependencies]
+reqwest = { version = "*", default-features = false, features = ["json", "http2", "rustls-tls"] }
+tokio = { version = "1", features = ["full"] }
+sha2 = "*"
+futures-util = "*"

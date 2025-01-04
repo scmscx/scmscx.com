@@ -1,0 +1,52 @@
+@use "../global.scss" as *;
+
+.h1 {
+  @extend .page-title;
+}
+
+.form {
+  @extend .standard-panel;
+  display: block;
+}
+
+.username {
+  @extend .standard-panel;
+  @extend .space-font;
+  color: $menu-white;
+  background-color: $menu-black;
+  display: block;
+  margin: 18px 0px;
+}
+
+.password {
+  @extend .standard-panel;
+  @extend .space-font;
+  color: $menu-white;
+  background-color: $menu-black;
+  display: block;
+  margin: 18px 0px;
+}
+
+.login {
+  @extend .standard-panel;
+  @extend .space-font;
+  background: transparent;
+  color: $menu-green;
+  font-size: 24px;
+  margin: 18px 0px;
+  cursor: pointer;
+}
+
+// .username {
+//   // outline-color: $menu-red;
+//   outline-style: solid;
+// }
+
+// .username {
+//   outline-color: $menu-red;
+// }
+
+.input-label {
+  @extend .space-font;
+  color: $menu-green;
+}

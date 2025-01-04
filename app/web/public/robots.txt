@@ -1,0 +1,25 @@
+User-agent: *
+Allow: /map/
+Allow: /api/uiv2/
+Allow: /api/flags/
+Allow: /api/similar_maps/
+Allow: /api/tags/
+
+Disallow: /map
+Disallow: /map/$
+Disallow: /experiments
+Disallow: /api
+Disallow: /api/random
+Disallow: /api/random_bound
+Disallow: /api/login
+Disallow: /api/logout
+Disallow: /api/maps
+Disallow: /api/similar_maps
+Disallow: /api/minimap_resized
+Disallow: /api/search_result_popup
+Disallow: /api/tests/all_maps
+Disallow: /portraits/
+Sitemap: https://scmscx.com/sitemap.txt
+Sitemap: https://scmscx.com/a.txt
+Sitemap: https://scmscx.com/b.txt
+Sitemap: https://scmscx.com/c.txt

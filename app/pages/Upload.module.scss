@@ -1,0 +1,209 @@
+@use "../global.scss" as *;
+
+.vertical-container {
+  max-width: 960px;
+}
+
+.h1 {
+  @extend .page-title;
+}
+
+.h3 {
+  @extend .space-font;
+  font-size: 24px;
+  color: $menu-green;
+  margin: 24px 0px;
+}
+
+.files {
+  @extend .standard-panel;
+  @extend .space-font;
+  margin: 24px 0px;
+  color: $menu-cyan;
+
+  text-overflow: ellipsis;
+  overflow-x: scroll;
+  scrollbar-width: none;
+}
+
+.table a:link {
+  color: $menu_dark_cyan;
+}
+
+.table a:visited {
+  color: $menu_pink;
+}
+
+.progress {
+  border: 1px solid $menu_dark_red;
+  border-radius: 2px;
+  background-color: transparent; // This changes the background color on firefox
+}
+
+// This changes the background color on webkit
+.progress::-webkit-progress-bar {
+  background-color: transparent;
+}
+
+// This changes the bar color on webkit
+.progress::-webkit-progress-value {
+  background-color: $menu-green;
+}
+
+// This changes the bar color on firefox
+.progress::-moz-progress-bar {
+  background-color: $menu-green;
+}
+
+.table {
+  @extend .menu-font;
+
+  color: $menu-cyan;
+
+  width: 100%;
+}
+
+.table th {
+  @extend .menu-font;
+  text-align: left;
+  word-break: keep-all;
+  white-space: pre;
+  // overflow: visible;
+  border-right-color: $menu_dark_red;
+  padding-right: 8px;
+}
+
+.table td {
+  @extend .menu-font;
+  text-wrap: nowrap;
+  padding-right: 12px;
+}
+
+.uploader {
+  @extend .standard-panel;
+  @extend .space-font;
+  color: $menu-cyan;
+  overflow-x: hidden;
+  margin-top: 16px;
+}
+
+.mono {
+  @extend .monospace-font;
+  font-size: 14px;
+}
+
+.uploader label {
+  display: block;
+  margin: 8px 0px;
+  color: $menu-green;
+}
+
+.uploader input {
+  display: block;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.p {
+  @extend .menu-font;
+  color: $menu-cyan;
+  margin: 16px 0px;
+  font-size: 20px;
+}
+
+.username {
+  @extend .standard-panel;
+  @extend .space-font;
+  color: $menu-white;
+  background-color: $menu-black;
+  display: block;
+  margin: 18px 0px;
+}
+
+.password {
+  @extend .standard-panel;
+  @extend .space-font;
+  color: $menu-white;
+  background-color: $menu-black;
+  display: block;
+  margin: 18px 0px;
+}
+
+.login {
+  @extend .standard-panel;
+  @extend .space-font;
+  background: transparent;
+  color: $menu-green;
+  font-size: 24px;
+  margin: 18px 0px;
+}
+
+.input-label {
+  @extend .space-font;
+  color: $menu-green;
+}
+
+.upload {
+  @extend .standard-panel;
+  @extend .space-font;
+  background-color: transparent;
+  color: $menu-green;
+  margin: 16px 0px;
+  cursor: pointer;
+}
+
+.upload:hover {
+  color: $menu-light-green;
+  border-color: $menu-red;
+}
+
+.retry {
+  @extend .upload;
+  padding: 2px;
+  margin: 2px 0px;
+  display: inline-block;
+}
+
+.page-text {
+  @extend .menu-font;
+  color: $menu-cyan;
+  font-size: 14px;
+  margin: 16px 0px;
+}
+
+.completed-page-buttons {
+  @extend .standard-panel;
+  @extend .space-font;
+  background-color: transparent;
+  color: $menu-green;
+  margin: 4px 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.completed-page-buttons:hover {
+  color: $menu-light-green;
+  border-color: $menu-red;
+}
+
+.completed-page-display {
+  @extend .standard-panel;
+  @extend .space-font;
+  background-color: transparent;
+  color: $menu-green;
+  margin: 4px 4px;
+  display: inline-block;
+  min-width: 160px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.completed-page-buttons-disabled {
+  @extend .standard-panel-disabled;
+  @extend .space-font;
+  background-color: transparent;
+  color: $menu-grey;
+  margin: 4px 4px;
+  cursor: pointer;
+  user-select: none;
+}

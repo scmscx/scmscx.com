@@ -1,0 +1,101 @@
+@use "../global.scss" as *;
+
+.container {
+  margin-top: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.h3 {
+  @extend .space-font;
+  color: $menu-green;
+}
+
+.spacer {
+  height: calc(72px + 6px);
+}
+
+.block {
+  display: inline-block;
+  width: calc(72px + 6px);
+}
+
+.minimap {
+  @extend .standard-panel-no-padding;
+  display: inline-block;
+}
+
+.mark-button {
+  @extend .standard-panel-no-padding;
+  @extend .space-font;
+  display: block;
+  width: 100%;
+  height: 32px;
+  background-color: transparent;
+  color: $menu-green;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.moderate-all-button {
+  @extend .standard-panel-no-padding;
+  @extend .space-font;
+  display: block;
+  width: 50%;
+  margin: 4px auto;
+  background-color: transparent;
+  color: $menu-green;
+  height: 48px;
+}
+
+.h1 {
+  @extend .page-title;
+}
+
+.form {
+  @extend .standard-panel;
+  display: block;
+}
+
+.username {
+  @extend .standard-panel;
+  @extend .space-font;
+  color: $menu-white;
+  background-color: $menu-black;
+  display: block;
+  margin: 18px 0px;
+}
+
+.password {
+  @extend .standard-panel;
+  @extend .space-font;
+  color: $menu-white;
+  background-color: $menu-black;
+  display: block;
+  margin: 18px 0px;
+}
+
+.login {
+  @extend .standard-panel;
+  @extend .space-font;
+  background: transparent;
+  color: $menu-green;
+  font-size: 24px;
+  margin: 18px 0px;
+  cursor: pointer;
+}
+
+// .username {
+//   // outline-color: $menu-red;
+//   outline-style: solid;
+// }
+
+// .username {
+//   outline-color: $menu-red;
+// }
+
+.input-label {
+  @extend .space-font;
+  color: $menu-green;
+}

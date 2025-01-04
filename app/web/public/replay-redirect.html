@@ -1,0 +1,27 @@
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Michroma&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Nanum%20Gothic&display=swap" rel="stylesheet">
+    <link href="/css.css" rel="stylesheet">
+
+    <title>scmscx.com</title>
+</head>
+
+<body>
+    <main>
+    </main>
+    <script async>
+        let url = new URL(window.location.href);
+        let replay_id;
+
+        if (url.hash.length > 0) {
+            replay_id = parseInt(url.hash.substring(1));
+        } else {
+            replay_id = url.searchParams.get("id");
+        }
+
+        window.location.replace(`/replay/${replay_id}`);
+    </script>
+</body>

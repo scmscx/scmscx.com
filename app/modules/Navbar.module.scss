@@ -1,0 +1,76 @@
+@use "../global.scss" as *;
+
+.nav {
+  user-select: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: left;
+  gap: 8px;
+}
+
+.a {
+  display: inline-block;
+  font-size: 18px;
+  color: $menu-green;
+  text-decoration: none;
+  @extend .space-font;
+  @extend .standard-panel;
+}
+
+.a:link {
+  color: $menu_green;
+}
+
+.a:visited {
+  color: $menu_green;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .a:hover {
+    color: $menu-light-green;
+    border-color: $menu-red;
+  }
+}
+
+.hamburger-icon {
+  cursor: pointer;
+}
+
+.hidden {
+  display: none;
+}
+
+@media (width >=900px) {
+  .nav {
+    justify-content: center;
+  }
+
+  .nav-content {
+    justify-content: center;
+  }
+
+  .hamburger-icon {
+    display: none;
+  }
+
+  .hidden {
+    display: inline-block;
+  }
+}
+
+.language-icon {
+  display: inline-block;
+  width: 38px;
+  margin-right: 4px;
+  vertical-align: text-bottom;
+  filter: invert(100%);
+}
+
+.select {
+  display: inline-block;
+  cursor: pointer;
+}
+
+// .language-icon-container {
+//   padding: 1px;
+// }

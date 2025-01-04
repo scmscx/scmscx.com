@@ -1,0 +1,235 @@
+@use "../global.scss" as *;
+
+.vertical-container {
+  margin: auto;
+  max-width: 960px;
+  width: 100%;
+}
+
+.h1 {
+  @extend .page-title;
+}
+
+.h2 {
+  @extend .space-font;
+  color: $menu-green;
+  font-size: 18px;
+  margin: 32px 0px;
+  overflow: hidden;
+}
+
+.h3 {
+  @extend .space-font;
+  color: $menu-green;
+  font-size: 24px;
+  margin: 24px 0px;
+  overflow: hidden;
+}
+
+.h4 {
+  @extend .space-font;
+  color: $menu-green;
+  margin: 24px 0px 8px 0px;
+}
+
+.dropdown {
+  @extend .standard-panel;
+  @extend .space-font;
+  color: $menu-green;
+  margin: 24px 0px 8px 0px;
+  display: block;
+  width: max-content;
+  cursor: pointer;
+  user-select: none;
+}
+
+.dropdown-arrow {
+  color: $menu-yellow;
+  transform: rotate(90deg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dropdown:hover {
+    color: $menu-light-green;
+    border-color: $menu-red;
+  }
+}
+
+.dropdown-arrow-highlighted {
+  color: $menu-white;
+}
+
+.map-link {
+  display: block;
+  text-decoration: none;
+}
+
+.table-container {
+  @extend .standard-panel;
+  text-overflow: ellipsis;
+  overflow-x: scroll;
+  scrollbar-width: none;
+  margin: 16px 0px;
+}
+
+.loading {
+  @extend .standard-panel;
+  @extend .space-font;
+
+  color: $menu-green;
+  margin: 16px 0px;
+}
+
+.table {
+  @extend .menu-font;
+
+  color: $menu-cyan;
+
+  width: 100%;
+  margin: 16px 0px;
+  // table-layout: fixed;
+}
+
+.table th {
+  @extend .menu-font;
+  text-align: left;
+  word-break: keep-all;
+  white-space: pre;
+  // overflow: visible;
+  border-right-color: $menu_dark_red;
+  padding-right: 8px;
+}
+
+.table td {
+  @extend .menu-font;
+  text-wrap: nowrap;
+  padding: 4px 12px 4px 0px;
+}
+
+.monospace {
+  @extend .monospace-font;
+}
+
+.search {
+  @extend .standard-panel;
+  @extend .menu-font;
+  background: transparent;
+  color: $menu-white;
+  font-size: 16px;
+  display: block;
+  margin: 16px 0px;
+  max-width: 400px;
+  width: 100%;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .search:hover {
+    border-color: $menu-red;
+  }
+}
+
+.click-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.search-button {
+  @extend .standard-panel;
+  @extend .space-font;
+  color: $menu-green;
+  text-decoration: none;
+  display: inline-block;
+  background-color: transparent;
+  margin: 16px 16px 0px 0px;
+  cursor: pointer;
+}
+
+.search-button:link {
+  color: $menu-green;
+}
+
+.search-button:visited {
+  color: $menu-green;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .search-button:hover {
+    color: $menu-light-green;
+    border-color: $menu-red;
+  }
+}
+
+.flexbox {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.search-flags {
+  @extend .standard-panel;
+  @extend .space-font;
+  color: $menu-green;
+  display: inline-block;
+}
+
+.search-flag {
+  vertical-align: middle;
+  margin: 8px 0px;
+}
+
+.sort-flag {
+  @extend .search-flag;
+  display: block;
+}
+
+.search-flag input {
+  background-color: transparent;
+  transform: scale(1.5);
+  margin-right: 8px;
+  margin-top: 8px;
+}
+
+.search-flag label {
+  text-wrap: nowrap;
+}
+
+// .flags {
+//   @extend .standard-panel;
+//   @extend .space-font;
+//   color: $menu-green;
+// }
+
+// .flag {
+//   vertical-align: middle;
+// }
+// .flag input {
+//   background-color: transparent;
+//   transform: scale(1.5);
+//   margin-right: 8px;
+//   margin-top: 8px;
+// }
+
+.search-filter-textbox {
+  @extend .menu-font;
+  background: transparent;
+  color: $menu-white;
+  font-size: 16px;
+  display: block;
+  margin: 8px 0px;
+}
+
+.search-filter-textbox input {
+  @extend .standard-panel;
+  background: transparent;
+  color: $menu-white;
+  width: 100%;
+}
+
+.search-filter-textbox input:hover {
+  border-color: $menu-red;
+}
+
+.scenario-name {
+  max-width: 200px;
+  overflow: hidden;
+}

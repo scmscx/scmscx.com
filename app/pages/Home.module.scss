@@ -1,0 +1,62 @@
+@use "../global.scss" as *;
+
+.vertical-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 960px;
+}
+
+.menu-text {
+  color: $menu-green;
+  @extend .space-font;
+}
+
+.h1 {
+  @extend .page-title;
+}
+
+.h2 {
+  @extend .menu-text;
+  font-size: 18px;
+  margin: 16px 0px;
+  text-align: center;
+}
+
+.h4 {
+  @extend .menu-text;
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
+.container {
+  margin: 8px;
+  max-width: 400px;
+  width: 100%;
+}
+
+.ul {
+  @extend .standard-panel;
+  font-size: 16px;
+  width: 100%;
+  list-style-type: none;
+  padding: 8px;
+}
+
+.li {
+  @extend .menu-text;
+  text-overflow: clip;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.a {
+  text-decoration: none;
+  padding: 8px 0px;
+  display: block;
+  text-wrap: nowrap;
+}
+
+.padding {
+  padding: 8px 0px;
+}

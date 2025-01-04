@@ -1,0 +1,7 @@
+@use "../global.scss" as *;
+
+.minimap {
+  image-rendering: pixelated;
+  display: block;
+  height: auto;
+}
