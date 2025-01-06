@@ -152,12 +152,8 @@ export default function (props: any) {
           >
             stormlib
           </a>{" "}
-          as well as{" "}
-          <a href="https://github.com/zzlk/bwmap" rel="external nofollow">
-            my own chk parser
-          </a>
-          . To guess charsets I use a combination of my own algorithm as well as
-          uchardet and compact-enc-det.
+          as well as my own chk parser. To guess charsets I use a combination of
+          my own algorithm as well as uchardet and compact-enc-det.
         </p>
 
         <h4 class={style.h4}>
@@ -172,7 +168,8 @@ export default function (props: any) {
           <I18nSpan text="How can I contact you?" />
         </h4>
         <p class={style.p}>
-          I can be contacted by email at {atob("c2Ntc2N4QGdtYWlsLmNvbQ==")}
+          I can be contacted by email at {atob("c2Ntc2N4QGdtYWlsLmNvbQ==")} or
+          on github at <a href="https://github.com/scmscx">scmscx</a>
         </p>
 
         <h4 class={style.h4}>
