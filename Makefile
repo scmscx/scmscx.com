@@ -66,13 +66,9 @@ clippy: $(RUST_SOURCE)
 ci: check build test fmt clippy image-debug
 
 run: image-debug
-	podman run -it --rm -p 8080:8080 --network=slirp4netns:allow_host_loopback=true oni.zxcv.io/scmscx.com-debug:latest
-
-run-release: image-release
-	podman run -it --rm -p 8080:8080 --network=slirp4netns:allow_host_loopback=true oni.zxcv.io/scmscx.com:latest
-
-push: image-release
-	podman push oni.zxcv.io/scmscx.com
+	podman compose down
+	podman compose build
+	podman compose up
 
 dev:
 	npm run dev

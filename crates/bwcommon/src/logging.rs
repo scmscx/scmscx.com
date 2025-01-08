@@ -51,34 +51,36 @@ pub fn create_mixpanel_channel() -> std::sync::mpsc::Sender<serde_json::Value> {
         }
 
         if events.len() > 0 {
-            let ret = reqwest::blocking::Client::new()
-                .post("https://api.mixpanel.com/import")
-                .basic_auth(
-                    std::env::var("MIXPANEL_ACCOUNT_NAME").unwrap(),
-                    Some(std::env::var("MIXPANEL_API_KEY").unwrap()),
-                )
-                .query(&[
-                    ("strict", 1),
-                    (
-                        "project_id",
-                        std::env::var("MIXPANEL_PROJECT_ID")
-                            .unwrap()
-                            .parse()
-                            .unwrap(),
-                    ),
-                ])
-                .json(&events)
-                .send();
+            if std::env::var("MIXPANEL_DISABLED").is_err() {
+                let ret = reqwest::blocking::Client::new()
+                    .post("https://api.mixpanel.com/import")
+                    .basic_auth(
+                        std::env::var("MIXPANEL_ACCOUNT_NAME").unwrap(),
+                        Some(std::env::var("MIXPANEL_API_KEY").unwrap()),
+                    )
+                    .query(&[
+                        ("strict", 1),
+                        (
+                            "project_id",
+                            std::env::var("MIXPANEL_PROJECT_ID")
+                                .unwrap()
+                                .parse()
+                                .unwrap(),
+                        ),
+                    ])
+                    .json(&events)
+                    .send();
 
-            if let Err(err) = ret {
-                error!("error sending stuff to mixpanel: {err:?}");
-            } else if let Ok(ret) = ret {
-                if ret.status() != 200 {
-                    error!("error from mixpanel: {}", ret.text().unwrap())
+                if let Err(err) = ret {
+                    error!("error sending stuff to mixpanel: {err:?}");
+                } else if let Ok(ret) = ret {
+                    if ret.status() != 200 {
+                        error!("error from mixpanel: {}", ret.text().unwrap())
+                    }
                 }
-            }
 
-            events.clear();
+                events.clear();
+            }
         }
     });
 

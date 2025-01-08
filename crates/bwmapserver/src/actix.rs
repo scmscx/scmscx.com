@@ -1234,129 +1234,130 @@ pub(crate) async fn start() -> Result<()> {
     {
         let client = ClientBuilder::new().https_only(true).build()?;
 
-        tokio::task::spawn(async move {
-            'full_retry: loop {
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        if let Err(e) = tokio::fs::create_dir_all("./pending").await {
+            error!("failed to create pending directory: {e}");
+        }
 
-                if let Err(e) = tokio::fs::create_dir_all("./pending").await {
-                    error!("failed to create pending directory: {e}");
-                    continue;
-                }
+        if std::env::var("BACKBLAZE_DISABLED").is_err() {
+            tokio::task::spawn(async move {
+                'full_retry: loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
-                let api_info = match b2_authorize_account(
-                    &client,
-                    &std::env::var("BACKBLAZE_KEY_ID").unwrap(),
-                    &std::env::var("BACKBLAZE_APPLICATION_KEY").unwrap(),
-                )
-                .await
-                {
-                    Ok(v) => v,
-                    Err(e) => {
-                        error!("Failed to authorize account: {e}");
-                        continue;
-                    }
-                };
-
-                const MAPBLOB_BUCKET: &'static str = "784baffe8e56dc107ee50d1c";
-                // const TEST_BUCKET_2: &'static str = "082baf7e0e563c508ef50d1c";
-
-                let upload_info = match b2_get_upload_url(&client, &api_info, MAPBLOB_BUCKET).await
-                {
-                    Ok(upload_info) => upload_info,
-                    Err(e) => {
-                        error!("Failed to get upload url, trying again: {e}");
-                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                        continue;
-                    }
-                };
-
-                loop {
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-
-                    let mut entries = match tokio::fs::read_dir("./pending").await {
+                    let api_info = match b2_authorize_account(
+                        &client,
+                        &std::env::var("BACKBLAZE_KEY_ID").unwrap(),
+                        &std::env::var("BACKBLAZE_APPLICATION_KEY").unwrap(),
+                    )
+                    .await
+                    {
                         Ok(v) => v,
                         Err(e) => {
-                            error!("could not readdir: {e:?}");
+                            error!("Failed to authorize account: {e}");
                             continue;
                         }
                     };
 
-                    while let Ok(Some(entry)) = entries.next_entry().await {
-                        let Ok(filename) = entry.file_name().into_string() else {
-                            error!("could not stringify filename: {:?}", entry.file_name());
-                            continue;
-                        };
+                    const MAPBLOB_BUCKET: &'static str = "784baffe8e56dc107ee50d1c";
+                    // const TEST_BUCKET_2: &'static str = "082baf7e0e563c508ef50d1c";
 
-                        info!("attempting to upload file: {filename}");
-
-                        let mut split = filename.split('-');
-                        let Some(sha1) = split.next() else {
-                            error!("could not extract sha1 part: {:?}", filename);
-                            continue;
-                        };
-                        let Some(sha256) = split.next() else {
-                            error!("could not extract sha256 part: {:?}", filename);
-                            continue;
-                        };
-
-                        let mut file = match tokio::fs::File::open(entry.path()).await {
-                            Ok(v) => v,
+                    let upload_info =
+                        match b2_get_upload_url(&client, &api_info, MAPBLOB_BUCKET).await {
+                            Ok(upload_info) => upload_info,
                             Err(e) => {
-                                error!("failed to open file: {e:?}");
+                                error!("Failed to get upload url, trying again: {e}");
+                                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                                 continue;
                             }
                         };
 
-                        let metadata = match file.metadata().await {
+                    loop {
+                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+                        let mut entries = match tokio::fs::read_dir("./pending").await {
                             Ok(v) => v,
                             Err(e) => {
-                                error!("failed to get file metadata: {e:?}");
+                                error!("could not readdir: {e:?}");
                                 continue;
                             }
                         };
 
-                        let sm = stream! {
-                            loop {
-                                let mut bytes = BytesMut::with_capacity(8 * 1024 * 1024);
-                                let bytes_read = file.read_buf(&mut bytes).await?;
-                                if bytes_read == 0 {
-                                    break;
+                        while let Ok(Some(entry)) = entries.next_entry().await {
+                            let Ok(filename) = entry.file_name().into_string() else {
+                                error!("could not stringify filename: {:?}", entry.file_name());
+                                continue;
+                            };
+
+                            info!("attempting to upload file: {filename}");
+
+                            let mut split = filename.split('-');
+                            let Some(sha1) = split.next() else {
+                                error!("could not extract sha1 part: {:?}", filename);
+                                continue;
+                            };
+                            let Some(sha256) = split.next() else {
+                                error!("could not extract sha256 part: {:?}", filename);
+                                continue;
+                            };
+
+                            let mut file = match tokio::fs::File::open(entry.path()).await {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    error!("failed to open file: {e:?}");
+                                    continue;
                                 }
+                            };
 
-                                yield anyhow::Ok(bytes);
+                            let metadata = match file.metadata().await {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    error!("failed to get file metadata: {e:?}");
+                                    continue;
+                                }
+                            };
+
+                            let sm = stream! {
+                                loop {
+                                    let mut bytes = BytesMut::with_capacity(8 * 1024 * 1024);
+                                    let bytes_read = file.read_buf(&mut bytes).await?;
+                                    if bytes_read == 0 {
+                                        break;
+                                    }
+
+                                    yield anyhow::Ok(bytes);
+                                }
+                            };
+
+                            match b2_upload_file(
+                                &client,
+                                &upload_info,
+                                sha256,
+                                metadata.len() as usize,
+                                sha1.to_owned(),
+                                sm,
+                            )
+                            .await
+                            {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    error!("failed to b2_upload_file: {e}");
+                                    continue 'full_retry;
+                                }
                             }
-                        };
 
-                        match b2_upload_file(
-                            &client,
-                            &upload_info,
-                            sha256,
-                            metadata.len() as usize,
-                            sha1.to_owned(),
-                            sm,
-                        )
-                        .await
-                        {
-                            Ok(_) => {}
-                            Err(e) => {
-                                error!("failed to b2_upload_file: {e}");
-                                continue 'full_retry;
-                            }
-                        }
+                            info!("Finished uploading file. sha256: {sha256}, sha1: {sha1}");
 
-                        info!("Finished uploading file. sha256: {sha256}, sha1: {sha1}");
-
-                        match tokio::fs::remove_file(entry.path()).await {
-                            Ok(_) => {}
-                            Err(e) => {
-                                error!("failed to remove file: {e}");
-                                continue;
+                            match tokio::fs::remove_file(entry.path()).await {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    error!("failed to remove file: {e}");
+                                    continue;
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
+        }
     }
 
     let manifest = {
