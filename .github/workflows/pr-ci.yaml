@@ -1,7 +1,7 @@
-name: push-scmscx.com
+name: CI
 
 on:
-  push:
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -13,22 +13,27 @@ env:
 jobs:
   test:
     timeout-minutes: 30
+    name: ${{format('Cargo {0}', matrix.rust)}}
+    # if: false
     runs-on: self-hosted
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # - rust: nightly
+          # - rust: beta
+          - rust: stable
+          # - rust: 1.74.0
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: "recursive"
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: stable
-          components: clippy, rustfmt, rust-src
-          targets: wasm32-unknown-unknown
-
-      - name: install wasm-bindgen
-        run: cargo install wasm-bindgen-cli
+          toolchain: ${{matrix.rust}}
+          components: clippy, rustfmt
 
       - name: work around Cargo.lock filetime not being updated..?
         run: touch Cargo.lock
 
-      - name: scmscx.com docker image
-        run: make push
+      - run: make ci
