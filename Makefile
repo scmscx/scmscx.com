@@ -37,9 +37,9 @@ dist/release: $(RUST_TARGET_DIR)/release/scmscx-com dist/vite
 	touch $@
 
 image-debug: dist/debug
-	podman build --build-arg PROFILE="debug" -t oni.zxcv.io/scmscx.com-debug .
+	podman compose build --build-arg PROFILE="debug"
 image-release: dist/release
-	podman build --build-arg PROFILE="release" -t oni.zxcv.io/scmscx.com .
+	podman compose build --build-arg PROFILE="release"
 
 check: $(RUST_SOURCE)
 	cargo build --workspace --all-targets
@@ -67,7 +67,10 @@ ci: check build test fmt clippy image-debug
 
 run: image-debug
 	podman compose down
-	podman compose build
+	podman compose up
+
+run-release: image-release
+	podman compose down
 	podman compose up
 
 dev:
@@ -79,4 +82,4 @@ deploy:
 	ssh -i~/.ssh/stan -C stan@urmom.zxcv.io sudo systemctl restart \
 		container-zxcv.io
 
-.PHONY: check build test fmt clippy ci run push dev deploy
+.PHONY: check build test fmt clippy ci run push dev deploy run-release

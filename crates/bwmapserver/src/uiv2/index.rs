@@ -2,6 +2,7 @@ use crate::actix::ManifestChunk;
 use crate::middleware::UserSession;
 use crate::search2;
 use crate::search2::SearchParams;
+use crate::util::is_dev_mode;
 use crate::util::sanitize_sc_string;
 use actix_web::web::Data;
 use actix_web::web::Query;
@@ -87,7 +88,7 @@ pub async fn index(
 
                 "jsFile": manifest.get("app/index.tsx").unwrap().file,
                 "css": manifest.get("app/index.tsx").unwrap().css,
-                "dev": std::env::var("DEV_MODE").unwrap_or("false".to_string()).as_str() == "true"
+                "dev": is_dev_mode()
             }),
         )?)
         .customize())
@@ -110,7 +111,7 @@ pub async fn moderation(
 
                 "jsFile": manifest.get("app/index.tsx").unwrap().file,
                 "css": manifest.get("app/index.tsx").unwrap().css,
-                "dev": std::env::var("DEV_MODE").unwrap_or("false".to_string()).as_str() == "true"
+                "dev": is_dev_mode()
             }),
         )?)
         .customize())
@@ -211,7 +212,7 @@ pub async fn search_handler(
 
                 "jsFile": manifest.get("app/index.tsx").unwrap().file,
                 "css": manifest.get("app/index.tsx").unwrap().css,
-                "dev": std::env::var("DEV_MODE").unwrap_or("false".to_string()).as_str() == "true"
+                "dev": is_dev_mode()
             }),
         )?)
         .customize())
@@ -355,7 +356,7 @@ pub async fn map(
 
                 "jsFile": manifest.get("app/index.tsx").unwrap().file,
                 "css": manifest.get("app/index.tsx").unwrap().css,
-                "dev": std::env::var("DEV_MODE").unwrap_or("false".to_string()).as_str() == "true"
+                "dev": is_dev_mode()
             }),
         )?)
         .customize())
@@ -378,7 +379,7 @@ pub async fn about(
 
                 "jsFile": manifest.get("app/index.tsx").unwrap().file,
                 "css": manifest.get("app/index.tsx").unwrap().css,
-                "dev": std::env::var("DEV_MODE").unwrap_or("false".to_string()).as_str() == "true"
+                "dev": is_dev_mode()
             }),
         )?)
         .customize())
@@ -402,7 +403,7 @@ pub async fn user(
 
                 "jsFile": manifest.get("app/index.tsx").unwrap().file,
                 "css": manifest.get("app/index.tsx").unwrap().css,
-                "dev": std::env::var("DEV_MODE").unwrap_or("false".to_string()).as_str() == "true"
+                "dev": is_dev_mode()
             }),
         )?)
         .customize())
@@ -426,7 +427,7 @@ pub async fn upload(
 
                 "jsFile": manifest.get("app/index.tsx").unwrap().file,
                 "css": manifest.get("app/index.tsx").unwrap().css,
-                "dev": std::env::var("DEV_MODE").unwrap_or("false".to_string()).as_str() == "true"
+                "dev": is_dev_mode()
             }),
         )?)
         .customize())
@@ -450,7 +451,7 @@ pub async fn login(
 
                 "jsFile": manifest.get("app/index.tsx").unwrap().file,
                 "css": manifest.get("app/index.tsx").unwrap().css,
-                "dev": std::env::var("DEV_MODE").unwrap_or("false".to_string()).as_str() == "true"
+                "dev": is_dev_mode()
             }),
         )?)
         .customize())

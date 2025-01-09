@@ -1123,11 +1123,7 @@ pub(crate) async fn start() -> Result<()> {
 
         registry.set_strict_mode(true);
 
-        if std::env::var("DEV_MODE")
-            .unwrap_or("false".to_string())
-            .as_str()
-            == "true"
-        {
+        if is_dev_mode() {
             info!("DEV_MODE activated, template hot reloading");
             registry.set_dev_mode(true);
         }
@@ -1522,7 +1518,7 @@ pub(crate) async fn start() -> Result<()> {
             );
 
         let svc = if is_dev_mode() {
-            info!("dev mode active, adding local proxy to 192.168.0.141:3000");
+            info!("dev mode active, adding local proxy to 127.0.0.1:3000");
 
             svc.default_service(web::to(
                 |req: HttpRequest, client: web::Data<awc::Client>| async move {
@@ -1534,7 +1530,7 @@ pub(crate) async fn start() -> Result<()> {
                         .map(|v| v.as_str())
                         .unwrap_or(req.uri().path());
 
-                    let url = format!("http://192.168.0.141:3000{}", path_query);
+                    let url = format!("http://127.0.0.1:3000{}", path_query);
 
                     info!("proxying to {}", url);
 

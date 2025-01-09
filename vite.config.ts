@@ -15,6 +15,7 @@ export default defineConfig({
   ],
   // base: '/',
   server: {
+    host: '127.0.0.1',
     port: 3000,
     // proxy: {
     //   '/api': {
@@ -24,6 +25,7 @@ export default defineConfig({
     // },
   },
   preview: {
+    host: '127.0.0.1',
     port: 4173,
     // proxy: {
     //   '/api': {
