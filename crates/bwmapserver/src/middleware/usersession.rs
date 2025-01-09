@@ -69,17 +69,49 @@ where
         let s = self.service.clone();
 
         async move {
+            let log_out_user = || {
+                HttpResponse::MovedPermanently()
+                    .insert_header(("location", "/"))
+                    .cookie(
+                        Cookie::build("username", "")
+                            .path("/")
+                            .same_site(actix_web::cookie::SameSite::Lax)
+                            .secure(true)
+                            .expires(
+                                actix_web::cookie::time::OffsetDateTime::from_unix_timestamp(0)
+                                    .unwrap(),
+                            )
+                            .finish(),
+                    )
+                    .cookie(
+                        Cookie::build("token", "")
+                            .path("/")
+                            .same_site(actix_web::cookie::SameSite::Lax)
+                            .secure(true)
+                            .expires(
+                                actix_web::cookie::time::OffsetDateTime::from_unix_timestamp(0)
+                                    .unwrap(),
+                            )
+                            .finish(),
+                    )
+                    .finish()
+                    .map_into_right_body()
+            };
+
             if let Some(cookie_username) = req.cookie("username") {
                 if let Some(cookie_token) = req.cookie("token") {
-
                     let con = pool.get().await.unwrap();
                     let row = con
-                        .query_one(
+                        .query_opt(
                             "select id, token, username from account where username = $1",
                             &[&cookie_username.value()],
                         )
                         .await
                         .unwrap();
+
+                    let Some(row) = row else {
+                        return Ok(req.into_response(log_out_user()));
+                    };
 
                     let db_idtoken = (
                         row.get::<_, i64>(0),
@@ -88,69 +120,22 @@ where
                     );
 
                     if cookie_token.value() == db_idtoken.1.as_str() {
-                        info!("id: {}, username: {}, token: {}", db_idtoken.0, db_idtoken.2, db_idtoken.1);
+                        info!(
+                            "id: {}, username: {}, token: {}",
+                            db_idtoken.0, db_idtoken.2, db_idtoken.1
+                        );
                         req.extensions_mut().insert(UserSession {
                             id: db_idtoken.0,
                             username: db_idtoken.2,
                             token: db_idtoken.1,
                         });
 
-                        Ok(s.call(req).await?)
+                        return s.call(req).await;
                     } else {
-                        Ok(req.into_response(
-                            HttpResponse::MovedPermanently()
-                            .insert_header(("location", "/"))
-                            .cookie(
-                                Cookie::build("username", "")
-                                    .path("/")
-                                    .same_site(actix_web::cookie::SameSite::Lax)
-                                    .secure(true)
-                                    .expires(
-                                        actix_web::cookie::time::OffsetDateTime::from_unix_timestamp(0).unwrap(),
-                                    )
-                                    .finish(),
-                            )
-                            .cookie(
-                                Cookie::build("token", "")
-                                    .path("/")
-                                    .same_site(actix_web::cookie::SameSite::Lax)
-                                    .secure(true)
-                                    .expires(
-                                        actix_web::cookie::time::OffsetDateTime::from_unix_timestamp(0).unwrap(),
-                                    )
-                                    .finish(),
-                            )
-                            .finish()
-                                .map_into_right_body(),
-                        ))
+                        return Ok(req.into_response(log_out_user()));
                     }
                 } else {
-                    Ok(req.into_response(
-                        HttpResponse::MovedPermanently()
-                            .insert_header(("location", "/"))
-                            .cookie(
-                                Cookie::build("username", "")
-                                    .path("/")
-                                    .same_site(actix_web::cookie::SameSite::Lax)
-                                    .secure(true)
-                                    .expires(
-                                        actix_web::cookie::time::OffsetDateTime::from_unix_timestamp(0).unwrap(),
-                                    )
-                                    .finish(),
-                            )
-                            .cookie(
-                                Cookie::build("token", "")
-                                    .path("/")
-                                    .same_site(actix_web::cookie::SameSite::Lax)
-                                    .secure(true)
-                                    .expires(
-                                        actix_web::cookie::time::OffsetDateTime::from_unix_timestamp(0).unwrap(),
-                                    )
-                                    .finish(),
-                            )
-                            .finish()
-                            .map_into_right_body(),
-                    ))
+                    return Ok(req.into_response(log_out_user()));
                 }
             } else {
                 Ok(s.call(req).await?)
