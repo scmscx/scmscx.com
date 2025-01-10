@@ -4,9 +4,9 @@
   "description": "",
   "scripts": {
     "start": "vite",
-    "dev": "vite --host",
+    "dev": "vite",
     "build": "vite build",
-    "serve": "vite preview --host",
+    "serve": "vite preview",
     "lint": "eslint ./src",
     "icons": "pwa-assets-generator --preset minimal-2023 src/assets/favicon.svg"
   },

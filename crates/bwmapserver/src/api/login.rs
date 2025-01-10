@@ -1,3 +1,4 @@
+use crate::util::is_dev_mode;
 use actix_web::{cookie::Cookie, post, web, HttpResponse};
 use serde::Deserialize;
 
@@ -26,7 +27,7 @@ async fn handler2(
                 Cookie::build("token", token)
                     .path("/")
                     .same_site(actix_web::cookie::SameSite::Lax)
-                    .secure(std::env::var("DEV_MODE").unwrap_or("false".to_string()) == "false")
+                    .secure(!is_dev_mode())
                     .permanent()
                     .http_only(true)
                     .finish(),
@@ -35,7 +36,7 @@ async fn handler2(
                 Cookie::build("username", &form.username)
                     .path("/")
                     .same_site(actix_web::cookie::SameSite::Lax)
-                    .secure(std::env::var("DEV_MODE").unwrap_or("false".to_string()) == "false")
+                    .secure(!is_dev_mode())
                     .permanent()
                     .finish(),
             )

@@ -4,23 +4,24 @@ networks:
 services:
 
   scmscx-db:
+    image: oni.zxcv.io/postgres
+    network_mode: host
     build:
       context: postgres
     environment:
       POSTGRES_PASSWORD: anotverysecurepassword
 
   scmscx:
-    build:
-      context: .
-      args:
-        PROFILE: debug
-    links:
-      - "scmscx-db:db"
+    image: oni.zxcv.io/scmscx.com
+    network_mode: host
     ports:
       - "8080:8080"
+    build:
+      context: .
     environment:
+      DEV_MODE: "true"
       RUST_LOG: info
-      DB_HOST: db
+      DB_HOST: localhost
       DB_PORT: 5432
       DB_USER: bounding.net
       DB_DATABASE: bounding.net
