@@ -73,6 +73,9 @@ run-release: image-release
 	podman compose down
 	podman compose up
 
+push: image-release
+	podman push oni.zxcv.io/scmscx.com
+
 dev:
 	npm run dev
 
