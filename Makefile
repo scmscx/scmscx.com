@@ -42,7 +42,7 @@ image-release: dist/release
 	podman compose build --build-arg PROFILE="release"
 
 check: $(RUST_SOURCE)
-	cargo build --workspace --all-targets
+	cargo check --workspace --all-targets
 
 build: $(RUST_SOURCE)
 	cargo build --workspace --all-targets
