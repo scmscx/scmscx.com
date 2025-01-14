@@ -1,0 +1,30 @@
+{
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "Codeium.codeium",
+        "github.vscode-github-actions",
+        "ms-vscode.makefile-tools",
+        "esbenp.prettier-vscode",
+        "rust-lang.rust-analyzer",
+        "mrmlnc.vscode-json5"
+      ]
+    }
+  },
+  "runArgs": [
+    "--volume=devcontainerpodman:/var/lib/containers",
+    "--privileged"
+  ],
+  // "containerUser": "vscode",
+  // "updateRemoteUserUID": true,
+  // "containerEnv": {
+  //     "HOME": "/home/vscode"
+  // },
+  "forwardPorts": [
+    3000,
+    8080
+  ]
+}
