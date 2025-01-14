@@ -1,6 +1,4 @@
-- When cloning the repo, make sure to initialize all the submodules.
-- Install the dev containers extension in vscode.
+To one the runbox you need two terminals.
 
-For OSX:
-
-- fix the --platform=amd64/linux thing for the dockerfile.
+- use `make run` to run the backend + database
+- use `make dev` to run the front-end

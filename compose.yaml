@@ -1,5 +1,4 @@
 services:
-
   scmscx-db:
     image: oni.zxcv.io/postgres
     network_mode: host
