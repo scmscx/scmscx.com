@@ -8,7 +8,7 @@ use std::process::Command;
 fn main() {
     assert!(Command::new("cmake")
         .current_dir("uchardet")
-        .args(&["CMakeLists.txt", "--fresh"])
+        .args(&["CMakeLists.txt"])
         .status()
         .expect("failed to cmake")
         .success());
