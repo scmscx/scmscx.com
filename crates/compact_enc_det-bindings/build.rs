@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn main() {
-    assert!(Command::new("sh")
+    assert!(Command::new("bash")
         .current_dir("compact_enc_det")
         .args(&["./autogen.sh"])
         .status()
