@@ -3,10 +3,10 @@
   "version": "0.0.0",
   "description": "",
   "scripts": {
-    "start": "vite",
-    "dev": "vite",
-    "build": "vite build",
-    "serve": "vite preview",
+    "start": "npx vite",
+    "dev": "npx vite",
+    "build": "npx vite build",
+    "serve": "npx vite preview",
     "lint": "eslint ./src",
     "icons": "pwa-assets-generator --preset minimal-2023 src/assets/favicon.svg"
   },

@@ -1,15 +1,15 @@
 [submodule "crates/uchardet-bindings/uchardet"]
 	path = crates/uchardet-bindings/uchardet
-	url = git@github.com:scmscx/uchardet.git
+	url = https://github.com/scmscx/uchardet.git
 [submodule "crates/compact_enc_det-bindings/compact_enc_det"]
 	path = crates/compact_enc_det-bindings/compact_enc_det
-	url = git@github.com:scmscx/compact_enc_det.git
+	url = https://github.com/scmscx/compact_enc_det.git
 [submodule "crates/stormlib-bindings/bzip2"]
 	path = crates/stormlib-bindings/bzip2
-	url = git@github.com:scmscx/bzip2.git
+	url = https://github.com/scmscx/bzip2.git
 [submodule "crates/stormlib-bindings/StormLib"]
 	path = crates/stormlib-bindings/StormLib
-	url = git@github.com:scmscx/StormLib.git
+	url = https://github.com/scmscx/StormLib.git
 [submodule "crates/stormlib-bindings/zlib"]
 	path = crates/stormlib-bindings/zlib
-	url = git@github.com:scmscx/zlib.git
+	url = https://github.com/scmscx/zlib.git
