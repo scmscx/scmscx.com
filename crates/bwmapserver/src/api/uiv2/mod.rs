@@ -158,7 +158,7 @@ async fn last_uploaded_maps(
     let ret: Vec<_> = con.query(
         "select id, denorm_scenario, uploaded_time, views, downloads, last_viewed, last_downloaded
         from map
-        where denorm_scenario is not null and last_viewed is not null and nsfw = false and outdated = false and unfinished = false and broken = false and blackholed = false
+        where denorm_scenario is not null and nsfw = false and outdated = false and unfinished = false and broken = false and blackholed = false
         order by uploaded_time desc limit 5", &[]).await?.into_iter().map(|x| Ok(MapRow {
             map_id: bwcommon::get_web_id_from_db_id(x.try_get(0)?, crate::util::SEED_MAP_ID)?,
             scenario_name: x.try_get::<_, String>(1)?,
