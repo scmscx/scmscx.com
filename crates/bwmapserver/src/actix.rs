@@ -1518,7 +1518,7 @@ pub(crate) async fn start() -> Result<()> {
             );
 
         let svc = if is_dev_mode() {
-            info!("dev mode active, adding local proxy to 127.0.0.1:3000");
+            info!("dev mode active, adding local proxy to localhost:3000");
 
             svc.default_service(web::to(
                 |req: HttpRequest, client: web::Data<awc::Client>| async move {
@@ -1530,7 +1530,7 @@ pub(crate) async fn start() -> Result<()> {
                         .map(|v| v.as_str())
                         .unwrap_or(req.uri().path());
 
-                    let url = format!("http://127.0.0.1:3000{}", path_query);
+                    let url = format!("http://localhost:3000{}", path_query);
 
                     info!("proxying to {}", url);
 
