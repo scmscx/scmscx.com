@@ -181,6 +181,9 @@ const langmap = {
     "Can I link directly to map downloads or minimap previews?":
       "Могу ли я ссылаться напрямую на загрузки карт или миниатюры карт?",
 
+    "I found a bug. How do I report it?":
+      "Я нашел ошибку. Как я могу ее сообщить?",
+
     "How can I contact you?": "Как я могу связаться с вами?",
 
     "Can I make a donation, how much does this site cost to run?":
@@ -380,6 +383,9 @@ const langmap = {
     "Can I link directly to map downloads or minimap previews?":
       "¿Puedo enlazar directamente con descargas de mapas o vistas previas de minimapas?",
 
+    "I found a bug. How do I report it?":
+      "¿Encontre un error. Como puedo reportarlo?",
+
     "How can I contact you?": "¿Cómo puedo ponerme en contacto con usted?",
 
     "Can I make a donation, how much does this site cost to run?":
@@ -465,6 +471,8 @@ const langmap = {
       "이 웹사이트는 어떻게 만들어졌나요? 그 뒤에 숨겨진 기술은 무엇인가요?",
     "Can I link directly to map downloads or minimap previews?":
       "맵 다운로드나 미니맵 미리보기에 직접 링크를 걸 수 있나요?",
+    "I found a bug. How do I report it?":
+      "바그를 찾아서 참고하사고, 참고하는 방법은 무엇인가요?",
     "How can I contact you?": "어떻게 연락할 수 있나요?",
     "Can I make a donation, how much does this site cost to run?":
       "기부할 수 있나요? 이 사이트를 운영하는 데 비용이 얼마나 드나요?",
@@ -724,6 +732,8 @@ const langmap = {
 
     "Can I link directly to map downloads or minimap previews?":
       "我可以直接連結到地圖下載或小地圖預覽嗎？",
+
+    "I found a bug. How do I report it?": "如何報告我發現的bug？",
 
     "How can I contact you?": "如何聯繫你？",
 
