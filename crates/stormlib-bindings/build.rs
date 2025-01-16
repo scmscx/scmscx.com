@@ -67,7 +67,7 @@ fn main() {
         "cargo:rustc-link-search=native={}",
         Path::new(&dir).join("zlib").display()
     );
-    println!("cargo:rustc-link-search=native=vendor");
+    // println!("cargo:rustc-link-search=native=vendor");
     println!("cargo:rustc-link-lib=static=storm");
     // println!("cargo:rustc-link-lib=static=bz2_static");
     // println!("cargo:rustc-link-lib=static=z");
