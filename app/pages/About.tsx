@@ -137,8 +137,8 @@ export default function (props: any) {
           </a>{" "}
           framework. The produced webapp is running on a VM from Contabo.
           Alongside the webapp is also{" "}
-          <a href="http://www.haproxy.org" rel="external nofollow">
-            HAProxy
+          <a href="https://caddyserver.com/" rel="external nofollow">
+            Caddy
           </a>{" "}
           and a{" "}
           <a href="https://www.postgresql.org" rel="external nofollow">
@@ -165,11 +165,20 @@ export default function (props: any) {
         </p>
 
         <h4 class={style.h4}>
+          <I18nSpan text="I found a bug. How do I report it?" />
+        </h4>
+        <p class={style.p}>
+          The website is open source, please file a github issue here:{" "}
+          <a href="https://github.com/scmscx/scmscx.com/issues">
+            https://github.com/scmscx/scmscx.com/issues
+          </a>
+        </p>
+
+        <h4 class={style.h4}>
           <I18nSpan text="How can I contact you?" />
         </h4>
         <p class={style.p}>
-          I can be contacted by email at {atob("c2Ntc2N4QGdtYWlsLmNvbQ==")} or
-          on github at <a href="https://github.com/scmscx">scmscx</a>
+          I can be contacted by email at {atob("c2Ntc2N4QGdtYWlsLmNvbQ==")}
         </p>
 
         <h4 class={style.h4}>
@@ -248,6 +257,15 @@ export default function (props: any) {
         <h2 class={style.h2}>
           <I18nSpan text="Devlog" />
         </h2>
+
+        <h4 class={style.h4}>2025-01-16</h4>
+        <ul class={style.ul}>
+          <li>
+            The website is now open source,{" "}
+            <a href="https://github.com/scmscx/scmscx.com">check it out!</a> As
+            such, this devlog will no longer be updated.
+          </li>
+        </ul>
 
         <h4 class={style.h4}>2024-12-27</h4>
         <ul class={style.ul}>
