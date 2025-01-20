@@ -38,7 +38,10 @@ export function LangProvider(props: any) {
   }
 
   const writeLangCookie = (lang: string) => {
-    document.cookie = `lang2=${lang};expires=Fri, 31 Dec 9999 23:59:59 GMT;`;
+    document.cookie = `lang2=${lang};Max-Age=0;path=/map`;
+    document.cookie = `lang2=${lang};Max-Age=0;path=/user`;
+    document.cookie = `lang2=${lang};Max-Age=0;path=/search`;
+    document.cookie = `lang2=${lang};expires=Fri, 31 Dec 9999 23:59:59 GMT;path=/`;
   };
 
   let lang;
