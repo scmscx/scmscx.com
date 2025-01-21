@@ -83,6 +83,6 @@ deploy:
 	ssh -i~/.ssh/stan -C stan@urmom.zxcv.io sudo podman pull \
 		oni.zxcv.io/scmscx.com
 	ssh -i~/.ssh/stan -C stan@urmom.zxcv.io sudo systemctl restart \
-		container-zxcv.io
+		container-scmscx.com-S1
 
 .PHONY: check build test fmt clippy ci run push dev deploy run-release
