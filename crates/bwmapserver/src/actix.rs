@@ -30,6 +30,8 @@ use backblaze::api::b2_upload_file;
 use backblaze::api::B2AuthorizeAccount;
 use bytes::BytesMut;
 use futures::lock::Mutex;
+use rand::Rng;
+use rand::SeedableRng;
 use reqwest::Client;
 use reqwest::ClientBuilder;
 use std::collections::HashMap;
@@ -1171,12 +1173,8 @@ pub(crate) async fn start() -> Result<()> {
     ));
 
     let db_clone = db_new.clone();
+    let mut rng = rand::rngs::SmallRng::from_rng(&mut rand::rng());
     tokio::spawn(async move {
-        use rand::distributions::Uniform;
-        use rand::prelude::Distribution;
-
-        let mut rng = rand::rngs::OsRng;
-
         loop {
             info!("Refreshing materialized view");
 
@@ -1202,10 +1200,7 @@ pub(crate) async fn start() -> Result<()> {
                 }
             }
 
-            tokio::time::sleep(std::time::Duration::from_secs(
-                Uniform::new(600, 1000).sample(&mut rng),
-            ))
-            .await;
+            tokio::time::sleep(std::time::Duration::from_secs(rng.random_range(600..1000))).await;
         }
     });
 
