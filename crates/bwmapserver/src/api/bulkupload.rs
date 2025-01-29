@@ -349,10 +349,8 @@ pub(crate) async fn insert_map(
                 Ok(x) => return Ok(x),
                 Err(e) => {
                     error!("failed to attempt transaction: error: {:?}", e);
-                    tokio::time::sleep(Duration::from_millis(
-                        rand::thread_rng().gen_range(300..2000),
-                    ))
-                    .await;
+                    tokio::time::sleep(Duration::from_millis(rand::rng().random_range(300..2000)))
+                        .await;
                 }
             }
         }

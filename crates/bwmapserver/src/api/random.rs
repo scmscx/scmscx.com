@@ -42,8 +42,8 @@ async fn random_core(
         return Err(anyhow::anyhow!("no maps found").into());
     }
 
-    let mut rng = rand::thread_rng();
-    let random_number = rng.gen_range(0..maps.len());
+    let mut rng = rand::rng();
+    let random_number = rng.random_range(0..maps.len());
 
     Ok(maps[random_number].id.clone())
 }
