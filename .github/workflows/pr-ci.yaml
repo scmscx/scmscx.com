@@ -32,8 +32,15 @@ jobs:
         with:
           toolchain: ${{matrix.rust}}
           components: clippy, rustfmt
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: work around Cargo.lock filetime not being updated..?
         run: touch Cargo.lock
 
-      - run: make ci
+      - run: ENABLE_GSFS=0 make update
+      - run: ENABLE_GSFS=0 make ci
+
+      - run: ENABLE_GSFS=1 make update
+      - run: ENABLE_GSFS=1 make ci

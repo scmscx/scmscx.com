@@ -1,58 +1,72 @@
-use tracing_log::LogTracer;
-use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
-
 mod actix;
 mod api;
 mod db;
 mod hacks;
 mod middleware;
-// mod search;
 mod search2;
-// mod ssr;
 mod static_pages;
 mod tests;
 mod uiv2;
 mod util;
 
-// #[actix_web::main]
+use opentelemetry::trace::TracerProvider;
+use opentelemetry_otlp::WithExportConfig;
+use tracing_log::LogTracer;
+use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, EnvFilter, Layer};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // enable console_subcriber only in debug build because it consumes so much memory it breaks the server
-    if cfg!(debug_assertions) {
-        //console_subscriber::init();
-    }
-
     LogTracer::init().expect("Failed to set logger");
 
-    // let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-    // let formatting_layer = BunyanFormattingLayer::new(
-    //     "zero2prod".into(),
-    //     // Output the formatted spans to stdout.
-    //     std::io::stdout,
+    let mut builder = opentelemetry_sdk::trace::TracerProvider::builder();
+
+    if let Ok(endpoint) = &std::env::var("JAEGER_ENDPOINT") {
+        builder = builder.with_batch_exporter(
+            // opentelemetry_otlp::SpanExporter::builder()
+            //     .with_tonic()
+            //     .with_endpoint(endpoint)
+            //     .build()?,
+            opentelemetry_otlp::new_exporter()
+                .tonic()
+                .with_endpoint(endpoint)
+                .build_span_exporter()?,
+            opentelemetry_sdk::runtime::Tokio,
+        );
+    }
+
+    // builder = builder.with_batch_exporter(
+    //     opentelemetry_stdout::SpanExporter::default(),
+    //     opentelemetry_sdk::runtime::Tokio,
     // );
-    // The `with` method is provided by `SubscriberExt`, an extension
-    // trait for `Subscriber` exposed by `tracing_subscriber`
-    // let subscriber = Registry::default()
-    //     .with(env_filter)
-    //     .with(JsonStorageLayer)
-    //     .with(formatting_layer);
-    // // `set_global_default` can be used by applications to specify
-    // // what subscriber should be used to process spans.
-    // set_global_default(subscriber).expect("Failed to set subscriber");
 
-    let filter = EnvFilter::from_default_env();
-    let subscriber = tracing_subscriber::fmt()
-        // filter spans/events with level TRACE or higher.
-        .with_env_filter(filter)
-        .with_span_events(FmtSpan::CLOSE)
-        .with_file(true)
-        .with_target(false)
-        .with_line_number(true)
-        // build but do not install the subscriber.
-        .finish();
+    builder = builder.with_config(opentelemetry_sdk::trace::Config::default().with_resource(
+        opentelemetry_sdk::Resource::new([
+            opentelemetry::KeyValue::new("service.name", "scmscx.com"),
+            opentelemetry::KeyValue::new("node", "scmscx.com"),
+        ]),
+    ));
 
-    tracing::subscriber::set_global_default(subscriber)?;
+    let tracer_provider = builder.build();
+    let tracer = tracer_provider.tracer("scmscx.com");
+
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::registry()
+            .with(
+                tracing_opentelemetry::layer()
+                    .with_tracer(tracer)
+                    .with_filter(tracing_subscriber::EnvFilter::new(
+                        "trace,h2=info,scmscx_com=off,bwmap=off,bwmpq=off",
+                    )),
+            )
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_span_events(FmtSpan::CLOSE)
+                    .with_file(true)
+                    .with_target(false)
+                    .with_line_number(true)
+                    .with_filter(EnvFilter::from_default_env()),
+            ),
+    )?;
 
     //tracing_subscriber::fmt::init();
 
