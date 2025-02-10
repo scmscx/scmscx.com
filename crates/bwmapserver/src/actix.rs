@@ -3,13 +3,6 @@ use actix_web::HttpMessage;
 use actix_web::HttpRequest;
 use actix_web::{get, middleware, post, web, App, HttpResponse, Responder};
 
-//use anyhow::Context;
-
-//use crossbeam_channel::Sender;
-//use rustls_pemfile::{certs};
-
-//use image::DynamicImage;
-
 use serde::{Deserialize, Serialize};
 
 use crate::db;
@@ -18,18 +11,17 @@ use crate::hacks;
 use bwcommon::insert_extension;
 use bwcommon::{ApiSpecificInfoForLogging, MyError};
 
-use anyhow::Result;
-use backblaze::api::{b2_authorize_account, b2_download_file_by_name};
-use handlebars::{DirectorySourceOptions, Handlebars};
-// use r2d2_postgres::r2d2;
 use crate::util::is_dev_mode;
 use actix_files::Files;
+use anyhow::Result;
 use async_stream::stream;
 use backblaze::api::b2_get_upload_url;
 use backblaze::api::b2_upload_file;
 use backblaze::api::B2AuthorizeAccount;
+use backblaze::api::{b2_authorize_account, b2_download_file_by_name};
 use bytes::BytesMut;
 use futures::lock::Mutex;
+use handlebars::{DirectorySourceOptions, Handlebars};
 use rand::Rng;
 use rand::SeedableRng;
 use reqwest::Client;
@@ -99,6 +91,7 @@ async fn get_map(
         >,
     >,
     backblaze_auth: web::Data<Mutex<BackblazeAuth>>,
+    #[cfg(feature = "gsfs")] _gsfs_client: web::Data<gsfs::Client>,
 ) -> Result<impl Responder, MyError> {
     let (mapblob_hash,) = path.into_inner();
 
@@ -134,6 +127,30 @@ async fn get_map(
     let mut retries_remaining = 5;
     let mut bad_version = None;
 
+    #[cfg(feature = "gsfs")]
+    {
+        // Don't serve maps from gsfs yet, it's unclear how reliable it is.
+        // // TODO: gsfs_client.get() here, if it works, return to browser, otherwise fallback to backblaze.
+        // let ret = gsfs_client
+        //     .read_as_stream(
+        //         format!("/scmscx.com/mapblob/{mapblob_hash}"),
+        //         &[0; 32],
+        //         0..u64::MAX,
+        //     )
+        //     .await;
+
+        // match ret {
+        //     Ok(stream) => {
+        //         return Ok(insert_extension(HttpResponse::Ok(), info)
+        //             .content_type("application/octet-stream")
+        //             .streaming(futures::StreamExt::map(stream, |x| x.map(|x| x.freeze()))));
+        //     }
+        //     Err(e) => {
+        //         error!("Failed to download from gsfs: {}", e);
+        //     }
+        // }
+    }
+
     while retries_remaining > 0 {
         let (version, api_info) = get_auth(&client, backblaze_auth.clone(), bad_version).await?;
 
@@ -163,67 +180,6 @@ async fn get_map(
 
     return Ok(insert_extension(HttpResponse::InternalServerError(), info).finish());
 }
-
-// #[get("/api/replay_dump/{replay_id}")]
-// async fn get_replay_dump(
-//     path: web::Path<(i64,)>,
-//     pool: web::Data<
-//         bb8_postgres::bb8::Pool<
-//             bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-//         >,
-//     >,
-// ) -> Result<impl Responder, bwcommon::MyError> {
-//     let (replay_id,) = path.into_inner();
-//     let (uploaded_by, uploaded_time, replay_blob, denorm_scenario, chkhash, map_id) = {
-//         let r = pool.get().await?.query_one("
-//                 select account.username, replay.uploaded_time, replayblob.data, replay.denorm_scenario, replay.chkhash, map.id
-//                 from replay
-//                 join replayblob on replayblob.hash = replay.hash
-//                 join account on account.id = uploaded_by
-//                 full outer join map on map.chkblob = replay.chkhash
-//                 where replay.id = $1", &[&replay_id]).await?;
-
-//         (
-//             r.try_get::<_, String>(0)?,
-//             r.try_get::<_, i64>(1)?,
-//             r.try_get::<_, Vec<u8>>(2)?,
-//             r.try_get::<_, Vec<u8>>(3)?,
-//             r.try_get::<_, String>(4)?,
-//             r.try_get::<_, i64>(5)?,
-//         )
-//     };
-
-//     #[derive(Debug, Serialize, Deserialize)]
-//     struct ReplayInfo {
-//         uploaded_by: String,
-//         uploaded_time: i64,
-//         replay_header: bwreplay::ReplayHeader,
-//         denorm_scenario: String,
-//         chkhash: String,
-//         map_id: i64,
-//     }
-
-//     let ret = ReplayInfo {
-//         uploaded_by,
-//         uploaded_time,
-//         replay_header: bwreplay::parse_replay_blob(replay_blob.as_slice())?.header,
-//         denorm_scenario: encoding_rs::UTF_8
-//             .decode(denorm_scenario.as_slice())
-//             .0
-//             .to_string(),
-//         chkhash: chkhash,
-//         map_id: map_id,
-//     };
-
-//     let info = ApiSpecificInfoForLogging {
-//         replay_id: Some(replay_id),
-//         ..Default::default()
-//     };
-
-//     Ok(insert_extension(HttpResponse::Ok(), info)
-//         .content_type("application/json")
-//         .body(serde_json::to_string(&ret)?))
-// }
 
 #[get("/api/replays/{replay_id}")]
 async fn get_replay(
@@ -499,77 +455,6 @@ async fn get_minimap_resized(
         .insert_header(("Cache-Control", "public, max-age=60, immutable")))
 }
 
-// #[get("/api/random_bound")]
-// async fn get_random_bound(
-//     pool: web::Data<
-//         r2d2::Pool<r2d2_postgres::PostgresConnectionManager<r2d2_postgres::postgres::NoTls>>,
-//     >,
-// ) -> Result<impl Responder, bwcommon::MyError> {
-//     let map_id: i64 = {
-//         web::block(move || {
-//             let mut con = pool.get().unwrap();
-//             con.query_one(
-//                 "
-//                 select mapid from (
-//                     select distinct map as mapid from stringmap2
-//                     where 'bound' <% data and ((scenario_name = true) or (scenario_description = true) or (force_names = true) or (file_names = true))
-//                 ) as sq1
-//                 join map on map.id = mapid
-//                 where nsfw = false and broken = false and outdated = false and unfinished = false
-//                 order by random()
-//                 limit 1",
-//                 &[],
-//             )
-//         })
-//         .await??
-//         .get(0)
-//     };
-
-//     let info = ApiSpecificInfoForLogging {
-//         map_id: Some(map_id),
-//         ..Default::default()
-//     };
-
-//     Ok(insert_extension(HttpResponse::TemporaryRedirect(), info)
-//         .finish()
-//         .customize()
-//         .insert_header(("Location", format!("/map/{}", map_id))))
-// }
-
-// #[get("/api/random")]
-// async fn get_random(
-//     pool: web::Data<
-//         r2d2::Pool<r2d2_postgres::PostgresConnectionManager<r2d2_postgres::postgres::NoTls>>,
-//     >,
-// ) -> Result<impl Responder, bwcommon::MyError> {
-//     let map_id: i64 = {
-//         web::block(move || {
-//             let mut con = pool.get().unwrap();
-
-//             con.query_one(
-//                 "
-//                select map.id from map
-//                where nsfw = false and outdated = false and unfinished = false and broken = false
-//                order by random()
-//                limit 1",
-//                 &[],
-//             )
-//         })
-//         .await??
-//         .get(0)
-//     };
-
-//     let info = ApiSpecificInfoForLogging {
-//         map_id: Some(map_id),
-//         ..Default::default()
-//     };
-
-//     Ok(insert_extension(HttpResponse::TemporaryRedirect(), info)
-//         .finish()
-//         .customize()
-//         .insert_header(("Location", format!("/map/{}", map_id))))
-// }
-
 #[get("/api/get_selection_of_random_maps")]
 async fn get_selection_of_random_maps(
     req: HttpRequest,
@@ -829,201 +714,6 @@ async fn add_tags(
     Ok(insert_extension(HttpResponse::Ok(), info).finish())
 }
 
-// #[post("/api/upload-replay")]
-// async fn upload_replay(
-//     req: HttpRequest,
-//     mut payload: actix_multipart::Multipart,
-//     pool: web::Data<
-//         bb8_postgres::bb8::Pool<
-//             bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-//         >,
-//     >,
-// ) -> Result<impl Responder, bwcommon::MyError> {
-//     use std::io::Write;
-
-//     let user_id = if let Some(user_id) = bwcommon::check_auth4(&req, (**pool).clone()).await? {
-//         user_id
-//     } else {
-//         return Ok(HttpResponse::Unauthorized().finish().customize());
-//     };
-
-//     let mut dirpath;
-//     let mut filepath = "/xxx".to_string();
-//     // iterate over multipart stream
-//     while let Ok(Some(mut field)) = payload.try_next().await {
-//         let content_type = field
-//             .content_disposition()
-//             .ok_or(anyhow::anyhow!("no content disposition"))?;
-//         let filename = content_type.get_filename().unwrap();
-//         dirpath = format!(
-//             "/tmp/replays/{}",
-//             uuid::Uuid::new_v4().as_simple().to_string()
-//         );
-//         filepath = format!("{}/{}", dirpath, sanitize_filename::sanitize(&filename));
-
-//         // File::create is blocking operation, use threadpool
-//         web::block(|| std::fs::create_dir_all(dirpath)).await??;
-
-//         let c = filepath.clone();
-//         // File::create is blocking operation, use threadpool
-//         let mut f = web::block(|| std::fs::File::create(c)).await??;
-
-//         // Field in turn is stream of *Bytes* object
-//         while let Some(chunk) = field.next().await {
-//             let data = chunk.unwrap();
-//             // filesystem operations are blocking, we have to use threadpool
-//             f = web::block(move || f.write_all(&data).map(|_| f)).await??;
-//         }
-//     }
-
-//     let replay_blob = web::block(move || std::fs::read(filepath)).await??;
-
-//     let replay_id = db::insert_replay(replay_blob.as_slice(), user_id, pool).await?;
-
-//     let info = ApiSpecificInfoForLogging {
-//         user_id: Some(user_id),
-//         replay_id: Some(replay_id),
-//         ..Default::default()
-//     };
-
-//     Ok(insert_extension(HttpResponse::SeeOther(), info)
-//         .finish()
-//         .customize()
-//         .insert_header(("location", format!("/replay/{}", replay_id))))
-// }
-
-// #[derive(serde::Deserialize)]
-// struct ResetPasswordFormData {
-//     password: String,
-//     password_confirm: String,
-// }
-
-// #[post("/api/reset-password")]
-// async fn reset_password(
-//     req: HttpRequest,
-//     form: web::Form<ResetPasswordFormData>,
-//     pool: web::Data<
-//         r2d2::Pool<r2d2_postgres::PostgresConnectionManager<r2d2_postgres::postgres::NoTls>>,
-//     >,
-// ) -> Result<HttpResponse, bwcommon::MyError> {
-//     let user_id = if let Some(user_id) = bwcommon::check_auth2(&req, pool.clone()).await {
-//         user_id
-//     } else {
-//         return Ok(HttpResponse::Unauthorized().finish());
-//     };
-
-//     if form.password.len() == 0 {
-//         return Ok(HttpResponse::Conflict().body("passwords needs to be at least 1 character long"));
-//     }
-
-//     if form.password != form.password_confirm {
-//         return Ok(HttpResponse::Conflict().body("passwords did not match"));
-//     }
-
-//     db::change_password(user_id, form.password.clone(), (**pool).clone()).await?;
-
-//     let info = ApiSpecificInfoForLogging {
-//         user_id: Some(user_id),
-//         ..Default::default()
-//     };
-
-//     Ok(insert_extension(HttpResponse::SeeOther(), info)
-//         .header("location", "/")
-//         .finish())
-// }
-
-// #[post("/api/register")]
-// async fn register(
-//     form: web::Form<FormData>,
-//     pool: web::Data<
-//         r2d2::Pool<r2d2_postgres::PostgresConnectionManager<r2d2_postgres::postgres::NoTls>>,
-//     >,
-// ) -> Result<HttpResponse, bwcommon::MyError> {
-//     if let Ok(token) = db::register(
-//         form.username.clone(),
-//         form.password.clone(),
-//         (**pool).clone(),
-//     )
-//     .await
-//     {
-//         let info = ApiSpecificInfoForLogging {
-//             username: Some(form.username.clone()),
-//             ..Default::default()
-//         };
-
-//         Ok(insert_extension(HttpResponse::SeeOther(), info)
-//             .header("location", "/")
-//             .cookie(
-//                 actix_http::http::Cookie::build("token", token)
-//                     .path("/")
-//                     .same_site(actix_http::cookie::SameSite::Lax)
-//                     .secure(true)
-//                     .permanent()
-//                     .finish(),
-//             )
-//             .cookie(
-//                 actix_http::http::Cookie::build("username", &form.username)
-//                     .path("/")
-//                     .same_site(actix_http::cookie::SameSite::Lax)
-//                     .secure(true)
-//                     .permanent()
-//                     .finish(),
-//             )
-//             .finish())
-//     } else {
-//         Ok(HttpResponse::Unauthorized().finish())
-//     }
-// }
-
-// #[derive(serde::Deserialize)]
-// struct FormData {
-//     username: String,
-//     password: String,
-// }
-
-// #[post("/api/login")]
-// async fn login(
-//     form: web::Form<FormData>,
-//     pool: web::Data<
-//         r2d2::Pool<r2d2_postgres::PostgresConnectionManager<r2d2_postgres::postgres::NoTls>>,
-//     >,
-// ) -> Result<HttpResponse, bwcommon::MyError> {
-//     if let Ok(token) = db::login(
-//         form.username.clone(),
-//         form.password.clone(),
-//         (**pool).clone(),
-//     )
-//     .await
-//     {
-//         let info = ApiSpecificInfoForLogging {
-//             username: Some(form.username.clone()),
-//             ..Default::default()
-//         };
-
-//         Ok(insert_extension(HttpResponse::SeeOther(), info)
-//             .header("location", "/")
-//             .cookie(
-//                 actix_http::http::Cookie::build("token", token)
-//                     .path("/")
-//                     .same_site(actix_http::cookie::SameSite::Lax)
-//                     .secure(true)
-//                     .permanent()
-//                     .finish(),
-//             )
-//             .cookie(
-//                 actix_http::http::Cookie::build("username", &form.username)
-//                     .path("/")
-//                     .same_site(actix_http::cookie::SameSite::Lax)
-//                     .secure(true)
-//                     .permanent()
-//                     .finish(),
-//             )
-//             .finish())
-//     } else {
-//         Ok(HttpResponse::Unauthorized().finish())
-//     }
-// }
-
 fn parse_lst_files() -> std::collections::HashMap<u32, std::collections::HashMap<u16, [u8; 3]>> {
     fn parse_lst_file(path: &std::path::Path) -> std::collections::HashMap<u16, [u8; 3]> {
         use std::io::prelude::*;
@@ -1077,7 +767,7 @@ fn parse_lst_files() -> std::collections::HashMap<u32, std::collections::HashMap
     ret
 }
 
-async fn setup_db_new() -> Result<
+async fn setup_db() -> Result<
     bb8_postgres::bb8::Pool<
         bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
     >,
@@ -1115,70 +805,235 @@ async fn setup_db_new() -> Result<
     anyhow::Ok(pool)
 }
 
-pub(crate) async fn start() -> Result<()> {
-    //env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+async fn start_file_pumper(#[cfg(feature = "gsfs")] gsfs_client: gsfs::Client) -> Result<()> {
+    let client = ClientBuilder::new().https_only(true).build()?;
 
-    let db_new = setup_db_new().await.unwrap();
+    if let Err(e) = tokio::fs::create_dir_all("./pending").await {
+        error!("failed to create pending directory: {e}");
+    }
 
-    let handlebars = {
-        let mut registry = Handlebars::new();
+    tokio::task::spawn(async move {
+        'full_retry: loop {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
-        registry.set_strict_mode(true);
+            let upload_url = match std::env::var("BACKBLAZE_DISABLED") {
+                Ok(v) if v != "true" => {
+                    let api_info = match b2_authorize_account(
+                        &client,
+                        &std::env::var("BACKBLAZE_KEY_ID").unwrap(),
+                        &std::env::var("BACKBLAZE_APPLICATION_KEY").unwrap(),
+                    )
+                    .await
+                    {
+                        Ok(v) => v,
+                        Err(e) => {
+                            error!("Failed to authorize account: {e}");
+                            continue;
+                        }
+                    };
 
-        if is_dev_mode() {
-            info!("DEV_MODE activated, template hot reloading");
-            registry.set_dev_mode(true);
+                    Some(
+                        match b2_get_upload_url(
+                            &client,
+                            &api_info,
+                            &std::env::var("BACKBLAZE_MAPBLOB_BUCKET").unwrap(),
+                        )
+                        .await
+                        {
+                            Ok(upload_info) => upload_info,
+                            Err(e) => {
+                                error!("Failed to get upload url, trying again: {e}");
+                                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                                continue;
+                            }
+                        },
+                    )
+                }
+                _ => None,
+            };
+
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+                let mut entries = match tokio::fs::read_dir("./pending").await {
+                    Ok(v) => v,
+                    Err(e) => {
+                        error!("could not readdir: {e:?}");
+                        continue;
+                    }
+                };
+
+                while let Ok(Some(entry)) = entries.next_entry().await {
+                    let Ok(filename) = entry.file_name().into_string() else {
+                        error!("could not stringify filename: {:?}", entry.file_name());
+                        continue;
+                    };
+
+                    info!("attempting to upload file: {filename}");
+
+                    let mut split = filename.split('-');
+                    let Some(sha1) = split.next() else {
+                        error!("could not extract sha1 part: {:?}", filename);
+                        continue;
+                    };
+                    let Some(sha256) = split.next() else {
+                        error!("could not extract sha256 part: {:?}", filename);
+                        continue;
+                    };
+
+                    #[cfg(feature = "gsfs")]
+                    {
+                        match gsfs::read_path_as_stream(entry.path(), 1024 * 1024).await {
+                            Ok(stream) => {
+                                let key = format!("/scmscx.com/mapblob/{sha256}");
+
+                                match gsfs_client
+                                    .put(
+                                        &key,
+                                        &[0; 32],
+                                        stream,
+                                        gsfs::PutOptions {
+                                            ..Default::default()
+                                        },
+                                    )
+                                    .await
+                                {
+                                    Ok(object_id) => {
+                                        info!(
+                                            "successfully uploaded to gsfs. ObjectID: {object_id}, key: {key}"
+                                        );
+                                    }
+                                    Err(e) => {
+                                        error!("failed to gsfs put: {e}");
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!("failed to read gsfs file: {e}");
+                            }
+                        }
+                    }
+
+                    let mut file = match tokio::fs::File::open(entry.path()).await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            error!("failed to open file: {e:?}");
+                            continue;
+                        }
+                    };
+
+                    let metadata = match file.metadata().await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            error!("failed to get file metadata: {e:?}");
+                            continue;
+                        }
+                    };
+
+                    let sm = stream! {
+                        loop {
+                            let mut bytes = BytesMut::with_capacity(8 * 1024 * 1024);
+                            let bytes_read = file.read_buf(&mut bytes).await?;
+                            if bytes_read == 0 {
+                                break;
+                            }
+
+                            yield anyhow::Ok(bytes);
+                        }
+                    };
+
+                    if let Some(upload_info) = &upload_url {
+                        match b2_upload_file(
+                            &client,
+                            &upload_info,
+                            sha256,
+                            metadata.len() as usize,
+                            sha1.to_owned(),
+                            sm,
+                        )
+                        .await
+                        {
+                            Ok(_) => {}
+                            Err(e) => {
+                                error!("failed to b2_upload_file: {e}");
+                                continue 'full_retry;
+                            }
+                        }
+                    }
+
+                    info!("Finished uploading file. sha256: {sha256}, sha1: {sha1}");
+
+                    match tokio::fs::remove_file(entry.path()).await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!("failed to remove file: {e}");
+                            continue;
+                        }
+                    }
+                }
+            }
         }
+    });
 
-        let mut options = DirectorySourceOptions::default();
-        options.tpl_extension = ".hbs".to_owned();
-        registry
-            .register_templates_directory(
-                std::path::Path::new(std::env::var("ROOT_DIR").unwrap().as_str()).join("uiv2"),
-                options,
-            )
-            .unwrap();
+    Ok(())
+}
 
-        registry
-            .register_partial(
-                "header.hbs",
-                std::fs::read_to_string(
-                    std::path::Path::new(std::env::var("ROOT_DIR").unwrap().as_str())
-                        .join("uiv2/header.hbs"),
-                )?
-                .as_str(),
-            )
-            .map_err(|err| anyhow::anyhow!("failed to unwrap. err: {:?}", err))?;
+fn register_handlebars() -> Result<web::Data<Handlebars<'static>>> {
+    let mut registry = Handlebars::new();
 
-        registry
-            .register_partial(
-                "body.hbs",
-                std::fs::read_to_string(
-                    std::path::Path::new(std::env::var("ROOT_DIR").unwrap().as_str())
-                        .join("uiv2/body.hbs"),
-                )?
-                .as_str(),
-            )
-            .map_err(|err| anyhow::anyhow!("failed to unwrap. err: {:?}", err))?;
+    registry.set_strict_mode(true);
 
-        web::Data::new(registry)
-    };
+    if is_dev_mode() {
+        info!("DEV_MODE activated, template hot reloading");
+        registry.set_dev_mode(true);
+    }
 
-    //let manager = r2d2_sqlite::SqliteConnectionManager::file(std::env::var("DB_PATH").unwrap().as_str());
+    let mut options = DirectorySourceOptions::default();
+    options.tpl_extension = ".hbs".to_owned();
+    registry
+        .register_templates_directory(
+            std::path::Path::new(std::env::var("ROOT_DIR").unwrap().as_str()).join("uiv2"),
+            options,
+        )
+        .unwrap();
 
-    let tx = bwcommon::create_mixpanel_channel();
+    registry
+        .register_partial(
+            "header.hbs",
+            std::fs::read_to_string(
+                std::path::Path::new(std::env::var("ROOT_DIR").unwrap().as_str())
+                    .join("uiv2/header.hbs"),
+            )?
+            .as_str(),
+        )
+        .map_err(|err| anyhow::anyhow!("failed to unwrap. err: {:?}", err))?;
 
-    let cache_droper = web::Data::new(std::sync::Mutex::new(
-        std::collections::HashSet::<String>::new(),
-    ));
+    registry
+        .register_partial(
+            "body.hbs",
+            std::fs::read_to_string(
+                std::path::Path::new(std::env::var("ROOT_DIR").unwrap().as_str())
+                    .join("uiv2/body.hbs"),
+            )?
+            .as_str(),
+        )
+        .map_err(|err| anyhow::anyhow!("failed to unwrap. err: {:?}", err))?;
 
-    let db_clone = db_new.clone();
+    Ok(web::Data::new(registry))
+}
+
+fn start_materialized_view_refresher(
+    pool: &bb8_postgres::bb8::Pool<
+        bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
+    >,
+) -> Result<()> {
     let mut rng = rand::rngs::SmallRng::from_rng(&mut rand::rng());
+    let pool = pool.clone();
     tokio::spawn(async move {
         loop {
             info!("Refreshing materialized view");
 
-            match db_clone.get().await {
+            match pool.get().await {
                 Ok(con) => {
                     match con
                         .execute("REFRESH MATERIALIZED VIEW CONCURRENTLY user_stats", &[])
@@ -1204,152 +1059,16 @@ pub(crate) async fn start() -> Result<()> {
         }
     });
 
-    // let set = web::Data::new(Mutex::new(SearchDatabase::new()));
+    Ok(())
+}
 
-    // {
-    //     let db_new = db_new.clone();
-    //     let set = set.clone();
-    //     tokio::spawn(async move {
-    //         populate_search_database(set, db_new).await.unwrap();
-    //     });
-    // }
+pub(crate) async fn start() -> Result<()> {
+    let db_pool = setup_db().await?;
+    start_materialized_view_refresher(&db_pool)?;
 
-    // {
-    //     let mut con = db_new.get().await?;
-    //     let mut tx = con.transaction().await?;
-    //     bwcommon::denormalize_map_tx(12325, &mut tx).await?;
-    //     tx.commit().await?;
-    // }
+    let handlebars = register_handlebars()?;
 
-    // Pump files up to backblaze
-    {
-        let client = ClientBuilder::new().https_only(true).build()?;
-
-        if let Err(e) = tokio::fs::create_dir_all("./pending").await {
-            error!("failed to create pending directory: {e}");
-        }
-
-        if std::env::var("BACKBLAZE_DISABLED").is_err() {
-            tokio::task::spawn(async move {
-                'full_retry: loop {
-                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-
-                    let api_info = match b2_authorize_account(
-                        &client,
-                        &std::env::var("BACKBLAZE_KEY_ID").unwrap(),
-                        &std::env::var("BACKBLAZE_APPLICATION_KEY").unwrap(),
-                    )
-                    .await
-                    {
-                        Ok(v) => v,
-                        Err(e) => {
-                            error!("Failed to authorize account: {e}");
-                            continue;
-                        }
-                    };
-
-                    const MAPBLOB_BUCKET: &'static str = "784baffe8e56dc107ee50d1c";
-                    // const TEST_BUCKET_2: &'static str = "082baf7e0e563c508ef50d1c";
-
-                    let upload_info =
-                        match b2_get_upload_url(&client, &api_info, MAPBLOB_BUCKET).await {
-                            Ok(upload_info) => upload_info,
-                            Err(e) => {
-                                error!("Failed to get upload url, trying again: {e}");
-                                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                                continue;
-                            }
-                        };
-
-                    loop {
-                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-
-                        let mut entries = match tokio::fs::read_dir("./pending").await {
-                            Ok(v) => v,
-                            Err(e) => {
-                                error!("could not readdir: {e:?}");
-                                continue;
-                            }
-                        };
-
-                        while let Ok(Some(entry)) = entries.next_entry().await {
-                            let Ok(filename) = entry.file_name().into_string() else {
-                                error!("could not stringify filename: {:?}", entry.file_name());
-                                continue;
-                            };
-
-                            info!("attempting to upload file: {filename}");
-
-                            let mut split = filename.split('-');
-                            let Some(sha1) = split.next() else {
-                                error!("could not extract sha1 part: {:?}", filename);
-                                continue;
-                            };
-                            let Some(sha256) = split.next() else {
-                                error!("could not extract sha256 part: {:?}", filename);
-                                continue;
-                            };
-
-                            let mut file = match tokio::fs::File::open(entry.path()).await {
-                                Ok(v) => v,
-                                Err(e) => {
-                                    error!("failed to open file: {e:?}");
-                                    continue;
-                                }
-                            };
-
-                            let metadata = match file.metadata().await {
-                                Ok(v) => v,
-                                Err(e) => {
-                                    error!("failed to get file metadata: {e:?}");
-                                    continue;
-                                }
-                            };
-
-                            let sm = stream! {
-                                loop {
-                                    let mut bytes = BytesMut::with_capacity(8 * 1024 * 1024);
-                                    let bytes_read = file.read_buf(&mut bytes).await?;
-                                    if bytes_read == 0 {
-                                        break;
-                                    }
-
-                                    yield anyhow::Ok(bytes);
-                                }
-                            };
-
-                            match b2_upload_file(
-                                &client,
-                                &upload_info,
-                                sha256,
-                                metadata.len() as usize,
-                                sha1.to_owned(),
-                                sm,
-                            )
-                            .await
-                            {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    error!("failed to b2_upload_file: {e}");
-                                    continue 'full_retry;
-                                }
-                            }
-
-                            info!("Finished uploading file. sha256: {sha256}, sha1: {sha1}");
-
-                            match tokio::fs::remove_file(entry.path()).await {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    error!("failed to remove file: {e}");
-                                    continue;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-    }
+    let tx = bwcommon::create_mixpanel_channel().await;
 
     let manifest = {
         web::Data::new(serde_json::from_str::<HashMap<String, ManifestChunk>>(
@@ -1359,16 +1078,35 @@ pub(crate) async fn start() -> Result<()> {
         )?)
     };
 
+    #[cfg(feature = "gsfs")]
+    let gsfs_client = {
+        match std::env::var("GSFS_USE_LOCAL") {
+            Ok(v) if v == "true" => web::Data::new(gsfs::Client::with_local_config().await?),
+            _ => web::Data::new(gsfs::Client::with_ppe_config().await?),
+        }
+    };
+
+    // Pump files up to backblaze
+    start_file_pumper(
+        #[cfg(feature = "gsfs")]
+        (**gsfs_client).clone(),
+    )
+    .await?;
+
     let server = actix_web::HttpServer::new(move || {
         let svc = App::new()
-            .app_data(web::Data::new(cache_droper.clone()))
             .app_data(web::Data::new(tx.clone()))
-            .app_data(web::Data::new(db_new.clone()))
+            .app_data(web::Data::new(db_pool.clone()))
             .app_data(web::Data::new(Mutex::new(BackblazeAuth::default())))
             .app_data(handlebars.clone())
             .app_data(parse_lst_files())
             .app_data(manifest.clone())
-            .app_data(web::Data::new(awc::Client::default()))
+            .app_data(web::Data::new(awc::Client::default()));
+
+        #[cfg(feature = "gsfs")]
+        let svc = svc.app_data(gsfs_client.clone());
+
+        let svc = svc
             // .app_data(set.clone())
             .wrap(middleware::Compress::default())
             .wrap(middleware::NormalizePath::trim())
@@ -1412,7 +1150,6 @@ pub(crate) async fn start() -> Result<()> {
             // API
             .service(crate::api::flags::get_flag)
             .service(crate::api::flags::set_flag)
-            .service(crate::api::bulkupload::post_handler)
             .service(crate::api::change_password::post_handler)
             .service(crate::api::change_username::post_handler)
             .service(crate::api::login::post_handler)
@@ -1469,26 +1206,8 @@ pub(crate) async fn start() -> Result<()> {
             .service(hacks::denormalize)
             .service(hacks::denormalize_all)
             // Static pages
-            // .service(crate::static_pages::author)
-            // .service(crate::static_pages::viewer)
-            // .service(crate::static_pages::viewer2)
-            // .service(crate::static_pages::css)
-            // .service(crate::static_pages::get_reset_password_static_page)
-            // .service(crate::static_pages::ladder_static_page)
-            // .service(crate::static_pages::recent_static_page)
-            // .service(crate::static_pages::get_replays_static_page)
-            // .service(crate::static_pages::get_replay_static_page)
-            // .service(crate::static_pages::robots)
-            // .service(crate::static_pages::get_login_page)
-            // .service(crate::static_pages::get_register_page)
-            // .service(crate::static_pages::get_upload_replay_page)
-            // .service(crate::static_pages::favicon)
-            // .service(crate::static_pages::libjs)
             .service(crate::static_pages::redirect_map)
             .service(crate::static_pages::redirect_replay)
-            // .service(crate::static_pages::grp)
-            // .service(crate::static_pages::bwrender_wasm_js)
-            // .service(crate::static_pages::bwrender_wasm_bg_wasm)
             .service(
                 Files::new("/assets", "./dist/assets/")
                     .use_etag(false)

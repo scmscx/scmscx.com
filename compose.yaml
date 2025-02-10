@@ -16,7 +16,7 @@ services:
       context: .
     environment:
       DEV_MODE: "true"
-      RUST_LOG: info
+      RUST_LOG: info,tarpc=warn
       DB_HOST: localhost
       DB_PORT: 5432
       DB_USER: bounding.net
@@ -24,3 +24,6 @@ services:
       DB_PASSWORD: anotverysecurepassword
       BACKBLAZE_DISABLED: "true"
       MIXPANEL_DISABLED: "true"
+      GSFS_USE_LOCAL: "false"
+      # JAEGER_ENDPOINT: http://127.0.0.1:4317
+      JAEGER_ENDPOINT: http://10.70.18.1:4317

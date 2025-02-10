@@ -51,25 +51,29 @@ where
 
     forward_ready!(service);
 
-    #[instrument(skip_all, name = "", fields(trace_id))]
+    #[instrument(skip_all, name = "traceid-middleware", fields(trace_id))]
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let path = req.path().to_owned();
+
         let trace_id: String = uuid::Uuid::new_v4()
             .as_simple()
             .to_string()
             .chars()
             .take(6)
             .collect();
+
         let ip = req
             .connection_info()
             .realip_remote_addr()
             .unwrap_or("x.x.x.x")
             .to_owned();
+
         let user_agent = req
             .headers()
             .get("user-agent")
             .map(|x| x.to_str().unwrap_or("couldn't unwrap").to_owned())
             .unwrap_or("couldn't unwrap2".to_string());
+
         req.extensions_mut().insert(TraceID {
             id: trace_id.clone(),
             start_time: Instant::now(),

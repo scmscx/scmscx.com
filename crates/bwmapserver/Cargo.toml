@@ -3,7 +3,18 @@ name = "scmscx-com"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+# default = ["gsfs"]
+gsfs = []
+
 [dependencies]
+gsfs = "*"
+tracing-opentelemetry = "0.27.0"
+opentelemetry = "0.26.0"
+opentelemetry_sdk = { version = "0.26.0", features = ["rt-tokio"] }
+opentelemetry-stdout = "0.26.0"
+opentelemetry-otlp = "0.26.0"
+
 # bwreplay = { path = "../bwreplay" }
 bwmap = { path = "../bwmap" }
 bwcommon = { path = "../bwcommon" }
@@ -53,7 +64,7 @@ actix-files = "*"
 actix-multipart = "*"
 #env_logger = "*"
 #mime = "*"
-time = "0.2.27"
+# time = "0.2.27"
 reqwest = { version = "*", default-features = false, features = ["json", "stream", "http2", "h3", "rustls-tls"] }
 futures-core = "*"
 futures-util = "*"
