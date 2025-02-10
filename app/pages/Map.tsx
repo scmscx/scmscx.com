@@ -608,6 +608,9 @@ const Flags = (props: any) => {
   const [outdated] = useApi(() => `/api/flags/${props.mapId}/outdated`);
   const [broken] = useApi(() => `/api/flags/${props.mapId}/broken`);
   const [blackholed] = useApi(() => `/api/flags/${props.mapId}/blackholed`);
+  const [spoiler_unit_names] = useApi(
+    () => `/api/flags/${props.mapId}/spoiler_unit_names`
+  );
 
   const mutate = (mapId: string, key: string, value: boolean) => {
     fetch(`/api/flags/${mapId}/${key}`, {
@@ -687,6 +690,19 @@ const Flags = (props: any) => {
               }}
             />
             <I18nSpan text="Black Holed" />
+          </label>
+        </div>
+        <div class={style.flag}>
+          <label for="checkbox_spoiler_unit_names">
+            <input
+              type="checkbox"
+              id="checkbox_spoiler_unit_names"
+              checked={spoiler_unit_names()}
+              onChange={(evt) => {
+                mutate(props.mapId, "spoiler_unit_names", evt.target.checked);
+              }}
+            />
+            <I18nSpan text="Spoiler Unit Names" />
           </label>
         </div>
       </div>

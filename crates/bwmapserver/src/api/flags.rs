@@ -30,6 +30,7 @@ async fn get_flag(
         "outdated" => "select outdated from map where map.id = $1",
         "broken" => "select broken from map where map.id = $1",
         "blackholed" => "select blackholed from map where map.id = $1",
+        "spoiler_unit_names" => "select spoiler_unit_names from map where map.id = $1",
         _ => return Ok(HttpResponse::NotFound().finish()),
     };
 
@@ -84,6 +85,9 @@ async fn set_flag(
         }
         "blackholed" => {
             "update map set blackholed = $1 where map.id = $2 and (map.uploaded_by = $3 or $3 = 4)"
+        }
+        "spoiler_unit_names" => {
+            "update map set spoiler_unit_names = $1 where map.id = $2 and (map.uploaded_by = $3 or $3 = 4)"
         }
         _ => return Ok(HttpResponse::NotFound().finish()),
     };

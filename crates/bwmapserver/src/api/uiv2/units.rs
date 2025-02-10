@@ -25,11 +25,11 @@ async fn units(
         bwcommon::get_db_id_from_web_id(&map_id, crate::util::SEED_MAP_ID)?
     };
 
-    let chkblob = {
+    let (chkblob, spoiler_unit_names) = {
         let con = pool.get().await?;
         let row = con
             .query_one(
-                "select length, ver, data
+                "select length, ver, data, spoiler_unit_names
                 from map
                 join chkblob on chkblob.hash = map.chkblob
                 where map.id = $1
@@ -43,7 +43,10 @@ async fn units(
         let data = row.try_get::<_, Vec<u8>>("data")?;
 
         bwcommon::ensure!(ver == 1);
-        zstd::bulk::decompress(data.as_slice(), length)?
+        (
+            zstd::bulk::decompress(data.as_slice(), length)?,
+            row.try_get::<_, bool>("spoiler_unit_names")?,
+        )
     };
 
     let info = ApiSpecificInfoForLogging {
@@ -59,8 +62,10 @@ async fn units(
             if x.config[unit_id] == 0 && x.string_number[unit_id] != 0 {
                 v.push(json!({
                     "unit_id": unit_id,
-                    "name": parsed_chk.get_string(x.string_number[unit_id] as usize)
-                        .unwrap_or("couldn't decode string".to_owned()),
+                    "name": if spoiler_unit_names { "SPOILER".to_owned()  } else {
+                        parsed_chk.get_string(x.string_number[unit_id] as usize)
+                        .unwrap_or("couldn't decode string".to_owned())
+                        },
                 }));
             }
         }
