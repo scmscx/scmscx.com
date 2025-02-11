@@ -114,6 +114,7 @@ const langmap = {
     Outdated: "Устаревшая",
     Broken: "Сломанная",
     "Black Holed": "Чёрная дыра",
+    "Spoiler Unit Names": "Названия споилированных единиц",
 
     Key: "Ключ",
     Value: "Значение",
@@ -315,6 +316,7 @@ const langmap = {
     Outdated: "Desactualizado",
     Broken: "Roto",
     "Black Holed": "Arrojado a un agujero negro",
+    "Spoiler Unit Names": "Nombres de unidades de spoiler",
 
     Key: "Clave",
     Value: "Valor",
@@ -549,6 +551,7 @@ const langmap = {
     Outdated: "시대에 뒤쳐진",
     Broken: "고장난",
     "Black Holed": "블랙홀",
+    "Spoiler Unit Names": "스플로러 유닛 이름",
 
     "MPQ Hash": "MPQ 해시",
     "MPQ Size": "MPQ 크기",
@@ -793,6 +796,7 @@ const langmap = {
     Outdated: "過時",
     Broken: "破壞",
     "Black Holed": "已被黑洞吞噬",
+    "Spoiler Unit Names": "懷疑單位名稱",
 
     Tags: "標籤",
     Key: "鍵",
