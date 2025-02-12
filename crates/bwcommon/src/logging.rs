@@ -22,64 +22,66 @@ fn merge_json(a: &mut serde_json::Value, b: serde_json::Value) {
     }
 }
 
-pub fn create_mixpanel_channel() -> std::sync::mpsc::Sender<serde_json::Value> {
+pub async fn create_mixpanel_channel() -> std::sync::mpsc::Sender<serde_json::Value> {
     let (tx, rx) = std::sync::mpsc::channel::<serde_json::Value>();
 
-    std::thread::spawn(move || loop {
-        std::thread::sleep(std::time::Duration::from_secs(10));
-
-        let mut events = Vec::new();
-
+    tokio::spawn(async move {
         loop {
-            let result = rx.try_recv();
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+            let mut events = Vec::new();
 
-            if events.len() > 1900 {
-                break;
-            }
+            loop {
+                let result = rx.try_recv();
 
-            match result {
-                Ok(v) => {
-                    events.push(v);
-                }
-                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                if events.len() > 1900 {
                     break;
                 }
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    return;
-                }
-            }
-        }
 
-        if events.len() > 0 {
-            if std::env::var("MIXPANEL_DISABLED").is_err() {
-                let ret = reqwest::blocking::Client::new()
-                    .post("https://api.mixpanel.com/import")
-                    .basic_auth(
-                        std::env::var("MIXPANEL_ACCOUNT_NAME").unwrap(),
-                        Some(std::env::var("MIXPANEL_API_KEY").unwrap()),
-                    )
-                    .query(&[
-                        ("strict", 1),
-                        (
-                            "project_id",
-                            std::env::var("MIXPANEL_PROJECT_ID")
-                                .unwrap()
-                                .parse()
-                                .unwrap(),
-                        ),
-                    ])
-                    .json(&events)
-                    .send();
-
-                if let Err(err) = ret {
-                    error!("error sending stuff to mixpanel: {err:?}");
-                } else if let Ok(ret) = ret {
-                    if ret.status() != 200 {
-                        error!("error from mixpanel: {}", ret.text().unwrap())
+                match result {
+                    Ok(v) => {
+                        events.push(v);
+                    }
+                    Err(std::sync::mpsc::TryRecvError::Empty) => {
+                        break;
+                    }
+                    Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                        return;
                     }
                 }
+            }
 
-                events.clear();
+            if events.len() > 0 {
+                if std::env::var("MIXPANEL_DISABLED").is_err() {
+                    let ret = reqwest::Client::new()
+                        .post("https://api.mixpanel.com/import")
+                        .basic_auth(
+                            std::env::var("MIXPANEL_ACCOUNT_NAME").unwrap(),
+                            Some(std::env::var("MIXPANEL_API_KEY").unwrap()),
+                        )
+                        .query(&[
+                            ("strict", 1),
+                            (
+                                "project_id",
+                                std::env::var("MIXPANEL_PROJECT_ID")
+                                    .unwrap()
+                                    .parse()
+                                    .unwrap(),
+                            ),
+                        ])
+                        .json(&events)
+                        .send()
+                        .await;
+
+                    if let Err(err) = ret {
+                        error!("error sending stuff to mixpanel: {err:?}");
+                    } else if let Ok(ret) = ret {
+                        if ret.status() != 200 {
+                            error!("error from mixpanel: {}", ret.text().await.unwrap())
+                        }
+                    }
+
+                    events.clear();
+                }
             }
         }
     });
