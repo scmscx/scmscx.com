@@ -24,6 +24,4 @@ services:
       DB_PASSWORD: anotverysecurepassword
       BACKBLAZE_DISABLED: "true"
       MIXPANEL_DISABLED: "true"
-      GSFS_USE_LOCAL: "false"
-      # JAEGER_ENDPOINT: http://127.0.0.1:4317
-      JAEGER_ENDPOINT: http://10.70.18.1:4317
+      GSFSFE_ENDPOINT: "http://127.0.0.1:42069"

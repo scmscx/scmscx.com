@@ -3,10 +3,6 @@ resolver = "2"
 members = ["crates/*"]
 default-members = ["crates/*"]
 
-[patch.crates-io]
-tracing-opentelemetry = { git = "https://github.com/zzlk/tracing-opentelemetry.git", branch = "hack", version = "0.27.0" }
-# gsfs = { path = "../gsfs/rust/gsfs" }
-
 #
 # Release
 #
