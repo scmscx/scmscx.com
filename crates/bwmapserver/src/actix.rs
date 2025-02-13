@@ -11,6 +11,8 @@ use crate::hacks;
 use bwcommon::insert_extension;
 use bwcommon::{ApiSpecificInfoForLogging, MyError};
 
+use crate::gsfs::gsfs_get_mapblob;
+use crate::gsfs::gsfs_put_mapblob;
 use crate::util::is_dev_mode;
 use actix_files::Files;
 use anyhow::Result;
@@ -27,6 +29,7 @@ use rand::SeedableRng;
 use reqwest::Client;
 use reqwest::ClientBuilder;
 use std::collections::HashMap;
+use std::time::Duration;
 use tokio::io::AsyncReadExt;
 use tracing::{error, info};
 
@@ -91,7 +94,7 @@ async fn get_map(
         >,
     >,
     backblaze_auth: web::Data<Mutex<BackblazeAuth>>,
-    #[cfg(feature = "gsfs")] _gsfs_client: web::Data<gsfs::Client>,
+    reqwest_client: web::Data<reqwest::Client>,
 ) -> Result<impl Responder, MyError> {
     let (mapblob_hash,) = path.into_inner();
 
@@ -127,28 +130,20 @@ async fn get_map(
     let mut retries_remaining = 5;
     let mut bad_version = None;
 
-    #[cfg(feature = "gsfs")]
-    {
-        // Don't serve maps from gsfs yet, it's unclear how reliable it is.
-        // // TODO: gsfs_client.get() here, if it works, return to browser, otherwise fallback to backblaze.
-        // let ret = gsfs_client
-        //     .read_as_stream(
-        //         format!("/scmscx.com/mapblob/{mapblob_hash}"),
-        //         &[0; 32],
-        //         0..u64::MAX,
-        //     )
-        //     .await;
-
-        // match ret {
-        //     Ok(stream) => {
-        //         return Ok(insert_extension(HttpResponse::Ok(), info)
-        //             .content_type("application/octet-stream")
-        //             .streaming(futures::StreamExt::map(stream, |x| x.map(|x| x.freeze()))));
-        //     }
-        //     Err(e) => {
-        //         error!("Failed to download from gsfs: {}", e);
-        //     }
-        // }
+    if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
+        // TODO: enable this when some confidence has been built.
+        if false {
+            match gsfs_get_mapblob(&reqwest_client, &endpoint, &mapblob_hash).await {
+                Ok(stream) => {
+                    return Ok(insert_extension(HttpResponse::Ok(), info)
+                        .content_type("application/octet-stream")
+                        .streaming(stream))
+                }
+                Err(error) => {
+                    error!(name: "Failed to download from gsfs", %error);
+                }
+            }
+        }
     }
 
     while retries_remaining > 0 {
@@ -805,7 +800,7 @@ async fn setup_db() -> Result<
     anyhow::Ok(pool)
 }
 
-async fn start_file_pumper(#[cfg(feature = "gsfs")] gsfs_client: gsfs::Client) -> Result<()> {
+async fn start_file_pumper(reqwest_client: reqwest::Client) -> Result<()> {
     let client = ClientBuilder::new().https_only(true).build()?;
 
     if let Err(e) = tokio::fs::create_dir_all("./pending").await {
@@ -881,35 +876,16 @@ async fn start_file_pumper(#[cfg(feature = "gsfs")] gsfs_client: gsfs::Client) -
                         continue;
                     };
 
-                    #[cfg(feature = "gsfs")]
-                    {
-                        match gsfs::read_path_as_stream(entry.path(), 1024 * 1024).await {
-                            Ok(stream) => {
-                                let key = format!("/scmscx.com/mapblob/{sha256}");
-
-                                match gsfs_client
-                                    .put(
-                                        &key,
-                                        &[0; 32],
-                                        stream,
-                                        gsfs::PutOptions {
-                                            ..Default::default()
-                                        },
-                                    )
-                                    .await
-                                {
-                                    Ok(object_id) => {
-                                        info!(
-                                            "successfully uploaded to gsfs. ObjectID: {object_id}, key: {key}"
-                                        );
-                                    }
-                                    Err(e) => {
-                                        error!("failed to gsfs put: {e}");
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                error!("failed to read gsfs file: {e}");
+                    if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
+                        match tokio::time::timeout(
+                            Duration::from_secs(2),
+                            gsfs_put_mapblob(&reqwest_client, &endpoint, entry.path(), sha256),
+                        )
+                        .await
+                        {
+                            Ok(_) => {}
+                            Err(error) => {
+                                error!(name: "failed to put file to gsfs", %error);
                             }
                         }
                     }
@@ -1078,20 +1054,10 @@ pub(crate) async fn start() -> Result<()> {
         )?)
     };
 
-    #[cfg(feature = "gsfs")]
-    let gsfs_client = {
-        match std::env::var("GSFS_USE_LOCAL") {
-            Ok(v) if v == "true" => web::Data::new(gsfs::Client::with_local_config().await?),
-            _ => web::Data::new(gsfs::Client::with_ppe_config().await?),
-        }
-    };
-
     // Pump files up to backblaze
-    start_file_pumper(
-        #[cfg(feature = "gsfs")]
-        (**gsfs_client).clone(),
-    )
-    .await?;
+    let reqwest_client = reqwest::Client::new();
+
+    start_file_pumper(reqwest_client.clone()).await?;
 
     let server = actix_web::HttpServer::new(move || {
         let svc = App::new()
@@ -1101,13 +1067,8 @@ pub(crate) async fn start() -> Result<()> {
             .app_data(handlebars.clone())
             .app_data(parse_lst_files())
             .app_data(manifest.clone())
-            .app_data(web::Data::new(awc::Client::default()));
-
-        #[cfg(feature = "gsfs")]
-        let svc = svc.app_data(gsfs_client.clone());
-
-        let svc = svc
-            // .app_data(set.clone())
+            .app_data(web::Data::new(awc::Client::default()))
+            .app_data(web::Data::new(reqwest_client.clone()))
             .wrap(middleware::Compress::default())
             .wrap(middleware::NormalizePath::trim())
             .wrap(crate::middleware::CacheHtmlTransformer)
@@ -1117,8 +1078,6 @@ pub(crate) async fn start() -> Result<()> {
             .wrap(crate::middleware::TrackingAnalyticsTransformer)
             .wrap(crate::middleware::TraceIDTransformer)
             .service(get_map)
-            // .service(search)
-            // .service(search_by_query)
             .service(get_selection_of_random_maps)
             .service(get_selection_of_random_nsfw_maps)
             .service(set_tags)

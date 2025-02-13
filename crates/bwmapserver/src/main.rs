@@ -1,6 +1,7 @@
 mod actix;
 mod api;
 mod db;
+mod gsfs;
 mod hacks;
 mod middleware;
 mod search2;
@@ -9,8 +10,6 @@ mod tests;
 mod uiv2;
 mod util;
 
-use opentelemetry::trace::TracerProvider;
-use opentelemetry_otlp::WithExportConfig;
 use tracing_log::LogTracer;
 use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, EnvFilter, Layer};
 
@@ -18,46 +17,46 @@ use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, EnvFilter, 
 async fn main() -> anyhow::Result<()> {
     LogTracer::init().expect("Failed to set logger");
 
-    let mut builder = opentelemetry_sdk::trace::TracerProvider::builder();
+    // let mut builder = opentelemetry_sdk::trace::TracerProvider::builder();
 
-    if let Ok(endpoint) = &std::env::var("JAEGER_ENDPOINT") {
-        builder = builder.with_batch_exporter(
-            // opentelemetry_otlp::SpanExporter::builder()
-            //     .with_tonic()
-            //     .with_endpoint(endpoint)
-            //     .build()?,
-            opentelemetry_otlp::new_exporter()
-                .tonic()
-                .with_endpoint(endpoint)
-                .build_span_exporter()?,
-            opentelemetry_sdk::runtime::Tokio,
-        );
-    }
+    // if let Ok(endpoint) = &std::env::var("JAEGER_ENDPOINT") {
+    //     builder = builder.with_batch_exporter(
+    //         // opentelemetry_otlp::SpanExporter::builder()
+    //         //     .with_tonic()
+    //         //     .with_endpoint(endpoint)
+    //         //     .build()?,
+    //         opentelemetry_otlp::new_exporter()
+    //             .tonic()
+    //             .with_endpoint(endpoint)
+    //             .build_span_exporter()?,
+    //         opentelemetry_sdk::runtime::Tokio,
+    //     );
+    // }
 
     // builder = builder.with_batch_exporter(
     //     opentelemetry_stdout::SpanExporter::default(),
     //     opentelemetry_sdk::runtime::Tokio,
     // );
 
-    builder = builder.with_config(opentelemetry_sdk::trace::Config::default().with_resource(
-        opentelemetry_sdk::Resource::new([
-            opentelemetry::KeyValue::new("service.name", "scmscx.com"),
-            opentelemetry::KeyValue::new("node", "scmscx.com"),
-        ]),
-    ));
+    // builder = builder.with_config(opentelemetry_sdk::trace::Config::default().with_resource(
+    //     opentelemetry_sdk::Resource::new([
+    //         opentelemetry::KeyValue::new("service.name", "scmscx.com"),
+    //         opentelemetry::KeyValue::new("node", "scmscx.com"),
+    //     ]),
+    // ));
 
-    let tracer_provider = builder.build();
-    let tracer = tracer_provider.tracer("scmscx.com");
+    // let tracer_provider = builder.build();
+    // let tracer = tracer_provider.tracer("scmscx.com");
 
     tracing::subscriber::set_global_default(
         tracing_subscriber::registry()
-            .with(
-                tracing_opentelemetry::layer()
-                    .with_tracer(tracer)
-                    .with_filter(tracing_subscriber::EnvFilter::new(
-                        "trace,h2=info,scmscx_com=off,bwmap=off,bwmpq=off",
-                    )),
-            )
+            // .with(
+            //     tracing_opentelemetry::layer()
+            //         .with_tracer(tracer)
+            //         .with_filter(tracing_subscriber::EnvFilter::new(
+            //             "trace,h2=info,scmscx_com=off,bwmap=off,bwmpq=off",
+            //         )),
+            // )
             .with(
                 tracing_subscriber::fmt::layer()
                     .with_span_events(FmtSpan::CLOSE)

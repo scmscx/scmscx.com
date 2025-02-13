@@ -36,5 +36,4 @@ jobs:
       - name: work around Cargo.lock filetime not being updated..?
         run: touch Cargo.lock
 
-      - run: ENABLE_GSFS=0 make update
-      - run: ENABLE_GSFS=0 make ci
+      - run: make ci
