@@ -4,6 +4,7 @@ mod db;
 mod gsfs;
 mod hacks;
 mod middleware;
+mod pumpers;
 mod search2;
 mod static_pages;
 mod tests;

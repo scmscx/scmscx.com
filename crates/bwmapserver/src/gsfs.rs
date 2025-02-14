@@ -12,15 +12,23 @@ async fn read_file_as_stream(
 ) -> Result<impl Stream<Item = Result<Bytes, std::io::Error>>> {
     let mut file = File::open(path).await?;
     Ok(async_stream::stream! {
+        let mut bytes = BytesMut::with_capacity(block_size);
+
         loop {
-            let mut buf = BytesMut::with_capacity(block_size);
-            let len = file.read_buf(&mut buf).await?;
+            let len = file.read_buf(&mut bytes).await?;
 
             if len == 0 {
                 break;
             }
 
-            yield Ok(buf.freeze());
+            if bytes.len() >= block_size {
+                yield Ok(bytes.freeze());
+                bytes = BytesMut::with_capacity(block_size);
+            }
+        }
+
+        if !bytes.is_empty() {
+            yield Ok(bytes.freeze());
         }
     })
 }
