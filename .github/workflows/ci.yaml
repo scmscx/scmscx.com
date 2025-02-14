@@ -38,3 +38,4 @@ jobs:
         run: touch Cargo.lock
 
       - run: make ci
+      - run: make push
