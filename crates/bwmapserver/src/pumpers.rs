@@ -7,9 +7,7 @@ use tokio::io::AsyncReadExt;
 use tracing::{error, info, warn};
 
 pub async fn start_gsfs_pumper(client: reqwest::Client) -> Result<()> {
-    if let Err(e) = tokio::fs::create_dir_all("./pending/gsfs").await {
-        error!("failed to create pending/gsfs directory: {e}");
-    }
+    tokio::fs::create_dir_all("./pending/gsfs").await?;
 
     let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") else {
         warn!("GSFSFE_ENDPOINT is not set, maps will NOT be uploaded to GSFS!!!");
@@ -68,9 +66,7 @@ pub async fn start_gsfs_pumper(client: reqwest::Client) -> Result<()> {
 pub async fn start_backblaze_pumper(client: reqwest::Client) -> Result<()> {
     info!("starting backblaze pumper");
 
-    if let Err(e) = tokio::fs::create_dir_all("./pending/backblaze").await {
-        error!("failed to create pending directory: {e}");
-    }
+    tokio::fs::create_dir_all("./pending/backblaze").await?;
 
     match std::env::var("BACKBLAZE_DISABLED") {
         Ok(v) if v == "true" => {
@@ -116,7 +112,7 @@ pub async fn start_backblaze_pumper(client: reqwest::Client) -> Result<()> {
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
-                let mut entries = match tokio::fs::read_dir("./pending").await {
+                let mut entries = match tokio::fs::read_dir("./pending/backblaze").await {
                     Ok(v) => v,
                     Err(e) => {
                         error!("could not readdir: {e:?}");
@@ -125,12 +121,6 @@ pub async fn start_backblaze_pumper(client: reqwest::Client) -> Result<()> {
                 };
 
                 while let Ok(Some(entry)) = entries.next_entry().await {
-                    if let Ok(filetype) = entry.file_type().await {
-                        if !filetype.is_file() {
-                            continue;
-                        }
-                    }
-
                     let Ok(filename) = entry.file_name().into_string() else {
                         error!("could not stringify filename: {:?}", entry.file_name());
                         continue;
