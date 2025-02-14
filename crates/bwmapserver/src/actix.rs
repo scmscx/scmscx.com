@@ -880,7 +880,7 @@ async fn start_file_pumper(reqwest_client: reqwest::Client) -> Result<()> {
                     info!(name: "gsfs put", sha256, GSFSFE_ENDPOINT = ?std::env::var("GSFSFE_ENDPOINT"));
                     if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
                         match tokio::time::timeout(
-                            Duration::from_secs(2),
+                            Duration::from_secs(15),
                             gsfs_put_mapblob(&reqwest_client, &endpoint, entry.path(), sha256),
                         )
                         .await
