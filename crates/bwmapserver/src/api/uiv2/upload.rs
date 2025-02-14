@@ -56,6 +56,8 @@ async fn upload_map(
     let query = query.into_inner();
 
     tokio::fs::create_dir_all("./tmp").await?;
+    tokio::fs::create_dir_all("./pending/backblaze").await?;
+    tokio::fs::create_dir_all("./pending/gsfs").await?;
 
     let fake_filename = format!("./tmp/{}.scx", uuid::Uuid::new_v4().as_simple());
 
@@ -136,8 +138,18 @@ async fn upload_map(
         ..Default::default()
     };
 
-    info!("renaming");
-    tokio::fs::rename(&fake_filename, format!("./pending/{sha1hash}-{sha256hash}")).await?;
+    info!("copying");
+    tokio::fs::copy(&fake_filename, format!("./pending/gsfs/{sha256hash}")).await?;
+
+    info!("copying");
+    tokio::fs::copy(
+        &fake_filename,
+        format!("./pending/backblaze/{sha1hash}-{sha256hash}"),
+    )
+    .await?;
+
+    info!("removing temp file");
+    tokio::fs::remove_file(&fake_filename).await?;
 
     let map_id = bwcommon::get_web_id_from_db_id(map_id, crate::util::SEED_MAP_ID)?;
 

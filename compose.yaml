@@ -14,6 +14,8 @@ services:
       - "8080:8080"
     build:
       context: .
+    volumes:
+      - /tmp/scmscx.com/pending:/app/pending
     environment:
       DEV_MODE: "true"
       RUST_LOG: info,tarpc=warn

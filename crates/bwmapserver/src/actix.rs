@@ -12,26 +12,19 @@ use bwcommon::insert_extension;
 use bwcommon::{ApiSpecificInfoForLogging, MyError};
 
 use crate::gsfs::gsfs_get_mapblob;
-use crate::gsfs::gsfs_put_mapblob;
+use crate::pumpers::start_backblaze_pumper;
+use crate::pumpers::start_gsfs_pumper;
 use crate::util::is_dev_mode;
 use actix_files::Files;
 use anyhow::Result;
-use async_stream::stream;
-use backblaze::api::b2_get_upload_url;
-use backblaze::api::b2_upload_file;
 use backblaze::api::B2AuthorizeAccount;
 use backblaze::api::{b2_authorize_account, b2_download_file_by_name};
-use bytes::BytesMut;
 use futures::lock::Mutex;
 use handlebars::{DirectorySourceOptions, Handlebars};
 use rand::Rng;
 use rand::SeedableRng;
 use reqwest::Client;
-use reqwest::ClientBuilder;
 use std::collections::HashMap;
-use std::time::Duration;
-use tokio::io::AsyncReadExt;
-use tracing::debug;
 use tracing::{error, info};
 
 #[derive(Clone, Debug, Deserialize)]
@@ -801,165 +794,6 @@ async fn setup_db() -> Result<
     anyhow::Ok(pool)
 }
 
-async fn start_file_pumper(reqwest_client: reqwest::Client) -> Result<()> {
-    let client = ClientBuilder::new().https_only(true).build()?;
-
-    if let Err(e) = tokio::fs::create_dir_all("./pending").await {
-        error!("failed to create pending directory: {e}");
-    }
-
-    tokio::task::spawn(async move {
-        'full_retry: loop {
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-
-            let upload_url = match std::env::var("BACKBLAZE_DISABLED") {
-                Ok(v) if v != "true" => {
-                    let api_info = match b2_authorize_account(
-                        &client,
-                        &std::env::var("BACKBLAZE_KEY_ID").unwrap(),
-                        &std::env::var("BACKBLAZE_APPLICATION_KEY").unwrap(),
-                    )
-                    .await
-                    {
-                        Ok(v) => v,
-                        Err(e) => {
-                            error!("Failed to authorize account: {e}");
-                            continue;
-                        }
-                    };
-
-                    Some(
-                        match b2_get_upload_url(
-                            &client,
-                            &api_info,
-                            &std::env::var("BACKBLAZE_MAPBLOB_BUCKET").unwrap(),
-                        )
-                        .await
-                        {
-                            Ok(upload_info) => upload_info,
-                            Err(e) => {
-                                error!("Failed to get upload url, trying again: {e}");
-                                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                                continue;
-                            }
-                        },
-                    )
-                }
-                _ => None,
-            };
-
-            loop {
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-
-                let mut entries = match tokio::fs::read_dir("./pending").await {
-                    Ok(v) => v,
-                    Err(e) => {
-                        error!("could not readdir: {e:?}");
-                        continue;
-                    }
-                };
-
-                while let Ok(Some(entry)) = entries.next_entry().await {
-                    let Ok(filename) = entry.file_name().into_string() else {
-                        error!("could not stringify filename: {:?}", entry.file_name());
-                        continue;
-                    };
-
-                    info!("attempting to upload file: {filename}");
-
-                    let mut split = filename.split('-');
-                    let Some(sha1) = split.next() else {
-                        error!("could not extract sha1 part: {:?}", filename);
-                        continue;
-                    };
-                    let Some(sha256) = split.next() else {
-                        error!("could not extract sha256 part: {:?}", filename);
-                        continue;
-                    };
-
-                    info!(name: "gsfs put", sha256, GSFSFE_ENDPOINT = ?std::env::var("GSFSFE_ENDPOINT"));
-                    if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
-                        match tokio::time::timeout(
-                            Duration::from_secs(15),
-                            gsfs_put_mapblob(&reqwest_client, &endpoint, entry.path(), sha256),
-                        )
-                        .await
-                        {
-                            Ok(_) => {
-                                info!(name: "successfully put to gsfs", sha256);
-                            }
-                            Err(error) => {
-                                error!(name: "failed to put file to gsfs", %error, sha256);
-                            }
-                        }
-                    } else {
-                        debug!(name: "skipping gsfs upload", sha256);
-                    }
-
-                    let mut file = match tokio::fs::File::open(entry.path()).await {
-                        Ok(v) => v,
-                        Err(e) => {
-                            error!("failed to open file: {e:?}");
-                            continue;
-                        }
-                    };
-
-                    let metadata = match file.metadata().await {
-                        Ok(v) => v,
-                        Err(e) => {
-                            error!("failed to get file metadata: {e:?}");
-                            continue;
-                        }
-                    };
-
-                    let sm = stream! {
-                        loop {
-                            let mut bytes = BytesMut::with_capacity(8 * 1024 * 1024);
-                            let bytes_read = file.read_buf(&mut bytes).await?;
-                            if bytes_read == 0 {
-                                break;
-                            }
-
-                            yield anyhow::Ok(bytes);
-                        }
-                    };
-
-                    if let Some(upload_info) = &upload_url {
-                        match b2_upload_file(
-                            &client,
-                            &upload_info,
-                            sha256,
-                            metadata.len() as usize,
-                            sha1.to_owned(),
-                            sm,
-                        )
-                        .await
-                        {
-                            Ok(_) => {}
-                            Err(e) => {
-                                error!("failed to b2_upload_file: {e}");
-                                continue 'full_retry;
-                            }
-                        }
-                    }
-
-                    info!("Finished uploading file. sha256: {sha256}, sha1: {sha1}");
-
-                    match tokio::fs::remove_file(entry.path()).await {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!("failed to remove file: {e}");
-                            continue;
-                        }
-                    }
-                }
-            }
-        }
-    });
-
-    Ok(())
-}
-
 fn register_handlebars() -> Result<web::Data<Handlebars<'static>>> {
     let mut registry = Handlebars::new();
 
@@ -1063,7 +897,8 @@ pub(crate) async fn start() -> Result<()> {
     // Pump files up to backblaze
     let reqwest_client = reqwest::Client::new();
 
-    start_file_pumper(reqwest_client.clone()).await?;
+    start_gsfs_pumper(reqwest_client.clone()).await?;
+    start_backblaze_pumper(reqwest_client.clone()).await?;
 
     let server = actix_web::HttpServer::new(move || {
         let svc = App::new()

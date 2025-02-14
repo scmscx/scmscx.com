@@ -12,6 +12,8 @@ RUN \
 
 WORKDIR /app
 
+RUN mkdir /app/pending
+
 ENV RUST_LOG=info
 ENV RUST_BACKTRACE=full
 
@@ -24,6 +26,8 @@ ARG PROFILE
 RUN test -n "$PROFILE"
 
 COPY dist/$PROFILE .
+
+VOLUME ["/app/pending"]
 
 ENTRYPOINT ["/app/scmscx-com"]
 # ENTRYPOINT ["heaptrack", "/app/bwmapserver"]
