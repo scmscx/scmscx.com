@@ -31,6 +31,7 @@ use reqwest::ClientBuilder;
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::io::AsyncReadExt;
+use tracing::debug;
 use tracing::{error, info};
 
 #[derive(Clone, Debug, Deserialize)]
@@ -876,6 +877,7 @@ async fn start_file_pumper(reqwest_client: reqwest::Client) -> Result<()> {
                         continue;
                     };
 
+                    info!(name: "gsfs put", sha256, GSFSFE_ENDPOINT = ?std::env::var("GSFSFE_ENDPOINT"));
                     if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
                         match tokio::time::timeout(
                             Duration::from_secs(2),
@@ -883,11 +885,15 @@ async fn start_file_pumper(reqwest_client: reqwest::Client) -> Result<()> {
                         )
                         .await
                         {
-                            Ok(_) => {}
+                            Ok(_) => {
+                                info!(name: "successfully put to gsfs", sha256);
+                            }
                             Err(error) => {
-                                error!(name: "failed to put file to gsfs", %error);
+                                error!(name: "failed to put file to gsfs", %error, sha256);
                             }
                         }
+                    } else {
+                        debug!(name: "skipping gsfs upload", sha256);
                     }
 
                     let mut file = match tokio::fs::File::open(entry.path()).await {
