@@ -284,7 +284,10 @@ export default function (props: any) {
           </span>
         </p>
 
-        <form class={style.uploader} onSubmit={submit}>
+        <h2 class={style.h2} style="color: red; background-color: yellow;">
+          <I18nSpan text="Uploads are disabled while maintenance is being performed. Expected duration 2 hours." />
+        </h2>
+        {/* <form class={style.uploader} onSubmit={submit}>
           <label for="file">
             <I18nSpan text=".scm/.scx file upload" />
           </label>
@@ -300,7 +303,6 @@ export default function (props: any) {
             <I18nSpan text="Upload" />
           </button>
         </form>
-
         <form class={style.uploader} onSubmit={submit}>
           <label for="directory">
             <I18nSpan text="Directory (and sub directories) upload" />
@@ -316,7 +318,8 @@ export default function (props: any) {
           <button class={style.upload} type="submit">
             <I18nSpan text="Upload" />
           </button>
-        </form>
+        </form> */}
+
         <h3 class={style.h3}>
           <I18nSpan text="In Progress" />
         </h3>
@@ -361,6 +364,7 @@ export default function (props: any) {
             </tbody>
           </table>
         </div>
+
         <h3 class={style.h3}>
           <I18nSpan text="Pending" />{" "}
           <Show when={pendingUploads().length > 0}>
