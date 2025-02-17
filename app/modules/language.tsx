@@ -149,6 +149,9 @@ const langmap = {
 
     "Directory (and sub directories) upload":
       "Загрузка каталога (и его подкаталогов)",
+    "Uploads are disabled while maintenance is being performed. Expected duration 2 hours.":
+      "Загрузки отключены, пока проводятся работы. Предполагаемая продолжительность 2 часа.",
+
     "In Progress": "В процессе",
     Progress: "Прогресс",
     Size: "Размер",
@@ -351,6 +354,9 @@ const langmap = {
 
     "Directory (and sub directories) upload":
       "Carga de directorios (y subdirectorios)",
+    "Uploads are disabled while maintenance is being performed. Expected duration 2 hours.":
+      "Las subidas estan desactivadas mientras se realiza mantenimiento. Duración estimada de 2 horas.",
+
     "In Progress": "En progreso",
     Progress: "Progreso",
     Size: "Talla",
@@ -444,6 +450,9 @@ const langmap = {
 
     "Directory (and sub directories) upload":
       "디렉터리(및 하위 디렉터리) 업로드",
+
+    "Uploads are disabled while maintenance is being performed. Expected duration 2 hours.":
+      "업로드은 연구중이기 때까지 불가하고 있습니다. 예상 시간은 2시간입니다.",
 
     "In Progress": "진행 중",
     Pending: "보류 중",
@@ -706,6 +715,9 @@ const langmap = {
     ".scm/.scx file upload": ".scm/.scx 地圖檔案上傳",
 
     "Directory (and sub directories) upload": "資料夾(及其子目錄)上傳",
+
+    "Uploads are disabled while maintenance is being performed. Expected duration 2 hours.":
+      "維護中時上傳功能將被禁用。預計持續時間2小時。",
 
     "In Progress": "進行中",
     Pending: "等待中",

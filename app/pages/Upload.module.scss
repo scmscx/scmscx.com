@@ -8,6 +8,10 @@
   @extend .page-title;
 }
 
+.h2 {
+  @extend .space-font;
+}
+
 .h3 {
   @extend .space-font;
   font-size: 24px;
