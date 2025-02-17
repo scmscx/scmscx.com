@@ -126,6 +126,10 @@ export default function (props: any) {
             </A>
           </Show>
 
+          <h2 class={style.h2} style="color: red; background-color: yellow;">
+            <I18nSpan text="Account operations are disabled while maintenance is being performed. Expected duration 2 hours." />
+          </h2>
+          {/* 
           <h3 class={style.h3}>
             <I18nSpan text="Log out" />
           </h3>
@@ -238,7 +242,7 @@ export default function (props: any) {
             <button class={style.login} type="submit">
               <I18nSpan text="Change Password" />
             </button>
-          </form>
+          </form> */}
         </Show>
       </div>
     </>

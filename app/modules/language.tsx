@@ -151,6 +151,8 @@ const langmap = {
       "Загрузка каталога (и его подкаталогов)",
     "Uploads are disabled while maintenance is being performed. Expected duration 2 hours.":
       "Загрузки отключены, пока проводятся работы. Предполагаемая продолжительность 2 часа.",
+    "Account operations are disabled while maintenance is being performed. Expected duration 2 hours.":
+      "Операции с аккаунтом отключены, пока проводятся работы. Предполагаемая продолжительность 2 часа.",
 
     "In Progress": "В процессе",
     Progress: "Прогресс",
@@ -356,6 +358,8 @@ const langmap = {
       "Carga de directorios (y subdirectorios)",
     "Uploads are disabled while maintenance is being performed. Expected duration 2 hours.":
       "Las subidas estan desactivadas mientras se realiza mantenimiento. Duración estimada de 2 horas.",
+    "Account operations are disabled while maintenance is being performed. Expected duration 2 hours.":
+      "Operaciones de cuenta estan desactivadas mientras se realiza mantenimiento. Duración estimada de 2 horas.",
 
     "In Progress": "En progreso",
     Progress: "Progreso",
@@ -452,6 +456,8 @@ const langmap = {
       "디렉터리(및 하위 디렉터리) 업로드",
 
     "Uploads are disabled while maintenance is being performed. Expected duration 2 hours.":
+      "업로드은 연구중이기 때까지 불가하고 있습니다. 예상 시간은 2시간입니다.",
+    "Account operations are disabled while maintenance is being performed. Expected duration 2 hours.":
       "업로드은 연구중이기 때까지 불가하고 있습니다. 예상 시간은 2시간입니다.",
 
     "In Progress": "진행 중",
@@ -718,6 +724,8 @@ const langmap = {
 
     "Uploads are disabled while maintenance is being performed. Expected duration 2 hours.":
       "維護中時上傳功能將被禁用。預計持續時間2小時。",
+    "Account operations are disabled while maintenance is being performed. Expected duration 2 hours.":
+      "維護中時帳戶操作將被禁用。預計持續時間2小時。",
 
     "In Progress": "進行中",
     Pending: "等待中",

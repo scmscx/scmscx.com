@@ -4,6 +4,10 @@
   @extend .page-title;
 }
 
+.h2 {
+  @extend .space-font;
+}
+
 .form {
   @extend .standard-panel;
   display: block;
