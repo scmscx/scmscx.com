@@ -87,10 +87,14 @@ export default function (props: any) {
   return (
     <>
       <div class={style["vertical-container"]}>
+        <h2 class={style.h2} style="color: red; background-color: yellow;">
+          <I18nSpan text="Account operations are disabled while maintenance is being performed. Expected duration 2 hours." />
+        </h2>
+
         <h1 class={style.h1}>
           <I18nSpan text="Log in" />
         </h1>
-
+        {/* 
         <form
           class={style.form}
           onSubmit={(e) => {
@@ -171,7 +175,7 @@ export default function (props: any) {
           <button class={style.login} type="submit">
             <I18nSpan text="Register" />
           </button>
-        </form>
+        </form> */}
       </div>
     </>
   );
