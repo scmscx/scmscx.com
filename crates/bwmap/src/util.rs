@@ -261,17 +261,17 @@ impl<'a> CursorSlicer<'a> {
             let lower_16_bits = 0_u16;
             let upper_16_bits = 0_u16;
             self.current_offset += 0;
-            upper_16_bits << 8 | lower_16_bits
+            (upper_16_bits << 8) | lower_16_bits
         } else if self.s.len() <= self.current_offset + 1 {
             let lower_16_bits = self.s[self.current_offset] as u16;
             let upper_16_bits = 0_u16;
             self.current_offset += 1;
-            upper_16_bits << 8 | lower_16_bits
+            (upper_16_bits << 8) | lower_16_bits
         } else {
             let lower_16_bits = self.s[self.current_offset] as u16;
             let upper_16_bits = self.s[self.current_offset + 1] as u16;
             self.current_offset += 2;
-            upper_16_bits << 8 | lower_16_bits
+            (upper_16_bits << 8) | lower_16_bits
         }
     }
 

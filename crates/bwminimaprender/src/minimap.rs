@@ -126,7 +126,7 @@ pub fn calculate_perceptual_hash(png: &[u8]) -> Result<[u8; 16 * 16 / 8]> {
         .map(|x| if *x < ph16x16_avg { 0 } else { 1 })
         .collect::<Vec<u8>>()
         .chunks_exact(8)
-        .map(|x| x.iter().fold(0u8, |acc, x| acc << 1 | *x))
+        .map(|x| x.iter().fold(0u8, |acc, x| (acc << 1) | *x))
         .collect();
 
     anyhow::Ok(ph16x16.as_slice().try_into()?)

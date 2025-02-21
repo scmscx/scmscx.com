@@ -23,6 +23,13 @@ pub(crate) fn sanitize_sc_string(s: &str) -> String {
     }
 }
 
+pub fn calculate_hash_of_object(object: impl AsRef<[u8]>) -> String {
+    use sha2::Digest;
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(&object);
+    format!("{:x}", hasher.finalize())
+}
+
 // pub(crate) fn sanitize_sc_scenario_string(s: &str) -> String {
 //     // split string by left or right marks
 

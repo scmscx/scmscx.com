@@ -1,4 +1,7 @@
-use crate::gsfs::gsfs_put_mapblob;
+use crate::{
+    gsfs::{gsfs_put_chkblob, gsfs_put_mapblob},
+    util::calculate_hash_of_object,
+};
 use anyhow::Result;
 use async_stream::stream;
 use backblaze::api::{b2_authorize_account, b2_get_upload_url, b2_upload_file};
@@ -33,19 +36,53 @@ pub async fn start_gsfs_pumper(client: reqwest::Client) -> Result<()> {
                     }
                 }
 
-                let Ok(sha256) = entry.file_name().into_string() else {
+                let Ok(mapblob_hash) = entry.file_name().into_string() else {
                     error!("could not stringify filename: {:?}", entry.file_name());
                     continue;
                 };
 
-                info!("attempting to upload file to gsfs: {sha256}");
-                match gsfs_put_mapblob(&client, &endpoint, entry.path(), &sha256).await {
+                info!("attempting to upload mapblob to gsfs: {mapblob_hash}");
+                match gsfs_put_mapblob(&client, &endpoint, entry.path(), &mapblob_hash).await {
                     Ok(_) => {}
                     Err(err) => {
-                        error!("failed to put file to gsfs: {err}, sha256: {sha256}");
+                        error!(
+                            "failed to put mapblob to gsfs: {err}, mapblob_hash: {mapblob_hash}"
+                        );
                         continue;
                     }
                 }
+
+                let chkblob_hash = {
+                    let path = entry.path().to_path_buf();
+                    let chkblob = match tokio::task::spawn_blocking(move || {
+                        bwmpq::get_chk_from_mpq_filename(&path)
+                    })
+                    .await
+                    {
+                        Ok(Ok(chkblob)) => chkblob,
+                        Ok(Err(error)) => {
+                            error!("failed to parse mpq: {error}");
+                            continue;
+                        }
+                        Err(error) => {
+                            error!("failed to join with task: {error}");
+                            continue;
+                        }
+                    };
+
+                    let chkblob_hash = calculate_hash_of_object(chkblob);
+
+                    info!("attempting to upload chkblob to gsfs: {chkblob_hash}");
+                    match gsfs_put_chkblob(&client, &endpoint, entry.path(), &chkblob_hash).await {
+                        Ok(_) => {}
+                        Err(err) => {
+                            error!("failed to put chkblob to gsfs: {err}, mapblob_hash: {mapblob_hash}, chkblob_hash: {chkblob_hash}");
+                            continue;
+                        }
+                    }
+
+                    chkblob_hash
+                };
 
                 if let Err(e) = tokio::fs::remove_file(entry.path()).await {
                     error!("failed to remove file: {e}");
@@ -53,8 +90,7 @@ pub async fn start_gsfs_pumper(client: reqwest::Client) -> Result<()> {
                 }
 
                 info!(
-                    "Successfully uploaded file to gsfs: {}",
-                    entry.path().display()
+                    "Successfully uploaded file to gsfs: /scmscx.com/mapblob/{mapblob_hash}, /scmscx.com/chkblob/{chkblob_hash}",
                 );
             }
         }
