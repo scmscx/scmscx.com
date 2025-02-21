@@ -88,9 +88,7 @@ dev:
 	npm run dev
 
 deploy:
-	ssh -i~/.ssh/stan -C stan@urmom.zxcv.io sudo podman pull \
-		oni.zxcv.io/scmscx.com
-	ssh -i~/.ssh/stan -C stan@urmom.zxcv.io sudo systemctl restart \
-		container-scmscx.com-S1
+	ssh -i~/.ssh/stan -C root@10.70.23.1 podman pull oni.zxcv.io/scmscx.com
+	ssh -i~/.ssh/stan -C root@10.70.23.1 systemctl restart scmscx.com
 
 .PHONY: .phony check build test fmt clippy ci run run-release push dev deploy
