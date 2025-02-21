@@ -107,17 +107,17 @@ fn encode_base32(bytes: &[u8; 5]) -> String {
 
     #[rustfmt::skip]
     let encoded = String::from_iter([
-        (bytes[0] & 0b11111000) >> 3,
-        (bytes[0] & 0b00000111) << 2 |
-        (bytes[1] & 0b11000000) >> 6,
-        (bytes[1] & 0b00111110) >> 1,
-        (bytes[1] & 0b00000001) << 4 |
-        (bytes[2] & 0b11110000) >> 4,
-        (bytes[2] & 0b00001111) << 1 |
-        (bytes[3] & 0b10000000) >> 7,
-        (bytes[3] & 0b01111100) >> 2,
-        (bytes[3] & 0b00000011) << 3 |
-        (bytes[4] & 0b11100000) >> 5,
+        ((bytes[0] & 0b11111000) >> 3),
+        ((bytes[0] & 0b00000111) << 2) |
+        ((bytes[1] & 0b11000000) >> 6),
+        ((bytes[1] & 0b00111110) >> 1),
+        ((bytes[1] & 0b00000001) << 4) |
+        ((bytes[2] & 0b11110000) >> 4),
+        ((bytes[2] & 0b00001111) << 1) |
+        ((bytes[3] & 0b10000000) >> 7),
+        ((bytes[3] & 0b01111100) >> 2),
+        ((bytes[3] & 0b00000011) << 3) |
+        ((bytes[4] & 0b11100000) >> 5),
         (bytes[4] & 0b00011111),
     ].into_iter().map(|x| CHARACTER_MAP[x as usize]));
 
@@ -170,41 +170,41 @@ fn decode_base32(string: &str) -> Result<[u8; 5]> {
     let chunk = *INVERSE_CHARACTER_MAP
         .get(&iter.next().unwrap())
         .ok_or(anyhow!("invalid character"))?;
-    output[0] |= chunk << 3 & 0b11111000;
+    output[0] |= (chunk << 3) & 0b11111000;
 
     let chunk = *INVERSE_CHARACTER_MAP
         .get(&iter.next().unwrap())
         .ok_or(anyhow!("invalid character"))?;
-    output[0] |= chunk >> 2 & 0b00000111;
-    output[1] |= chunk << 6 & 0b11000000;
+    output[0] |= (chunk >> 2) & 0b00000111;
+    output[1] |= (chunk << 6) & 0b11000000;
 
     let chunk = *INVERSE_CHARACTER_MAP
         .get(&iter.next().unwrap())
         .ok_or(anyhow!("invalid character"))?;
-    output[1] |= chunk << 1 & 0b00111110;
+    output[1] |= (chunk << 1) & 0b00111110;
 
     let chunk = *INVERSE_CHARACTER_MAP
         .get(&iter.next().unwrap())
         .ok_or(anyhow!("invalid character"))?;
-    output[1] |= chunk >> 4 & 0b00000001;
-    output[2] |= chunk << 4 & 0b11110000;
+    output[1] |= (chunk >> 4) & 0b00000001;
+    output[2] |= (chunk << 4) & 0b11110000;
 
     let chunk = *INVERSE_CHARACTER_MAP
         .get(&iter.next().unwrap())
         .ok_or(anyhow!("invalid character"))?;
-    output[2] |= chunk >> 1 & 0b00001111;
-    output[3] |= chunk << 7 & 0b10000000;
+    output[2] |= (chunk >> 1) & 0b00001111;
+    output[3] |= (chunk << 7) & 0b10000000;
 
     let chunk = *INVERSE_CHARACTER_MAP
         .get(&iter.next().unwrap())
         .ok_or(anyhow!("invalid character"))?;
-    output[3] |= chunk << 2 & 0b01111100;
+    output[3] |= (chunk << 2) & 0b01111100;
 
     let chunk = *INVERSE_CHARACTER_MAP
         .get(&iter.next().unwrap())
         .ok_or(anyhow!("invalid character"))?;
-    output[3] |= chunk >> 3 & 0b00000011;
-    output[4] |= chunk << 5 & 0b11100000;
+    output[3] |= (chunk >> 3) & 0b00000011;
+    output[4] |= (chunk << 5) & 0b11100000;
 
     let chunk = *INVERSE_CHARACTER_MAP
         .get(&iter.next().unwrap())

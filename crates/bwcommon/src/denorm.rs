@@ -51,7 +51,7 @@ pub fn calculate_perceptual_hashes(minimap: &Vec<u8>) -> Result<(Vec<u8>, Vec<u8
         .map(|x| if *x < ph8x8_avg { 0 } else { 1 })
         .collect::<Vec<u8>>()
         .chunks_exact(8)
-        .map(|x| x.iter().fold(0u8, |acc, x| acc << 1 | *x))
+        .map(|x| x.iter().fold(0u8, |acc, x| (acc << 1) | *x))
         .collect();
     anyhow::ensure!(ph8x8.len() == 8 * 8 / 8);
 
@@ -60,7 +60,7 @@ pub fn calculate_perceptual_hashes(minimap: &Vec<u8>) -> Result<(Vec<u8>, Vec<u8
         .map(|x| if *x < ph16x16_avg { 0 } else { 1 })
         .collect::<Vec<u8>>()
         .chunks_exact(8)
-        .map(|x| x.iter().fold(0u8, |acc, x| acc << 1 | *x))
+        .map(|x| x.iter().fold(0u8, |acc, x| (acc << 1) | *x))
         .collect();
     anyhow::ensure!(ph16x16.len() == 16 * 16 / 8);
 
@@ -69,7 +69,7 @@ pub fn calculate_perceptual_hashes(minimap: &Vec<u8>) -> Result<(Vec<u8>, Vec<u8
         .map(|x| if *x < ph32x32_avg { 0 } else { 1 })
         .collect::<Vec<u8>>()
         .chunks_exact(8)
-        .map(|x| x.iter().fold(0u8, |acc, x| acc << 1 | *x))
+        .map(|x| x.iter().fold(0u8, |acc, x| (acc << 1) | *x))
         .collect();
     anyhow::ensure!(ph32x32.len() == 32 * 32 / 8);
 
