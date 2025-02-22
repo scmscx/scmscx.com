@@ -42,7 +42,10 @@ async fn gsfs_put(
     anyhow::ensure!(dst.as_ref().starts_with("/"), "dst must start with /");
 
     let response = client
-        .put(format!("{endpoint}/api/fs/scmscx.com{}", dst.as_ref()))
+        .put(format!(
+            "{endpoint}/api/namespace/scmscx.com{}",
+            dst.as_ref()
+        ))
         .body(Body::wrap_stream(src))
         .send()
         .await?;
@@ -66,7 +69,10 @@ async fn gsfs_get(
     anyhow::ensure!(path.as_ref().starts_with("/"), "path must start with /");
 
     let response = client
-        .get(format!("{endpoint}/api/fs/scmscx.com{}", path.as_ref()))
+        .get(format!(
+            "{endpoint}/api/namespace/scmscx.com{}",
+            path.as_ref()
+        ))
         .send()
         .await?;
 
