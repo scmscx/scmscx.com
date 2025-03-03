@@ -1,7 +1,9 @@
 use crate::common::MyError;
 
 use actix_web::HttpMessage;
+use reqwest::StatusCode;
 use serde::Serialize;
+use tokio::time::sleep;
 use tracing::error;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -26,16 +28,15 @@ pub async fn create_mixpanel_channel() -> std::sync::mpsc::Sender<serde_json::Va
     let (tx, rx) = std::sync::mpsc::channel::<serde_json::Value>();
 
     tokio::spawn(async move {
+        let client = reqwest::Client::new();
+
         loop {
-            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+            sleep(std::time::Duration::from_secs(10)).await;
+
             let mut events = Vec::new();
 
             loop {
                 let result = rx.try_recv();
-
-                if events.len() > 1900 {
-                    break;
-                }
 
                 match result {
                     Ok(v) => {
@@ -45,42 +46,62 @@ pub async fn create_mixpanel_channel() -> std::sync::mpsc::Sender<serde_json::Va
                         break;
                     }
                     Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                        return;
+                        if events.is_empty() {
+                            return;
+                        }
                     }
+                }
+
+                if events.len() > 1900 {
+                    break;
                 }
             }
 
             if events.len() > 0 {
                 if std::env::var("MIXPANEL_DISABLED").is_err() {
-                    let ret = reqwest::Client::new()
-                        .post("https://api.mixpanel.com/import")
-                        .basic_auth(
-                            std::env::var("MIXPANEL_ACCOUNT_NAME").unwrap(),
-                            Some(std::env::var("MIXPANEL_API_KEY").unwrap()),
-                        )
-                        .query(&[
-                            ("strict", 1),
-                            (
-                                "project_id",
-                                std::env::var("MIXPANEL_PROJECT_ID")
-                                    .unwrap()
-                                    .parse()
-                                    .unwrap(),
-                            ),
-                        ])
-                        .json(&events)
-                        .send()
-                        .await;
+                    for _ in 0..5 {
+                        let ret = client
+                            .post("https://api.mixpanel.com/import")
+                            .basic_auth(
+                                std::env::var("MIXPANEL_ACCOUNT_NAME").unwrap(),
+                                Some(std::env::var("MIXPANEL_API_KEY").unwrap()),
+                            )
+                            .query(&[
+                                ("strict", 1),
+                                (
+                                    "project_id",
+                                    std::env::var("MIXPANEL_PROJECT_ID")
+                                        .unwrap()
+                                        .parse()
+                                        .unwrap(),
+                                ),
+                            ])
+                            .json(&events)
+                            .send()
+                            .await;
 
-                    if let Err(err) = ret {
-                        error!("error sending stuff to mixpanel: {err:?}");
-                    } else if let Ok(ret) = ret {
-                        if ret.status() != 200 {
-                            error!("error from mixpanel: {}", ret.text().await.unwrap())
+                        match ret {
+                            Ok(ret) => match ret.status() {
+                                StatusCode::OK => {
+                                    break;
+                                }
+                                _ => {
+                                    error!(
+                                        "error from mixpanel. status: {}, body: {}",
+                                        ret.status(),
+                                        ret.text()
+                                            .await
+                                            .unwrap_or("failed to unwrap body".to_string())
+                                    );
+                                    sleep(std::time::Duration::from_secs(5)).await;
+                                }
+                            },
+                            Err(err) => {
+                                error!("error sending stuff to mixpanel: {err:?}");
+                                sleep(std::time::Duration::from_secs(5)).await;
+                            }
                         }
                     }
-
-                    events.clear();
                 }
             }
         }
