@@ -340,7 +340,7 @@ pub(crate) async fn register(
 //         .header
 //         .slots_players
 //         .first()
-//         .ok_or(anyhow::anyhow!("0 player replay..?"))?
+//         .ok_or_else(|| anyhow::anyhow!("0 player replay..?"))?
 //         .player_name
 //         .clone();
 //     let denorm_scenario = parsed_replay.header.name_scenario;
