@@ -169,46 +169,46 @@ fn decode_base32(string: &str) -> Result<[u8; 5]> {
 
     let chunk = *INVERSE_CHARACTER_MAP
         .get(&iter.next().unwrap())
-        .ok_or(anyhow!("invalid character"))?;
+        .ok_or_else(|| anyhow!("invalid character"))?;
     output[0] |= (chunk << 3) & 0b11111000;
 
     let chunk = *INVERSE_CHARACTER_MAP
         .get(&iter.next().unwrap())
-        .ok_or(anyhow!("invalid character"))?;
+        .ok_or_else(|| anyhow!("invalid character"))?;
     output[0] |= (chunk >> 2) & 0b00000111;
     output[1] |= (chunk << 6) & 0b11000000;
 
     let chunk = *INVERSE_CHARACTER_MAP
         .get(&iter.next().unwrap())
-        .ok_or(anyhow!("invalid character"))?;
+        .ok_or_else(|| anyhow!("invalid character"))?;
     output[1] |= (chunk << 1) & 0b00111110;
 
     let chunk = *INVERSE_CHARACTER_MAP
         .get(&iter.next().unwrap())
-        .ok_or(anyhow!("invalid character"))?;
+        .ok_or_else(|| anyhow!("invalid character"))?;
     output[1] |= (chunk >> 4) & 0b00000001;
     output[2] |= (chunk << 4) & 0b11110000;
 
     let chunk = *INVERSE_CHARACTER_MAP
         .get(&iter.next().unwrap())
-        .ok_or(anyhow!("invalid character"))?;
+        .ok_or_else(|| anyhow!("invalid character"))?;
     output[2] |= (chunk >> 1) & 0b00001111;
     output[3] |= (chunk << 7) & 0b10000000;
 
     let chunk = *INVERSE_CHARACTER_MAP
         .get(&iter.next().unwrap())
-        .ok_or(anyhow!("invalid character"))?;
+        .ok_or_else(|| anyhow!("invalid character"))?;
     output[3] |= (chunk << 2) & 0b01111100;
 
     let chunk = *INVERSE_CHARACTER_MAP
         .get(&iter.next().unwrap())
-        .ok_or(anyhow!("invalid character"))?;
+        .ok_or_else(|| anyhow!("invalid character"))?;
     output[3] |= (chunk >> 3) & 0b00000011;
     output[4] |= (chunk << 5) & 0b11100000;
 
     let chunk = *INVERSE_CHARACTER_MAP
         .get(&iter.next().unwrap())
-        .ok_or(anyhow!("invalid character"))?;
+        .ok_or_else(|| anyhow!("invalid character"))?;
     output[4] |= chunk & 0b00011111;
 
     anyhow::Ok(output)

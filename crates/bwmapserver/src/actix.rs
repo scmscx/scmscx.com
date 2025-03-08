@@ -14,12 +14,14 @@ use bwcommon::{ApiSpecificInfoForLogging, MyError};
 use crate::gsfs::gsfs_get_mapblob;
 use crate::pumpers::start_backblaze_pumper;
 use crate::pumpers::start_gsfs_pumper;
+use crate::util::finalize_hash_of_hasher;
 use crate::util::is_dev_mode;
 use actix_files::Files;
 use anyhow::Result;
 use backblaze::api::B2AuthorizeAccount;
 use backblaze::api::{b2_authorize_account, b2_download_file_by_name};
 use futures::lock::Mutex;
+use futures::StreamExt;
 use handlebars::{DirectorySourceOptions, Handlebars};
 use rand::Rng;
 use rand::SeedableRng;
@@ -126,16 +128,27 @@ async fn get_map(
 
     if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
         // TODO: enable this when some confidence has been built.
-        if false {
-            match gsfs_get_mapblob(&reqwest_client, &endpoint, &mapblob_hash).await {
-                Ok(stream) => {
-                    return Ok(insert_extension(HttpResponse::Ok(), info)
-                        .content_type("application/octet-stream")
-                        .streaming(stream))
-                }
-                Err(error) => {
-                    error!(name: "Failed to download from gsfs", %error);
-                }
+        match gsfs_get_mapblob(&reqwest_client, &endpoint, &mapblob_hash).await {
+            Ok(mut stream) => {
+                return Ok(insert_extension(HttpResponse::Ok(), info)
+                    .content_type("application/octet-stream")
+                    .streaming(async_stream::stream! {
+                        use sha2::Digest;
+                        let mut hasher = sha2::Sha256::new();
+
+                        while let Some(chunk) = stream.next().await {
+                            let chunk = chunk?;
+                            hasher.update(&chunk);
+                            yield Result::<_, anyhow::Error>::Ok(chunk);
+                        }
+
+                        if finalize_hash_of_hasher(hasher) != mapblob_hash {
+                            yield Err(anyhow::anyhow!("Hash mismatch"));
+                        }
+                    }));
+            }
+            Err(error) => {
+                error!("Failed to download from gsfs: {}", error);
             }
         }
     }

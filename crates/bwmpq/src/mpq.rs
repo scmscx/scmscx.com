@@ -43,7 +43,7 @@ pub fn get_chk_from_mpq_filename<T: AsRef<Path>>(filename: T) -> Result<Vec<u8>>
         filename
             .as_ref()
             .to_str()
-            .ok_or(anyhow!("Could not convert filename to str"))?,
+            .ok_or_else(|| anyhow!("Could not convert filename to str"))?,
     )?;
 
     let _lock = LOCK.lock().unwrap();

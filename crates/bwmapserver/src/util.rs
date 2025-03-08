@@ -1,5 +1,7 @@
 // use futures::FutureExt;
 
+use sha1::digest;
+
 pub const SEED_MAP_ID: u8 = 97;
 
 pub fn is_dev_mode() -> bool {
@@ -27,6 +29,15 @@ pub fn calculate_hash_of_object(object: impl AsRef<[u8]>) -> String {
     use sha2::Digest;
     let mut hasher = sha2::Sha256::new();
     hasher.update(&object);
+    finalize_hash_of_hasher(hasher)
+}
+
+pub fn finalize_hash_of_hasher<D: digest::Digest + digest::FixedOutput>(hasher: D) -> String
+where
+    <D as digest::OutputSizeUser>::OutputSize: std::ops::Add,
+    <<D as digest::OutputSizeUser>::OutputSize as std::ops::Add>::Output:
+        digest::generic_array::ArrayLength<u8>,
+{
     format!("{:x}", hasher.finalize())
 }
 
