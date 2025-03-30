@@ -46,6 +46,7 @@ export default function (props: any) {
                 <option value="zh">中文</option>
                 <option value="es">Español</option>
                 <option value="ru">Русский</option>
+                <option value="fr">Français</option>
               </select>
             </div>
         </nav >
