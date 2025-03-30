@@ -852,7 +852,7 @@ const langmap = {
     // Home Page
     "Welcome to scmscx.com": "Bienvenue sur scmscx.com",
     "The largest StarCraft: Brood War map database in the universe":
-      "La plus grand base de données de carte pour StarCraft: Brood-War de l'univers",
+      "La plus grand base de données de cartes pour StarCraft: Brood-War de l'univers",
 
     "Recently Viewed Maps": "Cartes Vues Récement",
     "Recently Downloaded Maps": "Cartes Téléchargées Récement",
