@@ -841,6 +841,212 @@ const langmap = {
     "Confirm Password": "確認密碼",
     Register: "註冊",
   },
+  fr: {
+    // Navbar
+    Home: "Accueil",
+    Search: "Rechercher",
+    Upload: "Téléverser",
+    About: "À propos",
+    "Log in": "Connexion",
+
+    // Home Page
+    "Welcome to scmscx.com": "Bienvenue sur scmscx.com",
+    "The largest StarCraft: Brood War map database in the universe":
+      "La plus grand base de données de cartes pour StarCraft: Brood-War de l'univers",
+
+    "Recently Viewed Maps": "Cartes Vues Récement",
+    "Recently Downloaded Maps": "Cartes Téléchargées Récement",
+    "Recently Uploaded Maps": "Cartes Téléversées Récement",
+    "Featured Maps": "Cartes Vedettes",
+
+    // Search
+    Query: "Requête",
+    Random: "Aléatoire",
+
+    Targets: "Cible",
+    Filters: "Filtes",
+    Sorting: "Trier",
+    Results: "Résultats",
+
+    Scenario: "Scénario",
+    "Last Modified": "Dernière Modification",
+    "Time Uploaded": "Téléversée le",
+
+    Units: "Unités",
+    Forces: "Forces",
+    Filenames: "Nom de Fichier",
+    Scenarios: "Scénarios",
+    "Scenario Descriptions": "Description du Scénario",
+
+    "Minimum Map Width": "Largeur Minimum de la Carte",
+    "Maximum Map Width": "Largeur Maximum de la Carte",
+
+    "Minimum Map Height": "Hauteur Minimum de la Carte",
+    "Maximum Map Height": "Hauteur Maximum de la Carte",
+
+    "Minimum Human Players": "Minimum de Joueurs Humain",
+    "Maximum Human Players": "Maximum de Joueurs Humain",
+
+    "Minimum Computer Players": "Minimum de Joueurs Ordinateur",
+    "Maximum Computer Players": "Maximum de Joueurs Ordinateur",
+
+    "Last Modified After": "Modifiée Après le",
+    "Last Modified Before": "Modifiée Avant le",
+    "Time Uploaded After": "Téléversée Après le",
+    "Time Uploaded Before": "Téléversée Avant le",
+
+    Badlands: "Désertique",
+    Space: "Plate-Forme Spatiale",
+    Installation: "Installation",
+    Ashworld: "Monde de Cendres",
+    Jungle: "Monde de Jungle",
+    Desert: "Désert",
+    Ice: "Glace",
+    Twilight: "Ombre",
+
+    Relevancy: "Релевантность",
+    "Last Modified (Oldest First)":
+      "Dernières Modification (Plus Ancien au Plus Récent)",
+    "Last Modified (Newest First)": "Dernière Modification (Plus Récent au Plus Ancien)",
+    "Time Uploaded (Oldest First)": "Date de Téléversement (Plus Ancien au Plus Récent)",
+    "Time Uploaded (Newest First)": "Date de Téléversement (Plus Récent au Plus Ancien)",
+
+    // Map page
+    Download: "Télécharger",
+    Minimap: "Mini-Carte",
+
+    "Scenario Properties": "Propriétés du Scénario",
+    Version: "Version",
+    Tileset: "Palette",
+    Dimensions: "Dimensions",
+    Locations: "Zones",
+    Doodads: "Doodads",
+    Sprites: "Sprites",
+    Triggers: "Déclencheurs",
+    "Briefing Triggers": "Déclencheurs de Briefing",
+
+    Replays: "Replays",
+    Duration: "Durée",
+    "Time Recorded": "Temps Enregistré",
+    Creator: "Créateur",
+
+    "Known Filenames": "Noms de Fichiers Connus",
+    Filename: "Nom de Fichier",
+
+    "Known Timestamps": "Horodatages Connus",
+    "Last Modified Time": "Dernière Modification",
+
+    Unit: "Unité",
+    Name: "Nom",
+
+    "Similar Maps": "Cartes Similaires",
+
+    Flags: "Drapeaux",
+    Unfinished: "Inachevée",
+    Outdated: "Obsolète",
+    Broken: "Dysfonctionnelle",
+    "Black Holed": "Jetée dans un Trou Noir",
+    "Spoiler Unit Names": "Noms d'Unités Divulgâchent",
+
+    Key: "Clef",
+    Value: "Valeur",
+
+    Tags: "Étiquettes",
+
+    "MPQ Hash": "Hash MPQ",
+    "MPQ Size": "Taille MPQ",
+    "CHK Hash": "Hash CHK",
+    "CHK Size": "Taille CHK",
+    "Uploaded by": "Téléversée par",
+    "Uploaded On": "Téléversée le",
+    "Last Viewed": "Dernière Vue",
+    "Last Downloaded": "Dernier Téléchargement",
+    Views: "Vues",
+    Downloads: "Téléchargements",
+
+    // Upload
+    "If you want to upload one or more .scm/.scx files, then choose the top file picker.":
+      "Si vous désirez téléverser un ou plusieurs fichiers .scm/.scx, utilisez le sélecteur de fichiers supérieur.",
+
+    "If you want to upload entire directories and their sub directories, then choose the bottom file picker.":
+      "Si vous désirez téléverser récursivement tout un répertoire, utilisez le sélecteur de fichiers inféreur.",
+
+    "Don't worry about corrupt, broken, unfinished, testing, duplicate, or outdated maps. The website will handle all of this and many of them are important parts of StarCraft map making history. Even uploading the exact same maps multiple times is no concern. So, upload everything you have and let the site do the filtering and processing.":
+      "Ne vous préoccupez pas des cartes corrompues, cassées, inachevées, dupliquées ou obsolètes. Le site se chargera de tout, et nombre d'entre elles sont une part importante de l'histoire de la création de cartes pour StarCraft. Même téléverser plusieurs fois la même carte n'est pas un problème. Donc, téléversez tout ce dont vous disposez et laissez au site le filtrage et le traitement.",
+
+    "Try uploading your entire StarCraft map directory, it can commonly be found at:":
+      "Essez de téléverser l'ensemble du répertoire de cartes de StarCraft, il peut généralement être trouvé à :",
+
+    ".scm/.scx file upload": "Téléversement de fichier .scm/.scx",
+
+    "Directory (and sub directories) upload":
+      "Téléversement de répertoire (et sous-répertoires)",
+    "Uploads are disabled while maintenance is being performed. Expected duration 2 hours.":
+      "Les téléversements sont désactivés lors d'une maintenance. Temps estimé de deux heures.",
+    "Account operations are disabled while maintenance is being performed. Expected duration 2 hours.":
+      "Les modifications de comptes sont désactivées lors d'une maintenance. Temps éstimé de deux heures.",
+
+    "In Progress": "En cour",
+    Progress: "Progès",
+    Size: "Taille",
+    Pending: "En attente",
+    Failed: "Échoué(s)",
+    "Retry All": "Tout réessayer",
+    Retry: "Réessayer",
+    Reason: "Raison",
+    Completed: "Complété(s)",
+    Link: "Lien",
+
+    // About Page
+    "Frequently Asked Questions": "Foire aux Questions",
+    "What is this website?": "Qu'est-ce-que ce site ?",
+    "Why does this website exist?": "Pourquoi ce site existe ?",
+    "What does scmscx.com mean?": "Que signifie scmscx.com ?",
+    "Why do we need another map database website?":
+      "Pourquoi avons-nous besoin d'une autre base de données de cartes ?",
+
+    "How do I play the maps after I have downloaded from here?":
+      "Comment jouer avec les cartes après les avoir téléchargé ?",
+
+    "How many maps does the database have?": "De combien de cartes la base de données dispose t'elle?",
+
+    "Can I contribute maps to the database?":
+      "Puis-je ajouter une carte à la base de données ?",
+
+    "How is this website made? What is the technology behind it?":
+      "Comment ce site est conçu ? Quelle technologie cache t'il ?",
+
+    "Can I link directly to map downloads or minimap previews?":
+      "Puis-je pointer directement vers une carte ou un aperçu de mini-carte ?",
+
+    "I found a bug. How do I report it?":
+      "J'ai trouvé un bogue. Comment le remonter ?",
+
+    "How can I contact you?": "Comment vous contacter ?",
+
+    "Can I make a donation, how much does this site cost to run?":
+      "Puis-je faire un don ? Combien le fonctionnement du site coûte t'il?",
+
+    "Credit and Thanks": "Crédits et Remercements",
+
+    Devlog: "Journal de Développement",
+
+    // User page
+    "Log out": "Déconnexion",
+    "Change Username": "Changer d'Identifiant",
+    "New Username": "Nouvel Identifiant",
+    "Confirm New Username": "Confirmer le Nouvel Identifiant",
+    "Current Password": "Mot de Passe Actuel",
+    "Change Password": "Changer de Mot de Passe",
+    "New Password": "Nouveau Mot de Passe",
+    "Confirm New Password": "Confirmer le Nouveau Mot de Passe",
+
+    // Log In page
+    Username: "Identifiant",
+    Password: "Mot de Passe",
+    Register: "S'enregistrer",
+    "Confirm Password": "Confirmer le Mot de Passe",
+  },
 };
 
 const i18n_internal = (langcode: string, str: string) => {
