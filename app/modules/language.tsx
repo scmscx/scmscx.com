@@ -895,14 +895,14 @@ const langmap = {
     "Time Uploaded After": "Téléversée Après le",
     "Time Uploaded Before": "Téléversée Avant le",
 
-    Badlands: "Désertique",
-    Space: "Plate-Forme Spatiale",
+    Badlands: "Marais",
+    Space: "Espace",
     Installation: "Installation",
-    Ashworld: "Monde de Cendres",
-    Jungle: "Monde de Jungle",
+    Ashworld: "Cendres",
+    Jungle: "Jungle",
     Desert: "Désert",
     Ice: "Glace",
-    Twilight: "Ombre",
+    Twilight: "Pénombre",
 
     Relevancy: "Pertinence",
     "Last Modified (Oldest First)":
@@ -913,11 +913,11 @@ const langmap = {
 
     // Map page
     Download: "Télécharger",
-    Minimap: "Mini-Carte",
+    Minimap: "Minicarte",
 
     "Scenario Properties": "Propriétés du Scénario",
     Version: "Version",
-    Tileset: "Palette",
+    Tileset: "Environnement",
     Dimensions: "Dimensions",
     Locations: "Zones",
     Doodads: "Doodads",
@@ -1017,7 +1017,7 @@ const langmap = {
       "Comment ce site est conçu ? Quelle technologie cache t'il ?",
 
     "Can I link directly to map downloads or minimap previews?":
-      "Puis-je pointer directement vers une carte ou un aperçu de mini-carte ?",
+      "Puis-je pointer directement vers une carte ou un aperçu de minicarte ?",
 
     "I found a bug. How do I report it?":
       "J'ai trouvé un bogue. Comment le remonter ?",
