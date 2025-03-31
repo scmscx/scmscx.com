@@ -904,7 +904,7 @@ const langmap = {
     Ice: "Glace",
     Twilight: "Ombre",
 
-    Relevancy: "Релевантность",
+    Relevancy: "Pertinence",
     "Last Modified (Oldest First)":
       "Dernières Modification (Plus Ancien au Plus Récent)",
     "Last Modified (Newest First)": "Dernière Modification (Plus Récent au Plus Ancien)",
