@@ -27,6 +27,7 @@ use rand::Rng;
 use rand::SeedableRng;
 use reqwest::Client;
 use std::collections::HashMap;
+use tokio::io::AsyncWriteExt;
 use tracing::{error, info};
 
 #[derive(Clone, Debug, Deserialize)]
@@ -170,10 +171,44 @@ async fn get_map(
                 error!("Failed to download from backblaze: {}", e);
                 bad_version = Some(version);
             }
-            Ok(stream) => {
+            Ok(mut stream) => {
+                tokio::fs::create_dir_all("./pending/downloading").await?;
+
+                let temp_filename = format!(
+                    "./pending/downloading/{}.scx",
+                    uuid::Uuid::new_v4().as_simple()
+                );
+                let mut temp_file = tokio::fs::File::create_new(&temp_filename).await;
+
                 return Ok(insert_extension(HttpResponse::Ok(), info)
                     .content_type("application/octet-stream")
-                    .streaming(stream));
+                    .streaming(async_stream::stream! {
+                        use sha2::Digest;
+                        let mut hasher = sha2::Sha256::new();
+
+                        while let Some(chunk) = stream.next().await {
+                            let chunk = chunk?;
+                            if let Ok(temp) = &mut temp_file {
+                                if let Err(e) = temp.write_all(&chunk).await {
+                                    error!("Failed to write to temp file: {e}, temp_filename: {temp_filename}");
+                                    temp_file = Err(std::io::Error::from(std::io::ErrorKind::Other));
+                                } else {
+                                    hasher.update(&chunk);
+                                }
+                            }
+                            yield Result::<_, anyhow::Error>::Ok(chunk);
+                        }
+
+                        if finalize_hash_of_hasher(hasher) == mapblob_hash {
+                            if let Err(e) = tokio::fs::rename(&temp_filename, format!("./pending/gsfs/{mapblob_hash}.scx")).await {
+                                error!("Failed to rename temp file: {e}, temp_filename: {temp_filename}");
+                            }
+                        } else {
+                            if let Err(e) = tokio::fs::remove_file(&temp_filename).await {
+                                error!("Failed to remove temp file: {e}, temp_filename: {temp_filename}");
+                            }
+                        }
+                    }));
             }
         }
 
