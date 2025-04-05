@@ -396,21 +396,17 @@ async fn update_chkdenorm(
         let scenario_string = if *x.scenario_name_string_number == 0 {
             None
         } else {
-            if let Ok(s) = parsed_chk.get_string(*x.scenario_name_string_number as usize) {
-                Some(s)
-            } else {
-                None
-            }
+            parsed_chk
+                .get_string(*x.scenario_name_string_number as usize)
+                .ok()
         };
 
         let scenario_description_string = if *x.description_string_number == 0 {
             None
         } else {
-            if let Ok(s) = parsed_chk.get_string(*x.description_string_number as usize) {
-                Some(s)
-            } else {
-                None
-            }
+            parsed_chk
+                .get_string(*x.description_string_number as usize)
+                .ok()
         };
 
         (scenario_string, scenario_description_string)
