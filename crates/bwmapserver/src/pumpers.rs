@@ -41,6 +41,8 @@ pub async fn start_gsfs_pumper(client: reqwest::Client) -> Result<()> {
                     continue;
                 };
 
+                let mapblob_hash = mapblob_hash.replace(".scx", "");
+
                 info!("attempting to upload mapblob to gsfs: {mapblob_hash}");
                 match gsfs_put_mapblob(&client, &endpoint, entry.path(), &mapblob_hash).await {
                     Ok(_) => {}

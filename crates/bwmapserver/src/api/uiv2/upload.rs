@@ -139,7 +139,7 @@ async fn upload_map(
     };
 
     info!("copying");
-    tokio::fs::copy(&fake_filename, format!("./pending/gsfs/{sha256hash}")).await?;
+    tokio::fs::copy(&fake_filename, format!("./pending/gsfs/{sha256hash}.scx")).await?;
 
     info!("copying");
     tokio::fs::copy(
