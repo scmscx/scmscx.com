@@ -9,6 +9,8 @@ pub mod units;
 pub mod upload;
 
 use crate::db;
+use crate::gsfs::gsfs_get_minimap;
+use crate::gsfs::gsfs_put_minimap;
 use crate::middleware::UserSession;
 use actix_web::post;
 use actix_web::HttpMessage;
@@ -20,6 +22,8 @@ use bwcommon::ApiSpecificInfoForLogging;
 use bwcommon::MyError;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use tracing::error;
+use tracing::info;
 use tracing::instrument;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -275,6 +279,7 @@ async fn get_minimap(
             bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
         >,
     >,
+    reqwest_client: web::Data<reqwest::Client>,
 ) -> Result<impl Responder, bwcommon::MyError> {
     let (map_id,) = path.into_inner();
 
@@ -284,7 +289,7 @@ async fn get_minimap(
         bwcommon::get_db_id_from_web_id(&map_id, crate::util::SEED_MAP_ID)?
     };
 
-    let (chkhash, uploaded_by, nsfw, blackholed) = {
+    let (chkblob_hash, uploaded_by, nsfw, blackholed) = {
         let con = pool.get().await?;
         let row = con
             .query_one(
@@ -319,13 +324,55 @@ async fn get_minimap(
         return Ok(HttpResponse::NotFound().finish().customize());
     }
 
-    let minimap = db::get_minimap(chkhash.clone(), (**pool).clone()).await?.2;
-
     let info = ApiSpecificInfoForLogging {
         map_id: Some(map_id),
-        chk_hash: Some(chkhash),
+        chk_hash: Some(chkblob_hash.clone()),
         ..Default::default()
     };
+
+    if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            gsfs_get_minimap(&reqwest_client, &endpoint, chkblob_hash.as_str()),
+        )
+        .await
+        {
+            Ok(Ok(stream)) => {
+                return Ok(insert_extension(HttpResponse::Ok(), info)
+                    .content_type("application/octet-stream")
+                    .streaming(stream)
+                    .customize());
+            }
+            Ok(Err(error)) => {
+                error!("Failed to get minimap from gsfs: {}", error);
+            }
+            Err(e) => {
+                error!("Timed out trying to get minimap from gsfs: {}", e);
+            }
+        }
+    }
+
+    let minimap = db::get_minimap(chkblob_hash.clone(), (**pool).clone())
+        .await?
+        .2;
+
+    if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
+        tokio::task::spawn({
+            let minimap = minimap.clone();
+            async move {
+                match gsfs_put_minimap(&reqwest_client, &endpoint, chkblob_hash.as_str(), minimap)
+                    .await
+                {
+                    Ok(()) => {
+                        info!("Successfully uploaded minimap to gsfs");
+                    }
+                    Err(error) => {
+                        error!("Failed to get minimap from gsfs: {}", error);
+                    }
+                }
+            }
+        });
+    }
 
     Ok(insert_extension(HttpResponse::Ok(), info)
         .content_type("image/png")
