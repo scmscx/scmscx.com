@@ -6,6 +6,17 @@ use std::path::Path;
 use tokio::{fs::File, io::AsyncReadExt};
 use tracing::error;
 
+fn read_vec_as_stream(
+    slice: Vec<u8>,
+    block_size: usize,
+) -> impl Stream<Item = Result<Bytes, std::io::Error>> + 'static {
+    async_stream::stream! {
+        for s in slice.chunks(block_size) {
+            yield Ok(Bytes::copy_from_slice(s));
+        }
+    }
+}
+
 async fn read_file_as_stream(
     path: impl AsRef<Path>,
     block_size: usize,
@@ -108,6 +119,29 @@ pub async fn gsfs_get_mapblob(
     mapblob_hash: &str,
 ) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
     gsfs_get(client, endpoint, format!("/mapblob/{mapblob_hash}")).await
+}
+
+pub async fn gsfs_put_minimap(
+    client: &Client,
+    endpoint: &str,
+    chkblob_hash: &str,
+    chkblob_data: Vec<u8>,
+) -> Result<()> {
+    gsfs_put(
+        client,
+        endpoint,
+        read_vec_as_stream(chkblob_data, 1024 * 1024),
+        format!("/minimap/{chkblob_hash}"),
+    )
+    .await
+}
+
+pub async fn gsfs_get_minimap(
+    client: &Client,
+    endpoint: &str,
+    chkblob_hash: &str,
+) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
+    gsfs_get(client, endpoint, format!("/minimap/{chkblob_hash}")).await
 }
 
 pub async fn gsfs_put_chkblob(

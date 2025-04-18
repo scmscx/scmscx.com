@@ -128,7 +128,6 @@ async fn get_map(
     let mut bad_version = None;
 
     if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
-        // TODO: enable this when some confidence has been built.
         match gsfs_get_mapblob(&reqwest_client, &endpoint, &mapblob_hash).await {
             Ok(mut stream) => {
                 return Ok(insert_extension(HttpResponse::Ok(), info)
