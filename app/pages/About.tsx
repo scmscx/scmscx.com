@@ -253,8 +253,10 @@ export default function (props: any) {
           </a>
           , for the Russian translations.
         </p>
+        <p class={style.p}>Zergy, for the French translations.</p>
+        <p class={style.p}>NudeRaider, for the German translations.</p>
 
-        <h2 class={style.h2}>
+        {/* <h2 class={style.h2}>
           <I18nSpan text="Devlog" />
         </h2>
 
@@ -475,7 +477,7 @@ export default function (props: any) {
         <p class={style.p}>
           Launched the website under the domain name bounding.net at 11:23pm
           PST. This was version 1.0.
-        </p>
+        </p> */}
       </div>
     </>
   );

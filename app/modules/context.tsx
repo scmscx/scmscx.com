@@ -37,6 +37,10 @@ export function LangProvider(props: any) {
         case "fr":
           preferredLanguage = "fr";
           break;
+
+        case "de":
+          preferredLanguage = "de";
+          break;
       }
     }
   }

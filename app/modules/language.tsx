@@ -9,6 +9,14 @@ interface LangMap2 {
 }
 
 const langmap = {
+  en: {
+    "Search-formaction": "Search",
+
+    // Log in page
+    "Log in-formaction": "Log in",
+    "Register-formaction": "Register",
+  },
+
   ru: {
     // Navbar
     Home: "Главная",
@@ -28,6 +36,7 @@ const langmap = {
     "Featured Maps": "Популярные карты",
 
     // Search
+    "Search-formaction": "Поиск",
     Query: "Поиск",
     Random: "Случайная карта",
 
@@ -214,6 +223,8 @@ const langmap = {
     Password: "Пароль",
     Register: "Регистрация",
     "Confirm Password": "Подтвердите пароль",
+    "Log in-formaction": "Вход",
+    "Register-formaction": "Регистрация",
   },
   es: {
     // Navbar
@@ -234,6 +245,7 @@ const langmap = {
     "Featured Maps": "Mapas destacados",
 
     // Search
+    "Search-formaction": "Buscar",
     Query: "Busque",
     Random: "Aleatorio",
 
@@ -422,6 +434,8 @@ const langmap = {
     Password: "Contraseña",
     Register: "Registrar",
     "Confirm Password": "Confirmar contraseña",
+    "Log in-formaction": "Iniciar sesión",
+    "Register-formaction": "Registrar",
   },
   ko: {
     // Navbar
@@ -580,6 +594,7 @@ const langmap = {
     Downloads: "다운로드",
 
     // Search Page
+    "Search-formaction": "검색",
     Targets: "대상",
     Filters: "필터",
     Query: "질문",
@@ -624,6 +639,8 @@ const langmap = {
     Password: "비밀번호",
     "Confirm Password": "비밀번호 확인",
     Register: "등록",
+    "Log in-formaction": "로그인",
+    "Register-formaction": "등록",
 
     // User page
     "New Username": "새 사용자 이름",
@@ -645,6 +662,7 @@ const langmap = {
     "Log in": "登入",
 
     // Search
+    "Search-formaction": "搜索",
     Query: "查詢",
     Random: "隨機",
     Targets: "目標",
@@ -840,6 +858,8 @@ const langmap = {
     Password: "密碼",
     "Confirm Password": "確認密碼",
     Register: "註冊",
+    "Log in-formaction": "登入",
+    "Register-formaction": "註冊",
   },
   fr: {
     // Navbar
@@ -860,6 +880,7 @@ const langmap = {
     "Featured Maps": "Cartes Vedettes",
 
     // Search
+    "Search-formaction": "Rechercher",
     Query: "Requête",
     Random: "Aléatoire",
 
@@ -907,9 +928,12 @@ const langmap = {
     Relevancy: "Pertinence",
     "Last Modified (Oldest First)":
       "Dernières Modification (Plus Ancien au Plus Récent)",
-    "Last Modified (Newest First)": "Dernière Modification (Plus Récent au Plus Ancien)",
-    "Time Uploaded (Oldest First)": "Date de Téléversement (Plus Ancien au Plus Récent)",
-    "Time Uploaded (Newest First)": "Date de Téléversement (Plus Récent au Plus Ancien)",
+    "Last Modified (Newest First)":
+      "Dernière Modification (Plus Récent au Plus Ancien)",
+    "Time Uploaded (Oldest First)":
+      "Date de Téléversement (Plus Ancien au Plus Récent)",
+    "Time Uploaded (Newest First)":
+      "Date de Téléversement (Plus Récent au Plus Ancien)",
 
     // Map page
     Download: "Télécharger",
@@ -1008,7 +1032,8 @@ const langmap = {
     "How do I play the maps after I have downloaded from here?":
       "Comment jouer avec les cartes après les avoir téléchargé ?",
 
-    "How many maps does the database have?": "De combien de cartes la base de données dispose t'elle?",
+    "How many maps does the database have?":
+      "De combien de cartes la base de données dispose t'elle?",
 
     "Can I contribute maps to the database?":
       "Puis-je ajouter une carte à la base de données ?",
@@ -1046,13 +1071,222 @@ const langmap = {
     Password: "Mot de Passe",
     Register: "S'enregistrer",
     "Confirm Password": "Confirmer le Mot de Passe",
+    "Log in-formaction": "Connexion",
+    "Register-formaction": "S'enregistrer",
+  },
+  de: {
+    // Navbar
+    Home: "Startseite",
+    Search: "Suche",
+    Upload: "Hochladen",
+    About: "Über",
+    "Log in": "Anmeldung",
+
+    // Home Page
+    "Welcome to scmscx.com": "Willkommen zu scmscx.com",
+    "The largest StarCraft: Brood War map database in the universe":
+      "Die größte Datenbank für StarCraft: Brood-War Karten des Universums",
+
+    "Recently Viewed Maps": "Kürzlich angeschaute Karten",
+    "Recently Downloaded Maps": "Kürzlich heruntergeladene Karten",
+    "Recently Uploaded Maps": "Kürzlich hochgeladene Karten",
+    "Featured Maps": "Präsentierte Karten",
+
+    // Search
+    "Search-formaction": "Suchen",
+    Query: "Suchbegriff(e)",
+    Random: "Zufallskarte",
+
+    Targets: "Suche in",
+    Filters: "Filter",
+    Sorting: "Sortierung",
+    Results: "Suchergebnisse",
+
+    Scenario: "Szenario",
+    "Last Modified": "Änderungsdatum",
+    "Time Uploaded": "Hochgeladen",
+
+    Units: "Einheiten",
+    Forces: "Gruppierungen",
+    Filenames: "Dateiname",
+    Scenarios: "Szenarioname",
+    "Scenario Descriptions": "Szenariobeschreibung",
+
+    "Minimum Map Width": "Minimale Szenario-Breite",
+    "Maximum Map Width": "Maximale Szenario-Breite",
+
+    "Minimum Map Height": "Minimale Szenario-Höhe",
+    "Maximum Map Height": "Minimale Szenario-Breite",
+
+    "Minimum Human Players": "Mindestanzahl menschliche Spieler",
+    "Maximum Human Players": "Maximalanzahl menschliche Spieler",
+
+    "Minimum Computer Players": "Mindestanzahl Computerspieler",
+    "Maximum Computer Players": "Maximalanzahl Computerspieler",
+
+    "Last Modified After": "Änderungsdatum nach",
+    "Last Modified Before": "Änderungsdatum vor",
+    "Time Uploaded After": "Hochgeladen nach",
+    "Time Uploaded Before": "Hochgeladen vor",
+
+    Badlands: "Ödland",
+    Space: "Weltraum-Plattform",
+    Installation: "Installation",
+    Ashworld: "Aschewelt",
+    Jungle: "Dschungelwelt",
+    Desert: "Wüste",
+    Ice: "Eis",
+    Twilight: "Zwielicht",
+
+    Relevancy: "Relevanz",
+    "Last Modified (Oldest First)": "Änderungsdatum (Älteste zuerst)",
+    "Last Modified (Newest First)": "Änderungsdatum (Neueste zuerst)",
+    "Time Uploaded (Oldest First)": "Hochgeladen (Älteste zuerst)",
+    "Time Uploaded (Newest First)": "Hochgeladen (Neueste zuerst)",
+
+    // Map page
+    Download: "Download",
+    Minimap: "Minikarten-Vorschau",
+
+    "Scenario Properties": "Szenario-Eigenschaften",
+    Version: "Version",
+    Tileset: "Grafiksatz",
+    Dimensions: "Größe",
+    Locations: "Regionen",
+    Doodads: "Gegenstände",
+    Sprites: "Sprites",
+    Triggers: "Auslöser",
+    "Briefing Triggers": "Auslöser bei Missionsbeschreibung",
+
+    Replays: "Replays",
+    Duration: "Dauer",
+    "Time Recorded": "Aufnahmedatum",
+    Creator: "Ersteller",
+
+    "Known Filenames": "Bekannte Dateinamen",
+    Filename: "Dateiname",
+
+    "Known Timestamps": "Bekannte Zeitstempel",
+    "Last Modified Time": "Änderungsdatum",
+
+    Unit: "Einheit",
+    Name: "Name",
+
+    "Similar Maps": "Ähnliche Karten",
+
+    Flags: "Flags",
+    Unfinished: "Unfertig",
+    Outdated: "Veraltet",
+    Broken: "Kaputt",
+    "Black Holed": "Ins schwarze Loch geworfen (gelöscht)",
+    "Spoiler Unit Names": "Einheitennamen versteckt (keine Spoiler)",
+
+    Key: "Schlüssel",
+    Value: "Wert",
+
+    Tags: "Tags",
+
+    "MPQ Hash": "MPQ Hash",
+    "MPQ Size": "MPQ Größe",
+    "CHK Hash": "CHK Hash",
+    "CHK Size": "CHK Größe",
+    "Uploaded by": "Hochgeladen von",
+    "Uploaded On": "Hochgeladen am",
+    "Last Viewed": "Zuletzt angesehen",
+    "Last Downloaded": "Zuletzt heruntergeladen",
+    Views: "Aufrufe",
+    Downloads: "Downloads",
+
+    // Upload
+    "If you want to upload one or more .scm/.scx files, then choose the top file picker.":
+      "Wenn Du eine oder mehrere .scm/.scx-Dateien hochladen möchtest, wähle den oberen Dateiauswahl-Button.",
+
+    "If you want to upload entire directories and their sub directories, then choose the bottom file picker.":
+      "Wenn Du gesamte Verzeichnisse und deren Unterverzeichnisse hochladen möchtest, wähle den unteren Dateiauswahl-Button.",
+
+    "Don't worry about corrupt, broken, unfinished, testing, duplicate, or outdated maps. The website will handle all of this and many of them are important parts of StarCraft map making history. Even uploading the exact same maps multiple times is no concern. So, upload everything you have and let the site do the filtering and processing.":
+      "Mach Dir keine Sorgen über korrupte, defekte, unfertige, doppelte, veraltete oder Test-Karten. Die Webseite wird sich um all das kümmern, und vieles davon ist wichtiger Teil der Geschichte des StarCraft-Kartenerstellens. Selbst das mehrfache Hochladen derselben Karten ist kein Problem. Lade also alles hoch, was Du hast, und lass die Seite die Filterung und Verarbeitung übernehmen.",
+
+    "Try uploading your entire StarCraft map directory, it can commonly be found at:":
+      "Versuche, dein gesamtes StarCraft-Kartenverzeichnis hochzuladen. Es befindet sich normalerweise unter:",
+
+    ".scm/.scx file upload": ".scm/.scx-Dateien hochladen",
+
+    "Directory (and sub directories) upload":
+      "Ganze Verzeichnisse (inkl. Unterverzeichnissen) hochladen",
+    "Uploads are disabled while maintenance is being performed. Expected duration 2 hours.":
+      "Uploads sind deaktiviert, während Wartungsarbeiten durchgeführt werden. Erwartete Dauer: 2 Stunden.",
+    "Account operations are disabled while maintenance is being performed. Expected duration 2 hours.":
+      "Kontovorgänge sind deaktiviert, während Wartungsarbeiten durchgeführt werden. Erwartete Dauer: 2 Stunden.",
+
+    "In Progress": "In Arbeit",
+    Progress: "Fortschritt",
+    Size: "Größe",
+    Pending: "Warteschlange",
+    Failed: "Fehlgeschlagen",
+    "Retry All": "Alle nochmals versuchen",
+    Retry: "Nochmals versuchen",
+    Reason: "Grund",
+    Completed: "Erledigt",
+    Link: "Link",
+
+    // About Page
+    "Frequently Asked Questions": "Häufig gestellte Fragen",
+    "What is this website?": "Was ist das für eine Webseite?",
+    "Why does this website exist?": "Warum existiert diese Webseite?",
+    "What does scmscx.com mean?": "Was bedeutet scmscx.com?",
+    "Why do we need another map database website?":
+      "Warum brauchen wir eine weitere Karten-Datenbank-Webseite?",
+
+    "How do I play the maps after I have downloaded from here?":
+      "Wie spiele ich die Karten, die ich hier heruntergeladen habe?",
+
+    "How many maps does the database have?":
+      "Wie viele Karten hat die Datenbank?",
+
+    "Can I contribute maps to the database?":
+      "Kann ich Karten zur Datenbank beitragen?",
+
+    "How is this website made? What is the technology behind it?":
+      "Wie ist diese Webseite gemacht? Welche Technologie steckt dahinter?",
+
+    "Can I link directly to map downloads or minimap previews?":
+      "Kann ich direkt zu Kartendownloads oder Minikarten-Vorschauen verlinken?",
+
+    "I found a bug. How do I report it?":
+      "Ich habe einen Fehler gefunden. Wie kann ich ihn melden?",
+
+    "How can I contact you?": "Wie kann ich Dich kontaktieren?",
+
+    "Can I make a donation, how much does this site cost to run?":
+      "Kann ich eine Spende machen? Wie viel kostet der Betrieb dieser Webseite?",
+
+    "Credit and Thanks": "Anerkennung und Dank",
+
+    Devlog: "Entwicklerprotokoll",
+
+    // User page
+    "Log out": "Abmelden",
+    "Change Username": "Benutzernamen ändern",
+    "New Username": "Neuer Benutzername",
+    "Confirm New Username": "Neuen Benutzernamen bestätigen",
+    "Current Password": "Aktuelles Kennwort",
+    "Change Password": "Kennwort ändern",
+    "New Password": "Neues Kennwort",
+    "Confirm New Password": "Neues Kennwort bestätigen",
+
+    // Log In page
+    Username: "Benutzername",
+    Password: "Kennwort",
+    Register: "Registrierung",
+    "Confirm Password": "Kennwort bestätigen",
+    "Log in-formaction": "Anmelden",
+    "Register-formaction": "Registrieren",
   },
 };
 
 const i18n_internal = (langcode: string, str: string) => {
-  if (langcode === "en") {
-    return str;
-  } else if (langcode in langmap) {
+  if (langcode in langmap) {
     const langmap2 = (langmap as LangMap)[langcode] as LangMap2;
 
     if (str in langmap2) {
