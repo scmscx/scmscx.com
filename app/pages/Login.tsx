@@ -120,7 +120,7 @@ export default function (props: any) {
             onChange={(evt) => setPassword(evt.target.value)}
           />
           <button class={style.login} type="submit">
-            <I18nSpan text="Log in" />
+            <I18nSpan text="Log in-formaction" />
           </button>
         </form>
 
@@ -168,7 +168,7 @@ export default function (props: any) {
             onChange={(evt) => setConfirmPasswordRegister(evt.target.value)}
           />
           <button class={style.login} type="submit">
-            <I18nSpan text="Register" />
+            <I18nSpan text="Register-formaction" />
           </button>
         </form>
       </div>

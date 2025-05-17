@@ -443,7 +443,7 @@ export default function (prop: any) {
           onInput={(evt) => setCurrentQuery(evt.target.value)}
         />
         <button class={style["search-button"]} name="search" type="submit">
-          <I18nSpan text="Search" />
+          <I18nSpan text="Search-formaction" />
         </button>
         <button class={style["search-button"]} name="random" type="submit">
           <I18nSpan text="Random" />
