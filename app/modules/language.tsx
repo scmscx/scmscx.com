@@ -23,7 +23,7 @@ const langmap = {
     Search: "Поиск",
     Upload: "Загрузка",
     About: "О проекте",
-    "Log in": "Войти",
+    "Log in": "Вход",
 
     // Home Page
     "Welcome to scmscx.com": "Добро пожаловать на scmscx.com",
@@ -223,8 +223,8 @@ const langmap = {
     Password: "Пароль",
     Register: "Регистрация",
     "Confirm Password": "Подтвердите пароль",
-    "Log in-formaction": "Вход",
-    "Register-formaction": "Регистрация",
+    "Log in-formaction": "Войти",
+    "Register-formaction": "Зарегистрироваться",
   },
   es: {
     // Navbar
