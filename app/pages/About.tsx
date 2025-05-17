@@ -253,7 +253,12 @@ export default function (props: any) {
           </a>
           , for the Russian translations.
         </p>
-        <p class={style.p}>Zergy, for the French translations.</p>
+        <p class={style.p}>
+          <a href="https://mastodon.zergy.net/@Zergy/" rel="external nofollow">
+            Zergy
+          </a>
+          , for the French translations.
+        </p>
         <p class={style.p}>NudeRaider, for the German translations.</p>
 
         {/* <h2 class={style.h2}>
@@ -455,7 +460,7 @@ export default function (props: any) {
           retroactively add in some points in the timeline that are interesting.
         </p>
 
-        {/* Write about the saga of the parallax star background */}
+        Write about the saga of the parallax star background
 
         <h4 class={style.h4}>2024-04-01</h4>
         <p class={style.p}>Give up on trying to get buck2 to work.</p>
