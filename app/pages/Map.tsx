@@ -805,7 +805,7 @@ export default function (prop: any) {
               navigate(`/map/${map_id}#${q}`);
             }}
           >
-            <I18nSpan text="Continue Random" />
+            <I18nSpan text="Next Random Map" />
           </a>
         </Show>
 

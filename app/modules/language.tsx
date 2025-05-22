@@ -24,6 +24,7 @@ const langmap = {
     Upload: "Загрузка",
     About: "О проекте",
     "Log in": "Вход",
+    "Next Random Map": "Следующая случайная карта",
 
     // Home Page
     "Welcome to scmscx.com": "Добро пожаловать на scmscx.com",
@@ -233,6 +234,7 @@ const langmap = {
     Upload: "Subir",
     About: "Acerca de",
     "Log in": "Iniciar sesión",
+    "Next Random Map": "Siguiente mapa aleatorio",
 
     // Home Page
     "Welcome to scmscx.com": "Bienvenido a scmscx.com",
@@ -449,6 +451,7 @@ const langmap = {
     "Change Username": "사용자 이름 변경",
     "Change Password": "비밀번호 변경",
     "Log in": "로그인",
+    "Next Random Map": "다음 무작위 지도",
     "Log out": "로그아웃",
 
     // Upload
@@ -660,6 +663,7 @@ const langmap = {
     "Change Password": "密碼改動",
     "Log out": "註銷",
     "Log in": "登入",
+    "Next Random Map": "下個隨機地圖",
 
     // Search
     "Search-formaction": "搜索",
@@ -868,6 +872,7 @@ const langmap = {
     Upload: "Téléverser",
     About: "À propos",
     "Log in": "Connexion",
+    "Next Random Map": "Carte Aléatoire Suivante",
 
     // Home Page
     "Welcome to scmscx.com": "Bienvenue sur scmscx.com",
@@ -1081,6 +1086,7 @@ const langmap = {
     Upload: "Hochladen",
     About: "Über",
     "Log in": "Anmeldung",
+    "Next Random Map": "Nächste Zufallskarte",
 
     // Home Page
     "Welcome to scmscx.com": "Willkommen zu scmscx.com",
