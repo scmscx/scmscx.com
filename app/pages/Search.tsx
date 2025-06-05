@@ -194,6 +194,7 @@ export default function (prop: any) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [currentQuery, setCurrentQuery] = createSignal("");
+  const [currentPendingQuery, setCurrentPendingQuery] = createSignal("");
   const [numSearchResults, setNumSearchResults] = createSignal(0);
   const [dontRequestMore, setDontRequestMore] = createSignal(false);
   const [searchResults, setSearchResults] = createSignal<any[]>([]);
@@ -329,8 +330,15 @@ export default function (prop: any) {
     const url = getSearchUrl("/api/uiv2", currentQuery(), query_params);
 
     try {
+      setCurrentPendingQuery(url);
       const response = await fetch(url);
       const json = await response.json();
+
+      if (currentPendingQuery() != url) {
+        // the user updated the query while the request was in flight, ignore the results.
+        return;
+      }
+
       setSearchResults(json.maps);
       setNumSearchResults(json.total_results);
       setDontRequestMore(json.total_results <= json.maps.length);
