@@ -42,18 +42,18 @@ export default function (props: any) {
             Blizzard Entertainment
           </a>
           . This website is not affiliated in any way with Blizzard
-          Entertainment.
+          Entertainment. This website is developed and operated by Standard Maps
+          LLC.
         </p>
 
         <h4 class={style.h4}>
           <I18nSpan text="Why does this website exist?" />
         </h4>
         <p class={style.p}>
-          In 2020 I started playing StarCraft again. I tried looking for some
-          maps that I had previously played but I was unable to find them. So I
-          created this website to solve my map searching problem. The site
-          launched on 2021-02-28 under the domain name 'bounding.net' and has
-          since grown significantly in both scope and scale.
+          During the 2020 covid lockdowns, there was a great deal of difficulty
+          finding maps. This website was created to address that problem. The
+          site launched on 2021-02-28 under the domain name 'bounding.net' and
+          has since grown significantly in both scope and scale.
         </p>
 
         <h4 class={style.h4}>
@@ -86,7 +86,7 @@ export default function (props: any) {
         </p>
 
         <p class={style.p}>
-          I'm also focused on making this website a streamlined tool. I want
+          We're also focused on making this website a streamlined tool. We want
           everything to load fast and with no ads.
         </p>
 
@@ -119,7 +119,7 @@ export default function (props: any) {
         </h4>
         <p class={style.p}>
           Yes, please <a href="/register">register</a> an account and then you
-          will be able to upload any maps that you have. I would appreciate it
+          will be able to upload any maps that you have. We would appreciate it
           greatly.
         </p>
 
@@ -145,23 +145,23 @@ export default function (props: any) {
             PostgreSQL
           </a>
           database. The actual mapblobs themselves are stored on Backblaze's B2
-          object storage service. To process and parse maps, I use{" "}
+          object storage service. To process and parse maps, we use{" "}
           <a
             href="https://github.com/ladislav-zezula/StormLib"
             rel="external nofollow"
           >
             stormlib
           </a>{" "}
-          as well as my own chk parser. To guess charsets I use a combination of
-          my own algorithm as well as uchardet and compact-enc-det.
+          as well as our own chk parser. To guess charsets we use a combination
+          of our own algorithm as well as uchardet and compact-enc-det.
         </p>
 
         <h4 class={style.h4}>
           <I18nSpan text="Can I link directly to map downloads or minimap previews?" />
         </h4>
         <p class={style.p}>
-          Please go ahead. However, I make no guarantee that the format of those
-          URLs will remain stable.
+          Please go ahead. However, we make no guarantee that the format of
+          those URLs will remain stable.
         </p>
 
         <h4 class={style.h4}>
@@ -178,20 +178,20 @@ export default function (props: any) {
           <I18nSpan text="How can I contact you?" />
         </h4>
         <p class={style.p}>
-          I can be contacted by email at {atob("c2Ntc2N4QGdtYWlsLmNvbQ==")}
+          We can be contacted by email at {atob("c2Ntc2N4QGdtYWlsLmNvbQ==")}
         </p>
 
         <h4 class={style.h4}>
           <I18nSpan text="Can I make a donation, how much does this site cost to run?" />
         </h4>
         <p class={style.p}>
-          I am not currently accepting donations for this site. If I want to
-          achieve the goal of this website then I believe that the site has to
+          We are not currently accepting donations for this site. If we want to
+          achieve the goal of this website then we believe that the site has to
           be cheap enough to operate that it will not be a victim of future cost
-          cutting, and I also do not want to run ads on the site. To answer the
+          cutting, and we also do not want to run ads on the site. To answer the
           other question, the site currently costs ~4 USD per month to operate.
-          Also, this website is not a for-profit venture and I don't want the
-          website to generate any revenue. I work on this website because I
+          Also, this website is not a for-profit venture and we don't want the
+          website to generate any revenue. We work on this website because we
           enjoy doing it.
         </p>
 
@@ -199,11 +199,11 @@ export default function (props: any) {
           <I18nSpan text="Credit and Thanks" />
         </h2>
         <p class={style.p}>
-          I want to thank the{" "}
+          We want to thank the{" "}
           <a href="http://staredit.net" rel="external nofollow">
             staredit.net
           </a>{" "}
-          community for a great deal of support and answering my questions with
+          community for a great deal of support and answering our questions with
           regards to parsing maps and many more things. scmscx.com would not be
           possible without their help. Check out their discord at{" "}
           <a href="https://discord.gg/TqShZ66QnV" rel="external nofollow">
@@ -228,7 +228,7 @@ export default function (props: any) {
 
         <p class={style.p}>
           mauz for a tremendous amount of testing, discussion and ideas, as well
-          as letting me use the domain name 'bounding.net'. His original idea
+          as letting us use the domain name 'bounding.net'. His original idea
           when registering the domain was to create a list of bounds sorted by
           author and difficulty. He also maintains a list of maps he's made on
           his website{" "}
@@ -240,8 +240,8 @@ export default function (props: any) {
 
         <p class={style.p}>
           /u/wfza1, for originally linking to bounding.net from scmscx.com in
-          the early days, and for eventually giving me the scmscx.com domain.
-          Thank you, I greatly appreciate it.
+          the early days, and for eventually giving us the scmscx.com domain.
+          Thank you, we greatly appreciate it.
         </p>
 
         <p class={style.p}>goosegoose, PereC, for the Chinese translations.</p>
@@ -475,7 +475,7 @@ export default function (props: any) {
 
         <h4 class={style.h4}>2022-11-29</h4>
         <p class={style.p}>
-          /u/wfza1 reached out to me about giving me the scmscx.com domain.
+          /u/wfza1 reached out to us about giving us the scmscx.com domain.
         </p>
 
         <h4 class={style.h4}>2021-02-27</h4>
