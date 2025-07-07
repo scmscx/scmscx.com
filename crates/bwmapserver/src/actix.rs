@@ -23,8 +23,6 @@ use backblaze::api::{b2_authorize_account, b2_download_file_by_name};
 use futures::lock::Mutex;
 use futures::StreamExt;
 use handlebars::{DirectorySourceOptions, Handlebars};
-use rand::Rng;
-use rand::SeedableRng;
 use reqwest::Client;
 use std::collections::HashMap;
 use tokio::io::AsyncWriteExt;
@@ -885,49 +883,49 @@ fn register_handlebars() -> Result<web::Data<Handlebars<'static>>> {
     Ok(web::Data::new(registry))
 }
 
-fn start_materialized_view_refresher(
-    pool: &bb8_postgres::bb8::Pool<
-        bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-    >,
-) -> Result<()> {
-    let mut rng = rand::rngs::SmallRng::from_rng(&mut rand::rng());
-    let pool = pool.clone();
-    tokio::spawn(async move {
-        loop {
-            info!("Refreshing materialized view");
+// fn start_materialized_view_refresher(
+//     pool: &bb8_postgres::bb8::Pool<
+//         bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
+//     >,
+// ) -> Result<()> {
+//     let mut rng = rand::rngs::SmallRng::from_rng(&mut rand::rng());
+//     let pool = pool.clone();
+//     tokio::spawn(async move {
+//         loop {
+//             info!("Refreshing materialized view");
 
-            match pool.get().await {
-                Ok(con) => {
-                    match con
-                        .execute("REFRESH MATERIALIZED VIEW CONCURRENTLY user_stats", &[])
-                        .await
-                    {
-                        Ok(r) => {
-                            info!("Successfully refreshed materialized view. r: {:?}", r);
-                        }
-                        Err(err) => {
-                            error!("Failed to refresh materialized view. err: {:?}", err);
-                        }
-                    }
-                }
-                Err(err) => {
-                    error!(
-                        "Failed to acquire connection for materialized view refreshing. err: {:?}",
-                        err
-                    );
-                }
-            }
+//             match pool.get().await {
+//                 Ok(con) => {
+//                     match con
+//                         .execute("REFRESH MATERIALIZED VIEW CONCURRENTLY user_stats", &[])
+//                         .await
+//                     {
+//                         Ok(r) => {
+//                             info!("Successfully refreshed materialized view. r: {:?}", r);
+//                         }
+//                         Err(err) => {
+//                             error!("Failed to refresh materialized view. err: {:?}", err);
+//                         }
+//                     }
+//                 }
+//                 Err(err) => {
+//                     error!(
+//                         "Failed to acquire connection for materialized view refreshing. err: {:?}",
+//                         err
+//                     );
+//                 }
+//             }
 
-            tokio::time::sleep(std::time::Duration::from_secs(rng.random_range(600..1000))).await;
-        }
-    });
+//             tokio::time::sleep(std::time::Duration::from_secs(rng.random_range(600..1000))).await;
+//         }
+//     });
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 pub(crate) async fn start() -> Result<()> {
     let db_pool = setup_db().await?;
-    start_materialized_view_refresher(&db_pool)?;
+    // start_materialized_view_refresher(&db_pool)?; // This is not necessary anymore, nothing is using these stats and they are super expensive to calculate.
 
     let handlebars = register_handlebars()?;
 
