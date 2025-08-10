@@ -1,6 +1,6 @@
 services:
   scmscx-db:
-    image: oni.zxcv.io/postgres
+    image: registry.zxcv.io/postgres
     network_mode: host
     build:
       context: postgres
@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: anotverysecurepassword
 
   scmscx:
-    image: oni.zxcv.io/scmscx.com
+    image: registry.zxcv.io/scmscx.com
     network_mode: host
     ports:
       - "8080:8080"

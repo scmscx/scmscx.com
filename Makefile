@@ -82,13 +82,13 @@ run-release: image-release
 	podman-compose up
 
 push: image-release
-	podman push oni.zxcv.io/scmscx.com
+	podman push registry.zxcv.io/scmscx.com
 
 dev:
 	npm run dev
 
 deploy:
-	ssh -i~/.ssh/stan -C root@10.70.23.1 podman pull oni.zxcv.io/scmscx.com
+	ssh -i~/.ssh/stan -C root@10.70.23.1 podman pull registry.zxcv.io/scmscx.com
 	ssh -i~/.ssh/stan -C root@10.70.23.1 systemctl restart scmscx.com
 
 .PHONY: .phony check build test fmt clippy ci run run-release push dev deploy
