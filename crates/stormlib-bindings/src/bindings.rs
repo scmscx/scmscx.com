@@ -5,5 +5,6 @@
 #![allow(dead_code)]
 #![allow(deref_nullptr)]
 #![allow(clippy::ptr_offset_with_cast)]
+#![allow(unnecessary_transmutes)]
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
