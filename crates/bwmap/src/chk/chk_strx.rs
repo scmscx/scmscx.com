@@ -13,13 +13,6 @@ use serde::Serialize;
 // By default the first byte in Strings is a NUL character, and all unused offsets in the STR section point to this NUL character. Note that STR sections can be stacked in a smiliar fashion as MTXM. The exact mechanisms of this are uncertain.
 
 #[derive(Debug, Serialize)]
-pub struct ChkStrx<'a> {
-    pub number_of_strings: &'a u32,
-    pub string_offsets: &'a [u32],
-    pub strings: &'a [u8],
-}
-
-#[derive(Debug, Serialize)]
 pub struct ChkStrx2 {
     pub string_data: Vec<u8>,
 }

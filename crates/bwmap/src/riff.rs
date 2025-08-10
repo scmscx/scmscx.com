@@ -13,7 +13,7 @@ pub struct RiffChunk<'a> {
 }
 
 #[instrument(level = "trace", skip_all)]
-pub fn parse_riff(chk: &[u8]) -> Vec<RiffChunk> {
+pub fn parse_riff(chk: &[u8]) -> Vec<RiffChunk<'_>> {
     let mut offset = 0;
     let mut ret = Vec::new();
 
