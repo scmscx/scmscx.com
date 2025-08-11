@@ -83,6 +83,7 @@ run-release: image-release
 
 push: image-release
 	podman push registry.zxcv.io/scmscx.com
+	podman push registry.zxcv.io/postgres
 
 dev:
 	npm run dev
