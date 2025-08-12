@@ -54,6 +54,11 @@ async fn set_flag(
     info: web::Json<bool>,
     pool: web::Data<Pool<PostgresConnectionManager<NoTls>>>,
 ) -> Result<impl Responder, MyError> {
+    if std::env::var("SCMSCX_READONLY").unwrap_or_else(|_| "false".to_owned()) == "true" {
+        return Ok(HttpResponse::ServiceUnavailable()
+            .body("server is in maintenance mode, try again later.".to_owned()));
+    }
+
     let user_id = if let Some(user_id) = req.extensions().get::<UserSession>().map(|x| x.id) {
         user_id
     } else {

@@ -16,6 +16,7 @@ use sha1::Digest;
 use sha1::Sha1;
 use sha2::Sha256;
 use std::collections::HashMap;
+use std::env;
 use tokio::io::AsyncWriteExt;
 use tracing::info;
 
@@ -47,6 +48,12 @@ async fn upload_map(
     req: actix_web::HttpRequest,
     mut payload: actix_web::web::Payload,
 ) -> Result<impl Responder, MyError> {
+    if env::var("SCMSCX_READONLY").unwrap_or_else(|_| "false".to_owned()) == "true" {
+        return Ok(HttpResponse::ServiceUnavailable()
+            .body("server is in maintenance mode, try again later.".to_owned())
+            .customize());
+    }
+
     let user_id = req
         .extensions()
         .get::<UserSession>()
