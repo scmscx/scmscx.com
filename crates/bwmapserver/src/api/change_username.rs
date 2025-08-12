@@ -74,5 +74,10 @@ async fn post_handler(
         >,
     >,
 ) -> Result<HttpResponse, bwcommon::MyError> {
+    if std::env::var("SCMSCX_READONLY").unwrap_or_else(|_| "false".to_owned()) == "true" {
+        return Ok(HttpResponse::ServiceUnavailable()
+            .body("server is in maintenance mode, try again later.".to_owned()));
+    }
+
     handler2(req, form, pool).await
 }
