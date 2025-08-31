@@ -809,13 +809,13 @@ async fn setup_db() -> Result<
     let connection_string = format!(
         "host={} port={} user={} password={} dbname={}",
         std::env::var("DB_HOST")
-            .unwrap_or("127.0.0.1".to_string())
+            .unwrap_or_else(|_| "127.0.0.1".to_string())
             .as_str(),
         std::env::var("DB_PORT").unwrap().as_str(),
         std::env::var("DB_USER").unwrap().as_str(),
         std::env::var("DB_PASSWORD").unwrap().as_str(),
         std::env::var("DB_DATABASE")
-            .unwrap_or(std::env::var("DB_USER").unwrap())
+            .unwrap_or_else(|_| std::env::var("DB_USER").unwrap())
             .as_str(),
     );
     let manager = bb8_postgres::PostgresConnectionManager::new(
@@ -826,7 +826,7 @@ async fn setup_db() -> Result<
     let pool = bb8_postgres::bb8::Pool::builder()
         .max_size(
             std::env::var("DB_CONNECTIONS")
-                .unwrap_or("16".to_string())
+                .unwrap_or_else(|_| "16".to_string())
                 .parse::<u32>()?,
         )
         .min_idle(Some(1))
@@ -1087,7 +1087,7 @@ pub(crate) async fn start() -> Result<()> {
                         .uri()
                         .path_and_query()
                         .map(|v| v.as_str())
-                        .unwrap_or(req.uri().path());
+                        .unwrap_or_else(|| req.uri().path());
 
                     let url = format!("http://localhost:3000{}", path_query);
 

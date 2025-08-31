@@ -64,12 +64,18 @@ fmt: $(RUST_SOURCE)
 
 clippy: $(RUST_SOURCE)
 	# cargo clippy -- -Dclippy::all -Dclippy::pedantic
+	# __CARGO_FIX_YOLO=1 cargo clippy --fix to get it to apply risky changes
+	# TODO: add -D clippy::style one day. in general add more clippy lints.
+	# __CARGO_FIX_YOLO=1 cargo clippy --workspace --all-targets --fix --allow-dirty -- \
 	cargo clippy --workspace --all-targets -- \
 		-A clippy::all \
 		-D clippy::correctness \
 		-D clippy::suspicious \
 		-D clippy::complexity \
-		-A clippy::clone-on-copy # I think .clone() is much clearer than deref + implcit copy
+		-D clippy::perf \
+		-D clippy::or_fun_call \
+		-A clippy::clone-on-copy \
+		-A clippy::type-complexity
 
 ci: check build test fmt clippy image-debug
 

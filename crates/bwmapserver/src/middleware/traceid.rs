@@ -72,7 +72,7 @@ where
             .headers()
             .get("user-agent")
             .map(|x| x.to_str().unwrap_or("couldn't unwrap").to_owned())
-            .unwrap_or("couldn't unwrap2".to_string());
+            .unwrap_or_else(|| "couldn't unwrap2".to_string());
 
         req.extensions_mut().insert(TraceID {
             id: trace_id.clone(),
