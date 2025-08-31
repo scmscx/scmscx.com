@@ -64,19 +64,7 @@ pub(crate) fn reinterpret_slice2<T: Sized>(s: &[u8]) -> Result<&[T], anyhow::Err
     })
 }
 
-#[instrument(level = "trace", skip_all)]
-pub(crate) fn reinterpret_slice3<T: Copy + Sized>(s: &[u8]) -> Result<T, anyhow::Error> {
-    anyhow::ensure!(
-        s.len() == std::mem::size_of::<T>(),
-        "s.len(): {}, std::mem::size_of::<T>(): {}",
-        s.len(),
-        std::mem::size_of::<T>()
-    );
-
-    Ok(unsafe { std::ptr::read_unaligned(s.as_ptr() as *const T) })
-}
-
-trait Extract: Sized + Copy {
+pub(crate) trait Extract: Sized + Copy {
     fn extract(data: &[u8]) -> anyhow::Result<(Self, &[u8])>;
 }
 
@@ -256,42 +244,11 @@ impl<'a> CursorSlicer<'a> {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub(crate) fn extract_u16_lax(&mut self) -> u16 {
-        if self.s.len() <= self.current_offset {
-            let lower_16_bits = 0_u16;
-            let upper_16_bits = 0_u16;
-            self.current_offset += 0;
-            (upper_16_bits << 8) | lower_16_bits
-        } else if self.s.len() <= self.current_offset + 1 {
-            let lower_16_bits = self.s[self.current_offset] as u16;
-            let upper_16_bits = 0_u16;
-            self.current_offset += 1;
-            (upper_16_bits << 8) | lower_16_bits
-        } else {
-            let lower_16_bits = self.s[self.current_offset] as u16;
-            let upper_16_bits = self.s[self.current_offset + 1] as u16;
-            self.current_offset += 2;
-            (upper_16_bits << 8) | lower_16_bits
-        }
-    }
-
-    #[instrument(level = "trace", skip_all)]
     pub(crate) fn extract_u8_array_lax<const N: usize>(&mut self) -> [u8; N] {
         let mut ret = [0u8; N];
 
         for i in 0..N {
             ret[i] = self.extract_u8_lax();
-        }
-
-        ret
-    }
-
-    #[instrument(level = "trace", skip_all)]
-    pub(crate) fn extract_u16_array_lax<const N: usize>(&mut self) -> [u16; N] {
-        let mut ret = [0u16; N];
-
-        for i in 0..N {
-            ret[i] = self.extract_u16_lax();
         }
 
         ret
