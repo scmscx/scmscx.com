@@ -2,6 +2,7 @@ name: CI-and-push
 
 on:
   push:
+    branches: [main]
   workflow_dispatch:
   schedule: [cron: "0 11 * * *"] # at 4am PST, 11am UTC
 
