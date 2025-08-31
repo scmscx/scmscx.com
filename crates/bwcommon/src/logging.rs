@@ -91,7 +91,7 @@ pub async fn create_mixpanel_channel() -> std::sync::mpsc::Sender<serde_json::Va
                                         ret.status(),
                                         ret.text()
                                             .await
-                                            .unwrap_or("failed to unwrap body".to_string())
+                                            .unwrap_or_else(|_| "failed to unwrap body".to_string())
                                     );
                                     sleep(std::time::Duration::from_secs(5)).await;
                                 }
@@ -207,7 +207,7 @@ pub fn get_request_logging_info(req: &actix_web::HttpRequest) -> ApiRequestLoggi
                         x
                     }
                 })
-                .unwrap_or(req.path().to_owned()),
+                .unwrap_or_else(|| req.path().to_owned()),
         ),
         method: req.method().to_string(),
         path: req.uri().path().to_string(),

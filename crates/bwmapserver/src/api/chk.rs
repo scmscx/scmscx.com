@@ -45,7 +45,7 @@ async fn get_chk_strings(
         strings.push(
             parsed_chk
                 .get_string(r as usize)
-                .unwrap_or(">>> could not get string <<<<".to_owned()),
+                .unwrap_or_else(|_| ">>> could not get string <<<<".to_owned()),
         );
     }
 

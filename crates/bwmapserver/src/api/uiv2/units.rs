@@ -64,7 +64,7 @@ async fn units(
                     "unit_id": unit_id,
                     "name": if spoiler_unit_names { "SPOILER".to_owned()  } else {
                         parsed_chk.get_string(x.string_number[unit_id] as usize)
-                        .unwrap_or("couldn't decode string".to_owned())
+                        .unwrap_or_else(|_| "couldn't decode string".to_owned())
                         },
                 }));
             }
@@ -79,7 +79,7 @@ async fn units(
                 v.push(json!({
                     "unit_id": unit_id,
                     "name": parsed_chk.get_string(x.string_number[unit_id] as usize)
-                        .unwrap_or("couldn't decode string".to_owned()),
+                        .unwrap_or_else(|_| "couldn't decode string".to_owned()),
                 }));
             }
         }

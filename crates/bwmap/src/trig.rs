@@ -1603,7 +1603,7 @@ pub fn parse_mission_briefing<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<MissionBrie
                         actions.push(MissionBriefingAction::PlayWav {
                             wave: parsed_chk
                                 .get_string(action.wav_string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                             wave_time: action.seconds_or_milliseconds as i64,
                         });
                     }
@@ -1611,14 +1611,14 @@ pub fn parse_mission_briefing<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<MissionBrie
                         actions.push(MissionBriefingAction::DisplayTextMessage {
                             text: parsed_chk
                                 .get_string(action.string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     4 => {
                         actions.push(MissionBriefingAction::SetMissionObjectives {
                             text: parsed_chk
                                 .get_string(action.string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     5 => {
@@ -1647,14 +1647,14 @@ pub fn parse_mission_briefing<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<MissionBrie
                             slot: action.first_or_only_group_or_player_affected as i64,
                             text: parsed_chk
                                 .get_string(action.string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                             time: action.seconds_or_milliseconds as i64,
                             modifier: parse_number_modifier(
                                 action.number_of_units_or_action_state_or_unit_order_or_number_modifier,
                             ),
                             wave: parsed_chk
                                 .get_string(action.wav_string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                             wave_time: action.seconds_or_milliseconds as i64,
                         });
                     }
@@ -1731,7 +1731,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                             unit_type: parse_unit_type(condition.unit_id),
                             location: parsed_chk
                                 .get_location_name(condition.location as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                             number: condition.qualified_number as i64,
                         });
                     }
@@ -1768,7 +1768,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                             unit_type: parse_unit_type(condition.unit_id),
                             location: parsed_chk
                                 .get_location_name(condition.location as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     8 => {
@@ -1843,7 +1843,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                             unit_type: parse_unit_type(condition.unit_id),
                             location: parsed_chk
                                 .get_location_name(condition.location as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     18 => {
@@ -1919,15 +1919,15 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                     }
                     7 => {
                         actions.push(Action::Transmission {
-                            text: parsed_chk.get_string(action.string_number as usize).unwrap_or("couldn't get string".to_owned()),
+                            text: parsed_chk.get_string(action.string_number as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                             unit_type: parse_unit_type(action
                                 .unit_type_or_score_type_or_resource_type_or_alliance_status),
-                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or("couldn't get string".to_owned()),
+                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                             time: action.seconds_or_milliseconds as i64,
                             modifier: parse_number_modifier(
                                 action.number_of_units_or_action_state_or_unit_order_or_number_modifier,
                             ),
-                            wave: parsed_chk.get_string(action.wav_string_number as usize).unwrap_or("couldn't get string".to_owned()),
+                            wave: parsed_chk.get_string(action.wav_string_number as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                             // TODO: not sure what this is supposed to be.
                             wave_time: 0,
                         });
@@ -1936,7 +1936,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                         actions.push(Action::PlayWav {
                             wave: parsed_chk
                                 .get_string(action.wav_string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                             // TODO: not sure what this is supposed to be.
                             wave_time: 0,
                         });
@@ -1945,14 +1945,14 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                         actions.push(Action::DisplayTextMessage {
                             text: parsed_chk
                                 .get_string(action.string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     10 => {
                         actions.push(Action::CenterView {
                             location: parsed_chk
                                 .get_location_name(action.location as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     11 => {
@@ -1961,7 +1961,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                             unit_type: parse_unit_type(action
                                 .unit_type_or_score_type_or_resource_type_or_alliance_status),
                             number: action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as i64,
-                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or("couldn't get string".to_owned()),
+                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                             unit_prop: action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as i64,
                         });
                     }
@@ -1969,7 +1969,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                         actions.push(Action::SetMissionObjectives {
                             text: parsed_chk
                                 .get_string(action.string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     13 => {
@@ -1994,14 +1994,14 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                     16 => {
                         actions.push(Action::RunAIScriptAtLocation {
                             script: parse_ai_script(action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number),
-                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or("couldn't get string".to_owned()),
+                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     17 => {
                         actions.push(Action::LeaderBoardControl {
                             text: parsed_chk
                                 .get_string(action.string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                             unit_type: parse_unit_type(
                                 action.unit_type_or_score_type_or_resource_type_or_alliance_status,
                             ),
@@ -2011,20 +2011,20 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                         actions.push(Action::LeaderBoardControlAtLocation {
                             text: parsed_chk
                                 .get_string(action.string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                             unit_type: parse_unit_type(
                                 action.unit_type_or_score_type_or_resource_type_or_alliance_status,
                             ),
                             location: parsed_chk
                                 .get_location_name(action.location as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     19 => {
                         actions.push(Action::LeaderBoardResources {
                             text: parsed_chk
                                 .get_string(action.string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                             resource_type: parse_resource_type(
                                 action.unit_type_or_score_type_or_resource_type_or_alliance_status,
                             ),
@@ -2034,7 +2034,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                         actions.push(Action::LeaderBoardKills {
                             text: parsed_chk
                                 .get_string(action.string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                             unit_type: parse_unit_type(
                                 action.unit_type_or_score_type_or_resource_type_or_alliance_status,
                             ),
@@ -2044,7 +2044,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                         actions.push(Action::LeaderBoardPoints {
                             text: parsed_chk
                                 .get_string(action.string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                             score_type: parse_score_type(
                                 action.unit_type_or_score_type_or_resource_type_or_alliance_status,
                             ),
@@ -2065,7 +2065,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                                 action.unit_type_or_score_type_or_resource_type_or_alliance_status,
                             ),
                             number: action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as i64,
-                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or("couldn't get string".to_owned()),
+                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     24 => {
@@ -2083,7 +2083,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                                 action.unit_type_or_score_type_or_resource_type_or_alliance_status,
                             ),
                             number: action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as i64,
-                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or("couldn't get string".to_owned()),
+                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     26 => {
@@ -2110,7 +2110,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                         actions.push(Action::MinimapPing {
                             location: parsed_chk
                                 .get_location_name(action.location as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     29 => {
@@ -2136,7 +2136,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                         actions.push(Action::LeaderBoardGoalControl {
                             text: parsed_chk
                                 .get_string(action.string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                             unit_type: parse_unit_type(
                                 action.unit_type_or_score_type_or_resource_type_or_alliance_status,
                             ),
@@ -2146,20 +2146,20 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                         actions.push(Action::LeaderBoardGoalControlAtLocation {
                             text: parsed_chk
                                 .get_string(action.string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                             unit_type: parse_unit_type(
                                 action.unit_type_or_score_type_or_resource_type_or_alliance_status,
                             ),
                             location: parsed_chk
                                 .get_location_name(action.location as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     35 => {
                         actions.push(Action::LeaderBoardGoalResources {
                             text: parsed_chk
                                 .get_string(action.string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                             resource_type: parse_resource_type(
                                 action.unit_type_or_score_type_or_resource_type_or_alliance_status,
                             ),
@@ -2169,7 +2169,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                         actions.push(Action::LeaderBoardGoalKills {
                             text: parsed_chk
                                 .get_string(action.string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                             unit_type: parse_unit_type(
                                 action.unit_type_or_score_type_or_resource_type_or_alliance_status,
                             ),
@@ -2179,7 +2179,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                         actions.push(Action::LeaderBoardGoalPoints {
                             text: parsed_chk
                                 .get_string(action.string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                             score_type: parse_score_type(
                                 action.unit_type_or_score_type_or_resource_type_or_alliance_status,
                             ),
@@ -2191,8 +2191,8 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                             unit_type: parse_unit_type(
                                 action.unit_type_or_score_type_or_resource_type_or_alliance_status,
                             ),
-                            source_location: parsed_chk.get_location_name(action.location as usize).unwrap_or("couldn't get string".to_owned()),
-                            destination_location: parsed_chk.get_location_name(action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as usize).unwrap_or("couldn't get string".to_owned()),
+                            source_location: parsed_chk.get_location_name(action.location as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
+                            destination_location: parsed_chk.get_location_name(action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     39 => {
@@ -2201,8 +2201,8 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                             unit_type: parse_unit_type(
                                 action.unit_type_or_score_type_or_resource_type_or_alliance_status,
                             ),
-                            source_location: parsed_chk.get_location_name(action.location as usize).unwrap_or("couldn't get string".to_owned()),
-                            destination_location: parsed_chk.get_location_name(action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as usize).unwrap_or("couldn't get string".to_owned()),
+                            source_location: parsed_chk.get_location_name(action.location as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
+                            destination_location: parsed_chk.get_location_name(action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                             number: action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as i64,
                         });
                     }
@@ -2215,7 +2215,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                         actions.push(Action::SetNextScenario {
                             text: parsed_chk
                                 .get_string(action.string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     42 => {
@@ -2224,7 +2224,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                             unit_type: parse_unit_type(
                                 action.unit_type_or_score_type_or_resource_type_or_alliance_status,
                             ),
-                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or("couldn't get string".to_owned()),
+                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                             state: parse_action_state(action.number_of_units_or_action_state_or_unit_order_or_number_modifier), // TODO: split actionstate enum into doodad state + switch state + computer-player state.
                         });
                     }
@@ -2234,7 +2234,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                             unit_type: parse_unit_type(
                                 action.unit_type_or_score_type_or_resource_type_or_alliance_status,
                             ),
-                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or("couldn't get string".to_owned()),
+                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                             state: parse_action_state(action.number_of_units_or_action_state_or_unit_order_or_number_modifier), // TODO: split actionstate enum into doodad state + switch state + computer-player state.
                         });
                     }
@@ -2245,7 +2245,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                                 action.unit_type_or_score_type_or_resource_type_or_alliance_status,
                             ),
                             number: action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as i64,
-                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or("couldn't get string".to_owned()),
+                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     45 => {
@@ -2265,8 +2265,8 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                             player: parse_group(action.first_or_only_group_or_player_affected),
                             unit_type: parse_unit_type(action
                                 .unit_type_or_score_type_or_resource_type_or_alliance_status),
-                            source_location: parsed_chk.get_location_name(action.location as usize).unwrap_or("couldn't get string".to_owned()),
-                            destination_location: parsed_chk.get_location_name(action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as usize).unwrap_or("couldn't get string".to_owned()),
+                            source_location: parsed_chk.get_location_name(action.location as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
+                            destination_location: parsed_chk.get_location_name(action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                             order: parse_order(action.number_of_units_or_action_state_or_unit_order_or_number_modifier)
                         });
                     }
@@ -2274,7 +2274,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                         actions.push(Action::Comment {
                             text: parsed_chk
                                 .get_string(action.string_number as usize)
-                                .unwrap_or("couldn't get string".to_owned()),
+                                .unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     48 => {
@@ -2284,7 +2284,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                             unit_type: parse_unit_type(action
                                 .unit_type_or_score_type_or_resource_type_or_alliance_status),
                             number: action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as i64,
-                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or("couldn't get string".to_owned()),
+                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     49 => {
@@ -2294,7 +2294,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                                 .unit_type_or_score_type_or_resource_type_or_alliance_status),
                             number: action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as i64,
                             mod_ammount: 0, // TODO: what is this.
-                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or("couldn't get string".to_owned()),
+                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     50 => {
@@ -2304,7 +2304,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                                 .unit_type_or_score_type_or_resource_type_or_alliance_status),
                             number: action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as i64,
                             mod_ammount: 0, // TODO: what is this.
-                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or("couldn't get string".to_owned()),
+                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     51 => {
@@ -2314,7 +2314,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                                 .unit_type_or_score_type_or_resource_type_or_alliance_status),
                             number: action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as i64,
                             mod_ammount: 0, // TODO: what is this.
-                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or("couldn't get string".to_owned()),
+                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     52 => {
@@ -2324,7 +2324,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                                 .unit_type_or_score_type_or_resource_type_or_alliance_status),
                             number: action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as i64,
                             mod_ammount: 0, // TODO: what is this.
-                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or("couldn't get string".to_owned()),
+                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     53 => {
@@ -2334,7 +2334,7 @@ pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
                                 .unit_type_or_score_type_or_resource_type_or_alliance_status),
                             number: action.second_group_affected_or_secondary_location_or_cuwp_number_or_number_or_ai_script_or_switch_number as i64,
                             mod_ammount: 0, // TODO: what is this.
-                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or("couldn't get string".to_owned()),
+                            location: parsed_chk.get_location_name(action.location as usize).unwrap_or_else(|_| "couldn't get string".to_owned()),
                         });
                     }
                     54 => {

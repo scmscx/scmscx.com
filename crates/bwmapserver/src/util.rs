@@ -6,7 +6,7 @@ pub const SEED_MAP_ID: u8 = 97;
 
 pub fn is_dev_mode() -> bool {
     std::env::var("DEV_MODE")
-        .unwrap_or("false".to_string())
+        .unwrap_or_else(|_| "false".to_string())
         .as_str()
         == "true"
 }

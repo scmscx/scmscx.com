@@ -189,7 +189,7 @@ pub fn get_chk_from_mpq_filename<T: AsRef<Path>>(filename: T) -> Result<Vec<u8>>
 #[instrument(level = "trace", skip_all)]
 pub fn get_chk_from_mpq_in_memory(mpq: &[u8]) -> Result<Vec<u8>> {
     // For stormlib to use the right hacks and fixes, it needs to see a file that ends in .scm or .scx
-    let path = format!("/tmp/{}.scx", Uuid::new_v4().as_simple().to_string());
+    let path = format!("/tmp/{}.scx", Uuid::new_v4().as_simple());
 
     let mut file = File::create(&path)?;
 

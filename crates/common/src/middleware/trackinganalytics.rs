@@ -91,7 +91,6 @@ where
                 .connection_info()
                 .realip_remote_addr()
                 .unwrap_or("default:5000")
-                .to_owned()
                 .split(":")
                 .next()
                 .unwrap_or("default")

@@ -476,7 +476,7 @@ pub async fn denormalize_map_tx(map_id: i64, tx: &mut Transaction<'_>) -> Result
             )
             .await?;
 
-            let tmp_filename = format!("/tmp/{}.scx", uuid::Uuid::new_v4().as_simple().to_string());
+            let tmp_filename = format!("/tmp/{}.scx", uuid::Uuid::new_v4().as_simple());
             let mut file = tokio::fs::File::create(&tmp_filename).await?;
 
             use futures_util::stream::StreamExt;

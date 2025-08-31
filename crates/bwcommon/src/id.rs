@@ -319,7 +319,7 @@ mod test {
         // println!("39807: {}", get_web_id_from_db_id(39807, 97).unwrap());
         println!(
             "9z8gR5dp: {}",
-            get_db_id_from_web_id(&"9z8gR5dp".to_owned(), 97).unwrap()
+            get_db_id_from_web_id("9z8gR5dp", 97).unwrap()
         );
 
         assert!(false);

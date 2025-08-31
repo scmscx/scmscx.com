@@ -161,9 +161,9 @@ async fn map_info(
             } else {
                 parsed_chk
                     .get_string(force_name as usize)
-                    .unwrap_or(format!(
-                        "<<couldn't get force name: str_num: {force_name}>>"
-                    ))
+                    .unwrap_or_else(|_| {
+                        format!("<<couldn't get force name: str_num: {force_name}>>")
+                    })
             };
 
             let prop_random_start_location = (force_properties & (1 << 0)) > 0;
