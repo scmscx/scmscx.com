@@ -4,6 +4,7 @@ use bb8_postgres::{bb8::Pool, tokio_postgres::NoTls, PostgresConnectionManager};
 use cached::proc_macro::cached;
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
+use std::time::Duration;
 
 #[cached(
     size = 100,
