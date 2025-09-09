@@ -92,6 +92,7 @@ const langmap = {
     // Map page
     Download: "Скачать",
     Minimap: "Мини-карта",
+    "Map Image": "Картинка карты",
 
     "Scenario Properties": "Свойства сценария",
     Version: "Версия",
@@ -303,6 +304,7 @@ const langmap = {
     // Map page
     Download: "Descargar",
     Minimap: "Minimapa",
+    "Map Image": "Imagen del mapa",
 
     "Scenario Properties": "Propiedades del escenario",
     Version: "Versión",
@@ -537,6 +539,8 @@ const langmap = {
 
     Download: "다운로드",
     Minimap: "미니맵",
+    "Map Image": "맵 이미지",
+
     "Scenario Properties": "시나리오 속성",
     Replays: "리플레이",
     "Known Filenames": "알려진 파일 이름",
@@ -798,6 +802,7 @@ const langmap = {
     // Map
     Download: "下載",
     Minimap: "小地圖",
+    "Map Image": "地圖圖片",
 
     "Scenario Properties": "地圖屬性",
     Version: "版本",
@@ -943,6 +948,7 @@ const langmap = {
     // Map page
     Download: "Télécharger",
     Minimap: "Minicarte",
+    "Map Image": "Image de la Carte",
 
     "Scenario Properties": "Propriétés du Scénario",
     Version: "Version",
@@ -1153,6 +1159,7 @@ const langmap = {
     // Map page
     Download: "Download",
     Minimap: "Minikarten-Vorschau",
+    "Map Image": "Kartenbild",
 
     "Scenario Properties": "Szenario-Eigenschaften",
     Version: "Version",

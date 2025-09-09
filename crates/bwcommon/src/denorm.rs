@@ -290,8 +290,6 @@ async fn update_minimap(
         .map(|x| format!("{x:08b}"))
         .collect::<String>();
 
-    tracing::info!("binstring: {}", binstring);
-
     tx.execute(
         "INSERT INTO minimap
             (chkhash, width, height, minimap, ph8x8, ph16x16, ph32x32, vector) VALUES
