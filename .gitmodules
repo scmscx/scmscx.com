@@ -13,3 +13,6 @@
 [submodule "crates/stormlib-bindings/zlib"]
 	path = crates/stormlib-bindings/zlib
 	url = https://github.com/scmscx/zlib.git
+[submodule "render/Chkdraft"]
+	path = render/Chkdraft
+	url = https://github.com/scmscx/Chkdraft.git

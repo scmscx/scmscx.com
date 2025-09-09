@@ -20,7 +20,7 @@ pub(crate) async fn insert_map(
         bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
     >,
     modified_time: Option<i64>,
-) -> Result<i64, anyhow::Error> {
+) -> Result<(i64, Vec<u8>, String), anyhow::Error> {
     let filename = filename.to_string();
 
     let chk_blob = bwmpq::get_chk_from_mpq_filename(mpq_path)?;
@@ -53,7 +53,7 @@ pub(crate) async fn insert_map(
         | "ebeffd8f677b345289667d2700c92c6d69795bd1c1c3aa52d8287a542a72ad7b"
         | "6c81a80495be17f3fbbb06569973a167f1caf20daa777ae4db51990bc8a8df43"
         | "e8839041d71d6588e67303d4ec156a421c611e155cd61afef3a6a48cec635137" => {
-            return Ok(-1);
+            return Ok((-1, chk_blob, chk_blob_hash));
         }
         _ => {}
     }
@@ -171,7 +171,7 @@ pub(crate) async fn insert_map(
 
     let map_id = retry_n_times(7, f).await?;
 
-    anyhow::Ok(map_id)
+    anyhow::Ok((map_id, chk_blob, chk_blob_hash))
 }
 
 fn sanitize_sc_scenario_string(s: &str) -> String {

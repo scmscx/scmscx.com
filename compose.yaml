@@ -7,6 +7,17 @@ services:
     environment:
       POSTGRES_PASSWORD: anotverysecurepassword
 
+  render:
+    image: registry.zxcv.io/render
+    network_mode: host
+    build:
+      context: render
+    command: ["/starcraft", "/input", "/output"]
+    volumes:
+      - /home/stan/starcraft:/starcraft
+      - /tmp/scmscx.com/pending/render:/input
+      - /tmp/scmscx.com/pending/gsfs/img:/output
+
   scmscx:
     image: registry.zxcv.io/scmscx.com
     network_mode: host
@@ -27,3 +38,4 @@ services:
       BACKBLAZE_DISABLED: "true"
       MIXPANEL_DISABLED: "true"
       GSFSFE_ENDPOINT: "http://127.0.0.1:42069"
+      SCMSCX_RENDER: "true"

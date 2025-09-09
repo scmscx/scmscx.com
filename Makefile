@@ -2,10 +2,6 @@ RUST_SOURCE = Cargo.toml Cargo.lock $(shell find crates/ -name "*.rs" -or -name 
 RUST_TARGET_DIR := target/x86_64-unknown-linux-gnu
 
 
-# FEATURES ?= ""
-# /tmp/scmscx.com/FEATURES: .phony
-# 	mkdir -p "$(@D)"
-# 	@if [[ `cat ARGS 2>&1` != '$(FEATURES)' ]]; then echo -n $(FEATURES) >$@; fi
 SHELL=/bin/bash
 
 $(RUST_TARGET_DIR)/debug/scmscx-com: $(RUST_SOURCE)
@@ -15,7 +11,7 @@ $(RUST_TARGET_DIR)/release/scmscx-com: $(RUST_SOURCE)
 	cargo build --release --bin scmscx-com
 
 package-lock.json node_modules &: package.json
-	npm i
+	npm ci
 	touch node_modules
 	touch package-lock.json
 
@@ -90,6 +86,7 @@ run-release: image-release
 push: image-release
 	podman push registry.zxcv.io/scmscx.com
 	podman push registry.zxcv.io/postgres
+	podman push registry.zxcv.io/render
 
 dev:
 	npm run dev

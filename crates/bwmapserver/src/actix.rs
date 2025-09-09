@@ -11,6 +11,7 @@ use crate::hacks;
 use bwcommon::insert_extension;
 use bwcommon::{ApiSpecificInfoForLogging, MyError};
 
+use crate::api::uiv2::get_map_image;
 use crate::gsfs::gsfs_get_mapblob;
 use crate::pumpers::start_backblaze_pumper;
 use crate::pumpers::start_gsfs_pumper;
@@ -987,6 +988,7 @@ pub(crate) async fn start() -> Result<()> {
             //.service(upload_replay2)
             //.service(process_a_lot_of_maps)
             .service(get_minimap)
+            .service(get_map_image)
             .service(get_minimap_resized)
             .service(get_search_result_popup)
             //.service(regen_filenames)

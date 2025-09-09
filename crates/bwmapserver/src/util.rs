@@ -25,12 +25,12 @@ pub(crate) fn sanitize_sc_string(s: &str) -> String {
     }
 }
 
-pub fn calculate_hash_of_object(object: impl AsRef<[u8]>) -> String {
-    use sha2::Digest;
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(&object);
-    finalize_hash_of_hasher(hasher)
-}
+// pub fn calculate_hash_of_object(object: impl AsRef<[u8]>) -> String {
+//     use sha2::Digest;
+//     let mut hasher = sha2::Sha256::new();
+//     hasher.update(&object);
+//     finalize_hash_of_hasher(hasher)
+// }
 
 pub fn finalize_hash_of_hasher<D: digest::Digest + digest::FixedOutput>(hasher: D) -> String
 where

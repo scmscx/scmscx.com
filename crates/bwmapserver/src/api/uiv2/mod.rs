@@ -9,6 +9,7 @@ pub mod units;
 pub mod upload;
 
 use crate::db;
+use crate::gsfs::gsfs_get_file;
 use crate::gsfs::gsfs_get_minimap;
 use crate::gsfs::gsfs_put_minimap;
 use crate::middleware::UserSession;
@@ -377,6 +378,97 @@ async fn get_minimap(
     Ok(insert_extension(HttpResponse::Ok(), info)
         .content_type("image/png")
         .body(minimap)
+        .customize())
+}
+
+#[get("/api/uiv2/img/{map_id}")]
+async fn get_map_image(
+    req: HttpRequest,
+    path: web::Path<(String,)>,
+    pool: web::Data<
+        bb8_postgres::bb8::Pool<
+            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
+        >,
+    >,
+    reqwest_client: web::Data<reqwest::Client>,
+) -> Result<impl Responder, bwcommon::MyError> {
+    let (map_id,) = path.into_inner();
+
+    let map_id = if map_id.chars().all(|x| x.is_ascii_digit()) && map_id.len() < 8 {
+        map_id.parse::<i64>()?
+    } else {
+        bwcommon::get_db_id_from_web_id(&map_id, crate::util::SEED_MAP_ID)?
+    };
+
+    let (chkblob_hash, uploaded_by, nsfw, blackholed) = {
+        let con = pool.get().await?;
+        let row = con
+            .query_one(
+                "select
+                chkblob,
+                uploaded_by,
+                nsfw,
+                blackholed
+            from
+                map
+            where
+                map.id = $1",
+                &[&map_id],
+            )
+            .await?;
+
+        (
+            row.try_get::<_, String>("chkblob")?,
+            row.try_get("uploaded_by")?,
+            row.try_get("nsfw")?,
+            row.try_get("blackholed")?,
+        )
+    };
+
+    let user_id = req.extensions().get::<UserSession>().map(|x| x.id);
+
+    if nsfw && user_id == None {
+        return Ok(HttpResponse::Forbidden().finish().customize());
+    }
+
+    if blackholed && user_id != Some(uploaded_by) && user_id != Some(4) {
+        return Ok(HttpResponse::NotFound().finish().customize());
+    }
+
+    let info = ApiSpecificInfoForLogging {
+        map_id: Some(map_id),
+        chk_hash: Some(chkblob_hash.clone()),
+        ..Default::default()
+    };
+
+    if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            gsfs_get_file(
+                &reqwest_client,
+                &endpoint,
+                format!("/img/{}.webp", chkblob_hash.as_str()),
+            ),
+        )
+        .await
+        {
+            Ok(Ok(stream)) => {
+                return Ok(insert_extension(HttpResponse::Ok(), info)
+                    .content_type("image/webp")
+                    .streaming(stream)
+                    .customize());
+            }
+            Ok(Err(error)) => {
+                error!("Failed to get mapimg from gsfs: {}", error);
+            }
+            Err(e) => {
+                error!("Timed out trying to get mapimg from gsfs: {}", e);
+            }
+        }
+    }
+
+    Ok(insert_extension(HttpResponse::NotFound(), info)
+        .finish()
         .customize())
 }
 

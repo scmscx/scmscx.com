@@ -21,7 +21,7 @@ import {
 import { I18nSpan } from "../modules/language";
 import { useSession } from "../modules/context";
 import MinimapImg from "../modules/MinimapImg";
-import { unix_time_to_timestamp, useApi } from "../util/util";
+import { unix_time_to_timestamp, useApi, useFetchImage } from "../util/util";
 import {
   map_era_to_tileset,
   map_player_owners_to_strings,
@@ -29,6 +29,7 @@ import {
   map_ver_to_string,
   unit_id_to_name,
 } from "../util/sc";
+import MapImg from "../modules/MapImg";
 
 const replay_frames_to_human_duration = (frames: number) => {
   const s = (frames * 42) / 1000;
@@ -783,6 +784,7 @@ export default function (prop: any) {
   const [replays] = useApi(() => `/api/uiv2/replays/${params.mapId}`);
   const [units] = useApi(() => `/api/uiv2/units/${params.mapId}`);
   const [filenames2] = useApi(() => `/api/uiv2/filenames2/${params.mapId}`);
+  const [mapImage] = useFetchImage(() => `/api/uiv2/img/${params.mapId}`);
 
   return (
     <>
@@ -888,6 +890,14 @@ export default function (prop: any) {
               <I18nSpan text="Flags" />
             </h3>
             <Flags mapId={params.mapId} />
+            <Show when={mapImage()}>
+              <h3 class={style.h3}>
+                <I18nSpan text="Map Image" />
+              </h3>
+              <div class={style.mapimg}>
+                <MapImg url={mapImage()} />
+              </div>
+            </Show>
             <h3 class={style.h3}>
               <I18nSpan text="Tags" />
             </h3>

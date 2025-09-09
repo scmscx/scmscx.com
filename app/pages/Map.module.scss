@@ -34,6 +34,11 @@
   display: inline-block;
 }
 
+.mapimg {
+  @extend .standard-panel-no-padding;
+  display: inline-block;
+}
+
 .force {
   @extend .standard-panel;
   @extend .space-font;
