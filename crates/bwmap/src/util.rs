@@ -53,7 +53,7 @@ pub(crate) fn reinterpret_as_slice<T: Sized + Copy>(s: &T) -> Result<&[u8], anyh
 #[instrument(level = "trace", skip_all)]
 pub(crate) fn reinterpret_slice2<T: Sized>(s: &[u8]) -> Result<&[T], anyhow::Error> {
     anyhow::ensure!(
-        s.len() % std::mem::size_of::<T>() == 0,
+        s.len().is_multiple_of(std::mem::size_of::<T>()),
         "s.len(): {}, std::mem::size_of::<T>(): {}",
         s.len(),
         std::mem::size_of::<T>()
