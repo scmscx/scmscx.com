@@ -90,27 +90,12 @@ async fn gsfs_get(
     match response.status() {
         reqwest::StatusCode::OK => (),
         e => {
-            error!("gsfs put failed: {}", response.status());
-            anyhow::bail!("gsfs put failed: {e}");
+            error!("gsfs get failed: {}", response.status());
+            anyhow::bail!("gsfs get failed: {e}");
         }
     }
 
     Ok(response.bytes_stream())
-}
-
-pub async fn gsfs_put_mapblob(
-    client: &Client,
-    endpoint: &str,
-    path: impl AsRef<Path> + 'static,
-    mapblob_hash: &str,
-) -> Result<()> {
-    gsfs_put(
-        client,
-        endpoint,
-        read_file_as_stream(path, 1024 * 1024).await?,
-        format!("/mapblob/{mapblob_hash}"),
-    )
-    .await
 }
 
 pub async fn gsfs_get_mapblob(
@@ -119,6 +104,29 @@ pub async fn gsfs_get_mapblob(
     mapblob_hash: &str,
 ) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
     gsfs_get(client, endpoint, format!("/mapblob/{mapblob_hash}")).await
+}
+
+pub async fn gsfs_put_file(
+    client: &Client,
+    endpoint: &str,
+    path: impl AsRef<Path> + 'static,
+    filename: String,
+) -> Result<()> {
+    gsfs_put(
+        client,
+        endpoint,
+        read_file_as_stream(path, 1024 * 1024).await?,
+        filename,
+    )
+    .await
+}
+
+pub async fn gsfs_get_file(
+    client: &Client,
+    endpoint: &str,
+    filename: String,
+) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
+    gsfs_get(client, endpoint, filename).await
 }
 
 pub async fn gsfs_put_minimap(
@@ -144,20 +152,20 @@ pub async fn gsfs_get_minimap(
     gsfs_get(client, endpoint, format!("/minimap/{chkblob_hash}")).await
 }
 
-pub async fn gsfs_put_chkblob(
-    client: &Client,
-    endpoint: &str,
-    path: impl AsRef<Path> + 'static,
-    chkblob_hash: &str,
-) -> Result<()> {
-    gsfs_put(
-        client,
-        endpoint,
-        read_file_as_stream(path, 1024 * 1024).await?,
-        format!("/chkblob/{chkblob_hash}"),
-    )
-    .await
-}
+// pub async fn gsfs_put_chkblob(
+//     client: &Client,
+//     endpoint: &str,
+//     path: impl AsRef<Path> + 'static,
+//     chkblob_hash: &str,
+// ) -> Result<()> {
+//     gsfs_put(
+//         client,
+//         endpoint,
+//         read_file_as_stream(path, 1024 * 1024).await?,
+//         format!("/chkblob/{chkblob_hash}"),
+//     )
+//     .await
+// }
 
 // pub async fn gsfs_get_chkblob(
 //     client: &Client,
