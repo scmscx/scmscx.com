@@ -198,7 +198,8 @@ async fn get_map(
                         }
 
                         if finalize_hash_of_hasher(hasher) == mapblob_hash {
-                            if let Err(e) = tokio::fs::rename(&temp_filename, format!("./pending/gsfs/{mapblob_hash}.scx")).await {
+                            tokio::fs::create_dir_all("./pending/gsfs/mapblob").await?;
+                            if let Err(e) = tokio::fs::rename(&temp_filename, format!("./pending/gsfs/mapblob/{mapblob_hash}")).await {
                                 error!("Failed to rename temp file: {e}, temp_filename: {temp_filename}");
                             }
                         } else {
