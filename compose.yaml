@@ -1,6 +1,6 @@
 services:
   scmscx-db:
-    image: registry.zxcv.io/postgres
+    image: "registry.zxcv.io/postgres:${GIT_VERSION}"
     network_mode: host
     build:
       context: postgres
@@ -8,10 +8,8 @@ services:
       POSTGRES_PASSWORD: anotverysecurepassword
 
   render:
-    image: registry.zxcv.io/render
+    image: "registry.zxcv.io/render:${GIT_VERSION}"
     network_mode: host
-    build:
-      context: render
     command: ["/starcraft", "/input", "/output"]
     volumes:
       - /home/stan/starcraft:/starcraft
@@ -19,12 +17,10 @@ services:
       - /tmp/scmscx.com/pending/gsfs/img:/output
 
   scmscx:
-    image: registry.zxcv.io/scmscx.com
+    image: "registry.zxcv.io/scmscx.com:${GIT_VERSION}-debug"
     network_mode: host
     ports:
       - "8080:8080"
-    build:
-      context: .
     volumes:
       - /tmp/scmscx.com/pending:/app/pending
     environment:

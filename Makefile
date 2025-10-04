@@ -4,6 +4,8 @@ RUST_TARGET_DIR := target/x86_64-unknown-linux-gnu
 
 SHELL=/bin/bash
 
+GIT_VERSION := $(shell git log -1 --format=%H)
+
 $(RUST_TARGET_DIR)/debug/scmscx-com: $(RUST_SOURCE)
 	cargo build --bin scmscx-com
 
@@ -40,10 +42,15 @@ dist/release: $(RUST_TARGET_DIR)/release/scmscx-com dist/vite
 
 	touch $@
 
-image-debug: dist/debug
-	podman-compose build --build-arg PROFILE="debug"
-image-release: dist/release
-	podman-compose build --build-arg PROFILE="release"
+scmscx.com-image-debug: dist/debug
+	podman build --build-arg PROFILE="debug" -t "registry.zxcv.io/scmscx.com:$(GIT_VERSION)-debug" -t registry.zxcv.io/scmscx.com:latest-debug -f Dockerfile
+
+scmscx.com-image: dist/release
+	podman build --build-arg PROFILE="release" -t "registry.zxcv.io/scmscx.com:$(GIT_VERSION)" -t registry.zxcv.io/scmscx.com:latest -f Dockerfile
+render-image:
+	podman build -t "registry.zxcv.io/render:$(GIT_VERSION)" -t registry.zxcv.io/render:latest -f render/Dockerfile
+postgres-image:
+	podman build -t "registry.zxcv.io/postgres:$(GIT_VERSION)" -t registry.zxcv.io/postgres:latest -f postgres/Dockerfile
 
 check: $(RUST_SOURCE)
 	cargo check --workspace --all-targets
@@ -73,20 +80,16 @@ clippy: $(RUST_SOURCE)
 		-A clippy::clone-on-copy \
 		-A clippy::type-complexity
 
-ci: check build test fmt clippy image-debug
+ci: check build test fmt clippy scmscx.com-image-debug
 
-run: image-debug
-	podman-compose down
-	podman-compose up
+run: scmscx.com-image-debug render-image postgres-image
+	GIT_VERSION=$(GIT_VERSION) podman-compose down
+	GIT_VERSION=$(GIT_VERSION) podman-compose up
 
-run-release: image-release
-	podman-compose down
-	podman-compose up
-
-push: image-release
-	podman push registry.zxcv.io/scmscx.com
-	podman push registry.zxcv.io/postgres
-	podman push registry.zxcv.io/render
+push: scmscx.com-image render-image postgres-image
+	podman push "registry.zxcv.io/scmscx.com:$(GIT_VERSION)"
+	podman push "registry.zxcv.io/postgres:$(GIT_VERSION)"
+	podman push "registry.zxcv.io/render:$(GIT_VERSION)"
 
 dev:
 	npm run dev
@@ -95,4 +98,4 @@ deploy:
 	ssh -i~/.ssh/stan -C root@10.70.23.1 podman pull registry.zxcv.io/scmscx.com
 	ssh -i~/.ssh/stan -C root@10.70.23.1 systemctl restart scmscx.com
 
-.PHONY: .phony check build test fmt clippy ci run run-release push dev deploy
+.PHONY: .phony check build test fmt clippy ci run push dev deploy scmscx.com-image-debug scmscx.com-image render-image postgres-image
