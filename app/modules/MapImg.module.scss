@@ -1,7 +1,32 @@
 @use "../global.scss" as *;
 
+.mapimgContainer {
+  position: relative;
+  display: block;
+}
+
 .mapimg {
   image-rendering: auto;
   display: block;
   height: auto;
+  cursor: crosshair;
+}
+
+.zoomOverlay {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.zoomView {
+  width: 500px;
+  height: 500px;
+  border: 3px solid $menu-red;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  background-repeat: no-repeat;
+  background-color: #f0f0f0;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
 }
