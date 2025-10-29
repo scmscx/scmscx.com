@@ -837,6 +837,14 @@ export default function (prop: any) {
                 max-height={512}
               />
             </div>
+            <Show when={mapImage()}>
+              <h3 class={style.h3}>
+                <I18nSpan text="Map Image" />
+              </h3>
+              <div class={style.mapimg}>
+                <MapImg url={mapImage()} />
+              </div>
+            </Show>
             <h3 class={style.h3}>
               <I18nSpan text="Scenario Properties" />
             </h3>
@@ -890,14 +898,6 @@ export default function (prop: any) {
               <I18nSpan text="Flags" />
             </h3>
             <Flags mapId={params.mapId} />
-            <Show when={mapImage()}>
-              <h3 class={style.h3}>
-                <I18nSpan text="Map Image" />
-              </h3>
-              <div class={style.mapimg}>
-                <MapImg url={mapImage()} />
-              </div>
-            </Show>
             <h3 class={style.h3}>
               <I18nSpan text="Tags" />
             </h3>
