@@ -4,4 +4,6 @@
   image-rendering: pixelated;
   display: block;
   height: auto;
+  // Prevent global reset from shrinking the preview near viewport edges
+  max-width: none;
 }
