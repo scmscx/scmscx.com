@@ -7,6 +7,7 @@ import style from "./MinimapHover.module.scss";
 export default function (props: any) {
   const [isMouseHovering, setIsMouseHovering] = createSignal(false);
   const [mouseCoords, setMouseCoords] = createSignal([0, 0]);
+  let hoverEl: HTMLDivElement | undefined;
 
   const isTouchDevice = () => {
     return "ontouchstart" in window || window.navigator.maxTouchPoints > 0;
@@ -25,9 +26,28 @@ export default function (props: any) {
             <div
               class={style.hover}
               style={{
-                left: `${mouseCoords()[0]}px`,
-                top: `${mouseCoords()[1]}px`,
+                left: `${Math.max(
+                  8,
+                  Math.min(
+                    mouseCoords()[0] + 8,
+                    (typeof window !== "undefined"
+                      ? document.documentElement.clientWidth
+                      : 0) -
+                      (hoverEl?.offsetWidth ?? 256) -
+                      8
+                  )
+                )}px`,
+                top: `${Math.max(
+                  8,
+                  Math.min(
+                    mouseCoords()[1] + 8,
+                    (typeof window !== "undefined" ? window.innerHeight : 0) -
+                      (hoverEl?.offsetHeight ?? 256) -
+                      8
+                  )
+                )}px`,
               }}
+              ref={hoverEl}
             >
               <MinimapImg
                 mapId={props.mapId}
