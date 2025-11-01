@@ -1,4 +1,4 @@
-FROM ubuntu:25.04 AS build
+FROM docker.io/ubuntu:25.04 AS build
 
 RUN apt-get update
 RUN apt-get install wget lsb-release software-properties-common gnupg -y dialog
