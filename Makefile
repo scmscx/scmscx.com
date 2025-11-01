@@ -2,7 +2,7 @@ RUST_SOURCE = Cargo.toml Cargo.lock $(shell find crates/ -name "*.rs" -or -name 
 RUST_TARGET_DIR := target/x86_64-unknown-linux-gnu
 
 
-SHELL=/bin/bash
+# SHELL=/bin/bash
 
 GIT_VERSION := $(shell git log -1 --format=%H)
 
