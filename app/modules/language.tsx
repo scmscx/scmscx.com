@@ -693,7 +693,7 @@ const langmap = {
     // Search Filters
     "Uploaded By": "上傳者",
     "Include Broken": "包含已損壞",
-    "Include Outdated": "包含過時",
+    "Include Outdated": "包含舊版本",
     "Include Unfinished": "包含未完成",
     "Include NSFW": "包含NSFW",
 

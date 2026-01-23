@@ -444,76 +444,43 @@ const SimilarMaps = (props: any) => {
   const [similarMaps] = useApi(() => `/api/similar_maps/${props.mapId}`);
 
   return (
-    <>
-      {/* <Show when={similarMaps()}>
-        <div class={style["similar-maps"]}>
-          <For each={similarMaps().v1}>
-            {(map, id) => (
-              <>
-                <A
-                  class={style["similar-maps-minimap"]}
-                  href={`/map/${map.map_id}`}
-                >
-                  <MinimapImg
-                    mapId={map.map_id}
-                    max-width="128"
-                    max-height="128"
-                  />{" "}
-                </A>
-                <A href={`/map/${map.map_id}`}>
-                  <div class={style["similar-maps-scenario"]}>
-                    <ColoredTextMenu text={map.scenario_name} />
-                  </div>
-                  <div class={style["similar-maps-details"]}>
-                    {unix_time_to_timestamp(map.last_modified_time)}
-                  </div>
-                  <div class={style["similar-maps-details"]}>
-                    {map.width}x{map.height}
-                  </div>
-                  <div class={style["similar-maps-details"]}>
-                    <I18nSpan text={map_era_to_tileset(map.tileset % 8)} />
-                  </div>
-                </A>
-              </>
-            )}
-          </For>
-        </div>
-      </Show> */}
-      <Show when={similarMaps()}>
-        <div class={style["similar-maps"]}>
-          <For each={similarMaps().v2}>
-            {(map, id) => (
-              <>
-                <A
-                  class={style["similar-maps-minimap"]}
-                  href={`/map/${map.map_id}`}
-                >
-                  <MinimapImg
-                    mapId={map.map_id}
-                    max-width="128"
-                    max-height="128"
-                  />{" "}
-                </A>
-                <A href={`/map/${map.map_id}`}>
-                  <div class={style["similar-maps-scenario"]}>
-                    <ColoredTextMenu text={map.scenario_name} />
-                  </div>
-                  <div class={style["similar-maps-details"]}>
-                    {unix_time_to_timestamp(map.last_modified_time)}
-                  </div>
-                  <div class={style["similar-maps-details"]}>
-                    {map.width}x{map.height}
-                  </div>
-                  <div class={style["similar-maps-details"]}>
-                    <I18nSpan text={map_era_to_tileset(map.tileset % 8)} />
-                  </div>
-                </A>
-              </>
-            )}
-          </For>
-        </div>
-      </Show>
-    </>
+    <Show when={similarMaps()?.v2?.length > 0}>
+      <h3 class={style.h3}>
+        <I18nSpan text="Similar Maps" />
+      </h3>
+      <div class={style["similar-maps"]}>
+        <For each={similarMaps().v2}>
+          {(map, id) => (
+            <>
+              <A
+                class={style["similar-maps-minimap"]}
+                href={`/map/${map.map_id}`}
+              >
+                <MinimapImg
+                  mapId={map.map_id}
+                  max-width="128"
+                  max-height="128"
+                />{" "}
+              </A>
+              <A href={`/map/${map.map_id}`}>
+                <div class={style["similar-maps-scenario"]}>
+                  <ColoredTextMenu text={map.scenario_name} />
+                </div>
+                <div class={style["similar-maps-details"]}>
+                  {unix_time_to_timestamp(map.last_modified_time)}
+                </div>
+                <div class={style["similar-maps-details"]}>
+                  {map.width}x{map.height}
+                </div>
+                <div class={style["similar-maps-details"]}>
+                  <I18nSpan text={map_era_to_tileset(map.tileset % 8)} />
+                </div>
+              </A>
+            </>
+          )}
+        </For>
+      </div>
+    </Show>
   );
 };
 
@@ -853,26 +820,14 @@ export default function (prop: any) {
               <I18nSpan text="Forces" />
             </h3>
             <Forces map={map()} />
-            <h3 class={style.h3}>
-              <I18nSpan text="Replays" />
-            </h3>
-            <Replays replays={replays()} />
+            <Show when={replays()?.length > 0}>
+              <h3 class={style.h3}>
+                <I18nSpan text="Replays" />
+              </h3>
+              <Replays replays={replays()} />
+            </Show>
             <h3 class={style.h3}>
               <I18nSpan text="Known Filenames" />
-            </h3>
-            <KnownFilenames
-              filenames={filenames()}
-              mpqHash={map().meta.mpq_hash}
-            />
-            <h3 class={style.h3}>
-              <I18nSpan text="Known Timestamps" />
-            </h3>
-            <KnownFiletimes filetimes={filetimes()} />
-            <h3 class={style.h3}>
-              <span>
-                <I18nSpan text="Known Filenames" />
-                (beta)
-              </span>
             </h3>
             <KnownFilenames2
               filenames2={filenames2()}
@@ -882,17 +837,18 @@ export default function (prop: any) {
               <I18nSpan text="EUD" />
             </h3>
             <Eud map={map()} />
-            <h3 class={style.h3}>
-              <I18nSpan text="Units" />
-            </h3>
-            <Units units={units()} />
-            <h3 class={style.h3}>
-              <I18nSpan text="Wavs" />
-            </h3>
-            <Wavs map={map()} />
-            <h3 class={style.h3}>
-              <I18nSpan text="Similar Maps" />
-            </h3>
+            <Show when={units()?.length > 0}>
+              <h3 class={style.h3}>
+                <I18nSpan text="Units" />
+              </h3>
+              <Units units={units()} />
+            </Show>
+            <Show when={map().wavs?.length > 0}>
+              <h3 class={style.h3}>
+                <I18nSpan text="Wavs" />
+              </h3>
+              <Wavs map={map()} />
+            </Show>
             <SimilarMaps mapId={params.mapId} />
             <h3 class={style.h3}>
               <I18nSpan text="Flags" />
@@ -906,6 +862,17 @@ export default function (prop: any) {
               <I18nSpan text="Meta" />
             </h3>
             <Meta map={map()} />
+            <h3 class={style.h3}>
+              <I18nSpan text="Known Filenames" />
+            </h3>
+            <KnownFilenames
+              filenames={filenames()}
+              mpqHash={map().meta.mpq_hash}
+            />
+            <h3 class={style.h3}>
+              <I18nSpan text="Known Timestamps" />
+            </h3>
+            <KnownFiletimes filetimes={filetimes()} />
             <Admin map={map()} map_id={params.mapId} />
           </Show>
         </Show>
