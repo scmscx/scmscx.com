@@ -12,7 +12,7 @@ services:
     network_mode: host
     command: ["/starcraft", "/input", "/output"]
     volumes:
-      - /home/stan/starcraft:/starcraft
+      - /starcraft:/starcraft
       - /tmp/scmscx.com/pending/render:/input
       - /tmp/scmscx.com/pending/gsfs/img:/output
 

@@ -71,20 +71,22 @@ pub async fn search_cache(
             select distinct map.id, chkdenorm.scenario_name, uploaded_time, min(filetime.modified_time) as modified_time, uploaded_time, chkdenorm.width, chkdenorm.height, chkdenorm.tileset, chkdenorm.human_players, chkdenorm.computer_players from map
             left join filetime on filetime.map = map.id
             join chkdenorm on chkdenorm.chkblob = map.chkblob
+            left join account on account.id = map.uploaded_by
             where
-                nsfw = false and
-                outdated = false and
-                unfinished = false and
-                broken = false and
-                blackholed = false and
-                chkdenorm.scenario_name is not null and 
+                (map.nsfw = false or ($14 = true and $15 = true)) and
+                (map.outdated = false or $16 = true) and
+                (map.unfinished = false or $17 = true) and
+                (map.broken = false or $18 = true) and
+                map.blackholed = false and
+                chkdenorm.scenario_name is not null and
                 chkdenorm.width >= $1 and chkdenorm.width <= $2 and
                 chkdenorm.height >= $3 and chkdenorm.height <= $4 and
                 chkdenorm.tileset = any($5) and
                 chkdenorm.human_players >= $6 and chkdenorm.human_players <= $7 and
                 chkdenorm.computer_players >= $8 and chkdenorm.computer_players <= $9 and
                 map.uploaded_time <= $10 and map.uploaded_time >= $11 and
-                ((modified_time <= $12 and modified_time >= $13) or modified_time is null)
+                ((modified_time <= $12 and modified_time >= $13) or modified_time is null) and
+                ($19 = '' or account.username = $19)
             group by map.id, chkdenorm.scenario_name, uploaded_time, chkdenorm.width, chkdenorm.height, chkdenorm.tileset, chkdenorm.human_players, chkdenorm.computer_players
             order by {} {}
             ", sort, sortorder);
@@ -105,6 +107,12 @@ pub async fn search_cache(
                 &(query_params.time_uploaded_after / 1000),
                 &(query_params.last_modified_before / 1000),
                 &(query_params.last_modified_after / 1000),
+                &query_params.include_nsfw,
+                &allow_nsfw,
+                &query_params.include_outdated,
+                &query_params.include_unfinished,
+                &query_params.include_broken,
+                &query_params.uploaded_by,
             ],
         )
         .await?
@@ -146,15 +154,17 @@ pub async fn search_cache(
                     join map on map.id = sq2.mapid
                     left join filetime on filetime.map = map.id
                     join chkdenorm on chkdenorm.chkblob = map.chkblob
-                    where ($2 or map.nsfw = false) and outdated = false and unfinished = false and broken = false and blackholed = false and
-                        chkdenorm.scenario_name is not null and 
+                    left join account on account.id = map.uploaded_by
+                    where (map.nsfw = false or ($2 = true and $21 = true)) and (map.outdated = false or $22 = true) and (map.unfinished = false or $23 = true) and (map.broken = false or $24 = true) and map.blackholed = false and
+                        chkdenorm.scenario_name is not null and
                         chkdenorm.width >= $8 and chkdenorm.width <= $9 and
                         chkdenorm.height >= $10 and chkdenorm.height <= $11 and
                         chkdenorm.tileset = any($12) and
                         chkdenorm.human_players >= $13 and chkdenorm.human_players <= $14 and
                         chkdenorm.computer_players >= $15 and chkdenorm.computer_players <= $16 and
                         map.uploaded_time <= $17 and map.uploaded_time >= $18 and
-                        ((modified_time <= $19 and modified_time >= $20) or modified_time is null)
+                        ((modified_time <= $19 and modified_time >= $20) or modified_time is null) and
+                        ($25 = '' or account.username = $25)
                     group by map.id, chkdenorm.scenario_name, dist2
                     order by {} {}
                 ) as sq3",  sort, sortorder);
@@ -182,6 +192,11 @@ pub async fn search_cache(
                 &(query_params.time_uploaded_after / 1000),
                 &(query_params.last_modified_before / 1000),
                 &(query_params.last_modified_after / 1000),
+                &query_params.include_nsfw,
+                &query_params.include_outdated,
+                &query_params.include_unfinished,
+                &query_params.include_broken,
+                &query_params.uploaded_by,
             ],
         )
         .await?
@@ -222,6 +237,14 @@ fn default12() -> i64 {
 
 fn default2524608000000() -> i64 {
     2524608000000
+}
+
+fn defaultempty() -> String {
+    "".to_owned()
+}
+
+fn defaultfalse() -> bool {
+    false
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Hash, Eq, PartialEq)]
@@ -289,6 +312,18 @@ pub struct SearchParams {
 
     #[serde(default = "default0")]
     offset: i64,
+
+    #[serde(default = "defaultempty")]
+    pub(crate) uploaded_by: String,
+
+    #[serde(default = "defaultfalse")]
+    pub(crate) include_broken: bool,
+    #[serde(default = "defaultfalse")]
+    pub(crate) include_outdated: bool,
+    #[serde(default = "defaultfalse")]
+    pub(crate) include_unfinished: bool,
+    #[serde(default = "defaultfalse")]
+    pub(crate) include_nsfw: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
