@@ -26,6 +26,13 @@ const langmap = {
     "Log in": "Вход",
     "Next Random Map": "Следующая случайная карта",
 
+    // Search Filters
+    "Uploaded By": "Загружено пользователем",
+    "Include Broken": "Включить сломанные",
+    "Include Outdated": "Включить устаревшие",
+    "Include Unfinished": "Включить незавершённые",
+    "Include NSFW": "Включить NSFW",
+
     // Home Page
     "Welcome to scmscx.com": "Добро пожаловать на scmscx.com",
     "The largest StarCraft: Brood War map database in the universe":
@@ -236,6 +243,13 @@ const langmap = {
     About: "Acerca de",
     "Log in": "Iniciar sesión",
     "Next Random Map": "Siguiente mapa aleatorio",
+
+    // Search Filters
+    "Uploaded By": "Subido por",
+    "Include Broken": "Incluir rotos",
+    "Include Outdated": "Incluir desactualizados",
+    "Include Unfinished": "Incluir sin terminar",
+    "Include NSFW": "Incluir NSFW",
 
     // Home Page
     "Welcome to scmscx.com": "Bienvenido a scmscx.com",
@@ -456,6 +470,13 @@ const langmap = {
     "Next Random Map": "다음 무작위 지도",
     "Log out": "로그아웃",
 
+    // Search Filters
+    "Uploaded By": "업로드한 사람",
+    "Include Broken": "고장난 맵 포함",
+    "Include Outdated": "시대에 뒤쳐진 맵 포함",
+    "Include Unfinished": "다듬지 않은 맵 포함",
+    "Include NSFW": "NSFW 포함",
+
     // Upload
     "If you want to upload one or more .scm/.scx files, then choose the top file picker.":
       ".scm/.scx 파일 하나 또는 여러 개를 업로드하려면 위쪽의 파일 선택 기능을 사용하세요.",
@@ -669,6 +690,13 @@ const langmap = {
     "Log in": "登入",
     "Next Random Map": "下個隨機地圖",
 
+    // Search Filters
+    "Uploaded By": "上傳者",
+    "Include Broken": "包含已損壞",
+    "Include Outdated": "包含過時",
+    "Include Unfinished": "包含未完成",
+    "Include NSFW": "包含NSFW",
+
     // Search
     "Search-formaction": "搜索",
     Query: "查詢",
@@ -878,6 +906,13 @@ const langmap = {
     About: "À propos",
     "Log in": "Connexion",
     "Next Random Map": "Carte Aléatoire Suivante",
+
+    // Search Filters
+    "Uploaded By": "Téléversé par",
+    "Include Broken": "Inclure les dysfonctionnelles",
+    "Include Outdated": "Inclure les obsolètes",
+    "Include Unfinished": "Inclure les inachevées",
+    "Include NSFW": "Inclure NSFW",
 
     // Home Page
     "Welcome to scmscx.com": "Bienvenue sur scmscx.com",
@@ -1093,6 +1128,13 @@ const langmap = {
     About: "Über",
     "Log in": "Anmeldung",
     "Next Random Map": "Nächste Zufallskarte",
+
+    // Search Filters
+    "Uploaded By": "Hochgeladen von",
+    "Include Broken": "Kaputte einbeziehen",
+    "Include Outdated": "Veraltete einbeziehen",
+    "Include Unfinished": "Unfertige einbeziehen",
+    "Include NSFW": "NSFW einbeziehen",
 
     // Home Page
     "Welcome to scmscx.com": "Willkommen zu scmscx.com",

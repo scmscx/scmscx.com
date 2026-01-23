@@ -167,6 +167,17 @@ const getSearchUrl = (
   )
     queryParams.delete("time_uploaded_before");
 
+  if (queryParams.get("uploaded_by") === "")
+    queryParams.delete("uploaded_by");
+  if (queryParams.get("include_broken") === "false")
+    queryParams.delete("include_broken");
+  if (queryParams.get("include_outdated") === "false")
+    queryParams.delete("include_outdated");
+  if (queryParams.get("include_unfinished") === "false")
+    queryParams.delete("include_unfinished");
+  if (queryParams.get("include_nsfw") === "false")
+    queryParams.delete("include_nsfw");
+
   let apiUrl;
   if (query.length == 0) {
     if (queryParams.size == 0) {
@@ -189,6 +200,7 @@ const getSearchUrl = (
 
 export default function (prop: any) {
   const [lang, _] = useLang();
+  const [session] = useSession();
   const location = useLocation();
   const params = useParams();
   const navigate = useNavigate();
@@ -227,7 +239,12 @@ export default function (prop: any) {
       searchParams.last_modified_after != undefined ||
       searchParams.last_modified_before != undefined ||
       searchParams.uploaded_after != undefined ||
-      searchParams.uploaded_before != undefined
+      searchParams.uploaded_before != undefined ||
+      searchParams.uploaded_by != undefined ||
+      searchParams.include_broken != undefined ||
+      searchParams.include_outdated != undefined ||
+      searchParams.include_unfinished != undefined ||
+      searchParams.include_nsfw != undefined
   );
 
   const [sortShown, setSortShown] = createSignal(
@@ -281,6 +298,12 @@ export default function (prop: any) {
       searchParams.uploaded_before,
       new Date("2050-01-01").getTime()
     ),
+
+    uploaded_by: searchParams.uploaded_by ?? "",
+    include_broken: searchParams.include_broken === "true" ? "true" : "false",
+    include_outdated: searchParams.include_outdated === "true" ? "true" : "false",
+    include_unfinished: searchParams.include_unfinished === "true" ? "true" : "false",
+    include_nsfw: searchParams.include_nsfw === "true" ? "true" : "false",
   });
 
   if (params.query == undefined) {
@@ -1003,6 +1026,100 @@ export default function (prop: any) {
                   />
                 </label>
               </div>
+            </div>
+
+            <div class={style.flexbox}>
+              <div class={style["search-filter-textbox"]}>
+                <label for="uploadedBy">
+                  <I18nSpan text="Uploaded By" />
+                  <br />
+                  <input
+                    type="text"
+                    id="uploadedBy"
+                    placeholder={i18n_internal(lang(), "Username")}
+                    value={formData().uploaded_by}
+                    onInput={(evt) => {
+                      setFormData({
+                        ...formData(),
+                        uploaded_by: evt.target.value,
+                      });
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div class={style.flexbox}>
+              <div class={style["search-flag"]}>
+                <label for="include_broken">
+                  <input
+                    type="checkbox"
+                    id="include_broken"
+                    checked={formData().include_broken === "true"}
+                    onChange={() => {
+                      setFormData({
+                        ...formData(),
+                        include_broken:
+                          formData().include_broken === "true" ? "false" : "true",
+                      });
+                    }}
+                  />
+                  <I18nSpan text="Include Broken" />
+                </label>
+              </div>
+              <div class={style["search-flag"]}>
+                <label for="include_outdated">
+                  <input
+                    type="checkbox"
+                    id="include_outdated"
+                    checked={formData().include_outdated === "true"}
+                    onChange={() => {
+                      setFormData({
+                        ...formData(),
+                        include_outdated:
+                          formData().include_outdated === "true" ? "false" : "true",
+                      });
+                    }}
+                  />
+                  <I18nSpan text="Include Outdated" />
+                </label>
+              </div>
+              <div class={style["search-flag"]}>
+                <label for="include_unfinished">
+                  <input
+                    type="checkbox"
+                    id="include_unfinished"
+                    checked={formData().include_unfinished === "true"}
+                    onChange={() => {
+                      setFormData({
+                        ...formData(),
+                        include_unfinished:
+                          formData().include_unfinished === "true" ? "false" : "true",
+                      });
+                    }}
+                  />
+                  <I18nSpan text="Include Unfinished" />
+                </label>
+              </div>
+              <Show when={session()}>
+                <div class={style["search-flag"]}>
+                  <label for="include_nsfw">
+                    <input
+                      type="checkbox"
+                      id="include_nsfw"
+                      checked={formData().include_nsfw === "true"}
+                      onChange={() => {
+                        setFormData({
+                          ...formData(),
+                          include_nsfw:
+                            formData().include_nsfw === "true" ? "false" : "true",
+                        });
+                      }}
+                    />
+                    <I18nSpan text="Include NSFW" />
+                  </label>
+                </div>
+              </Show>
             </div>
           </div>
         </Show>
