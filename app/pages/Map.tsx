@@ -570,7 +570,8 @@ const ScenarioProperties = (props: any) => (
   </div>
 );
 
-const Flags = (props: any) => {
+const Flags = (props: { mapId: string; uploadedBy: string }) => {
+  const [session] = useSession();
   const [nsfw] = useApi(() => `/api/flags/${props.mapId}/nsfw`);
   const [unfinished] = useApi(() => `/api/flags/${props.mapId}/unfinished`);
   const [outdated] = useApi(() => `/api/flags/${props.mapId}/outdated`);
@@ -579,6 +580,11 @@ const Flags = (props: any) => {
   const [spoiler_unit_names] = useApi(
     () => `/api/flags/${props.mapId}/spoiler_unit_names`
   );
+
+  const canModifyFlags = () => {
+    const username = session();
+    return username === props.uploadedBy || username === "RagE";
+  };
 
   const mutate = (mapId: string, key: string, value: boolean) => {
     fetch(`/api/flags/${mapId}/${key}`, {
@@ -594,13 +600,14 @@ const Flags = (props: any) => {
 
   return (
     <Suspense>
-      <div class={style.flags}>
+      <div class={`${style.flags} ${!canModifyFlags() ? style["flags-disabled"] : ""}`}>
         <div class={style.flag}>
           <label for="checkbox_nsfw">
             <input
               type="checkbox"
               id="checkbox_nsfw"
               checked={nsfw()}
+              disabled={!canModifyFlags()}
               onChange={(evt) => {
                 mutate(props.mapId, "nsfw", evt.target.checked);
               }}
@@ -614,6 +621,7 @@ const Flags = (props: any) => {
               type="checkbox"
               id="checkbox_unfinished"
               checked={unfinished()}
+              disabled={!canModifyFlags()}
               onChange={(evt) => {
                 mutate(props.mapId, "unfinished", evt.target.checked);
               }}
@@ -627,6 +635,7 @@ const Flags = (props: any) => {
               type="checkbox"
               id="checkbox_outdated"
               checked={outdated()}
+              disabled={!canModifyFlags()}
               onChange={(evt) => {
                 mutate(props.mapId, "outdated", evt.target.checked);
               }}
@@ -640,6 +649,7 @@ const Flags = (props: any) => {
               type="checkbox"
               id="checkbox_broken"
               checked={broken()}
+              disabled={!canModifyFlags()}
               onChange={(evt) => {
                 mutate(props.mapId, "broken", evt.target.checked);
               }}
@@ -653,6 +663,7 @@ const Flags = (props: any) => {
               type="checkbox"
               id="checkbox_blackholed"
               checked={blackholed()}
+              disabled={!canModifyFlags()}
               onChange={(evt) => {
                 mutate(props.mapId, "blackholed", evt.target.checked);
               }}
@@ -666,6 +677,7 @@ const Flags = (props: any) => {
               type="checkbox"
               id="checkbox_spoiler_unit_names"
               checked={spoiler_unit_names()}
+              disabled={!canModifyFlags()}
               onChange={(evt) => {
                 mutate(props.mapId, "spoiler_unit_names", evt.target.checked);
               }}
@@ -853,7 +865,7 @@ export default function (prop: any) {
             <h3 class={style.h3}>
               <I18nSpan text="Flags" />
             </h3>
-            <Flags mapId={params.mapId} />
+            <Flags mapId={params.mapId} uploadedBy={map().meta.uploaded_by} />
             <h3 class={style.h3}>
               <I18nSpan text="Tags" />
             </h3>

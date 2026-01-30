@@ -171,6 +171,15 @@
   margin-top: 8px;
 }
 
+.flags-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.flag input:disabled {
+  cursor: not-allowed;
+}
+
 .monospace {
   @extend .monospace-font;
 }
