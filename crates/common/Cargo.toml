@@ -13,6 +13,10 @@ tracing-subscriber = { version = "*", features = ["registry", "env-filter", "tra
 sha2 = "*"
 uuid = { version = "*", features = ["v4"] }
 futures-util = "*"
+futures = "*"
+bytes = "*"
+reqwest = { version = "*", default-features = false, features = ["rustls-tls", "stream"] }
+async-stream = "*"
 bb8-postgres = "*"
 tokio = { version = "*", features = ["full"] }
 serde = "*"

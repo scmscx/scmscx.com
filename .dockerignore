@@ -1,5 +1,12 @@
 # Ignore everything
 **
 
-# Unignore dist
+# Unignore dist (for main Dockerfile)
 !/dist
+
+# Unignore built binaries
+!/target/x86_64-unknown-linux-gnu/*/scmscx-com
+!/target/x86_64-unknown-linux-gnu/*/bwrender
+
+# Unignore files needed for bwrender image
+!/bwrender/xvfb-run.sh

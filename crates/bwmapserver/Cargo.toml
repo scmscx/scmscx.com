@@ -8,6 +8,7 @@ edition = "2021"
 # bwreplay = { path = "../bwreplay" }
 bwmap = { path = "../bwmap" }
 bwcommon = { path = "../bwcommon" }
+common = { path = "../common" }
 backblaze = { path = "../backblaze" }
 bwminimaprender = { path = "../bwminimaprender" }
 bwmpq = { path = "../bwmpq" }

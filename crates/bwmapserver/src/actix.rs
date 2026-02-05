@@ -12,7 +12,6 @@ use bwcommon::insert_extension;
 use bwcommon::{ApiSpecificInfoForLogging, MyError};
 
 use crate::api::uiv2::get_map_image;
-use crate::gsfs::gsfs_get_mapblob;
 use crate::pumpers::start_backblaze_pumper;
 use crate::pumpers::start_gsfs_pumper;
 use crate::util::finalize_hash_of_hasher;
@@ -21,6 +20,7 @@ use actix_files::Files;
 use anyhow::Result;
 use backblaze::api::B2AuthorizeAccount;
 use backblaze::api::{b2_authorize_account, b2_download_file_by_name};
+use common::gsfs::gsfs_get_mapblob;
 use futures::lock::Mutex;
 use futures::StreamExt;
 use handlebars::{DirectorySourceOptions, Handlebars};

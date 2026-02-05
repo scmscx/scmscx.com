@@ -7,14 +7,30 @@ services:
     environment:
       POSTGRES_PASSWORD: anotverysecurepassword
 
-  render:
-    image: "registry.zxcv.io/render:${GIT_VERSION}"
+  bwrender:
+    image: "registry.zxcv.io/bwrender:${GIT_VERSION}-debug"
     network_mode: host
-    command: ["/starcraft", "/input", "/output"]
     volumes:
       - /starcraft:/starcraft
-      - /tmp/scmscx.com/pending/render:/input
-      - /tmp/scmscx.com/pending/gsfs/img:/output
+      - /tmp/bwrender-runtime:/run/user/0
+    environment:
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      XDG_RUNTIME_DIR: /run/user/0
+      MESA_DEBUG: "1"
+      LIBGL_DEBUG: verbose
+      RUST_LOG: info
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USER: bounding.net
+      DB_DATABASE: bounding.net
+      DB_PASSWORD: anotverysecurepassword
+      GSFSFE_ENDPOINT: "http://127.0.0.1:42069"
+      SC_DATA_PATH: /starcraft
+      RENDER_SKIN: carbothd2
+      # RENDER_SKIN: remasteredhd
+      RENDER_BATCH_SIZE: 10
+      RENDER_POLL_INTERVAL_SECS: 30
+      RENDER_WEBP_QUALITY: 40
 
   scmscx:
     image: "registry.zxcv.io/scmscx.com:${GIT_VERSION}-debug"
