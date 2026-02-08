@@ -25,7 +25,8 @@ ENV USE_SSL=false
 ARG PROFILE
 RUN test -n "$PROFILE"
 
-COPY dist/$PROFILE .
+COPY dist/assets .
+COPY target/x86_64-unknown-linux-gnu/$PROFILE/scmscx-com .
 
 VOLUME ["/app/pending"]
 

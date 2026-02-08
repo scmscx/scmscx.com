@@ -40,3 +40,11 @@ jobs:
 
       - run: make ci
       - run: make push
+
+  push-ci-runner:
+    timeout-minutes: 30
+    name: Push CI runner image
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - run: make push-ci-runner-scmscx.com

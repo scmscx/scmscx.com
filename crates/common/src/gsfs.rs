@@ -1,9 +1,10 @@
 use anyhow::Result;
 use bytes::{Bytes, BytesMut};
 use futures::Stream;
+use futures_util::StreamExt;
 use reqwest::{Body, Client};
 use std::path::Path;
-use tokio::{fs::File, io::AsyncReadExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::error;
 
 fn read_vec_as_stream(
@@ -21,7 +22,7 @@ async fn read_file_as_stream(
     path: impl AsRef<Path>,
     block_size: usize,
 ) -> Result<impl Stream<Item = Result<Bytes, std::io::Error>>> {
-    let mut file = File::open(path).await?;
+    let mut file = tokio::fs::File::open(path).await?;
     Ok(async_stream::stream! {
         let mut bytes = BytesMut::with_capacity(block_size);
 
@@ -44,7 +45,7 @@ async fn read_file_as_stream(
     })
 }
 
-async fn gsfs_put(
+pub async fn gsfs_put(
     client: &Client,
     endpoint: &str,
     src: impl Stream<Item = Result<Bytes, std::io::Error>> + Sync + Send + 'static,
@@ -72,7 +73,7 @@ async fn gsfs_put(
     Ok(())
 }
 
-async fn gsfs_get(
+pub async fn gsfs_get(
     client: &Client,
     endpoint: &str,
     path: impl AsRef<str> + 'static,
@@ -152,25 +153,35 @@ pub async fn gsfs_get_minimap(
     gsfs_get(client, endpoint, format!("/minimap/{chkblob_hash}")).await
 }
 
-// pub async fn gsfs_put_chkblob(
-//     client: &Client,
-//     endpoint: &str,
-//     path: impl AsRef<Path> + 'static,
-//     chkblob_hash: &str,
-// ) -> Result<()> {
-//     gsfs_put(
-//         client,
-//         endpoint,
-//         read_file_as_stream(path, 1024 * 1024).await?,
-//         format!("/chkblob/{chkblob_hash}"),
-//     )
-//     .await
-// }
+pub async fn gsfs_put_bytes(
+    client: &Client,
+    endpoint: &str,
+    path: &str,
+    data: Vec<u8>,
+) -> Result<()> {
+    gsfs_put(
+        client,
+        endpoint,
+        read_vec_as_stream(data, 1024 * 1024),
+        path.to_string(),
+    )
+    .await
+}
 
-// pub async fn gsfs_get_chkblob(
-//     client: &Client,
-//     endpoint: &str,
-//     chkblob_hash: &str,
-// ) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
-//     gsfs_get(client, endpoint, format!("/chkblob/{chkblob_hash}")).await
-// }
+pub async fn gsfs_download_to_file(
+    client: &Client,
+    endpoint: &str,
+    gsfs_path: &str,
+    dest_path: impl AsRef<Path>,
+) -> Result<()> {
+    let mut stream = gsfs_get(client, endpoint, gsfs_path.to_string()).await?;
+    let mut file = tokio::fs::File::create(dest_path).await?;
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        file.write_all(&chunk).await?;
+    }
+
+    file.flush().await?;
+    Ok(())
+}

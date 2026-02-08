@@ -1,0 +1,34 @@
+[package]
+name = "bwrender"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "bwrender"
+path = "src/main.rs"
+
+[dependencies]
+# Local crates
+chkdraft-bindings = { path = "../chkdraft-bindings" }
+common = { path = "../common" }
+
+# Async runtime
+tokio = { version = "*", features = ["rt-multi-thread", "full"] }
+
+# Database
+bb8-postgres = "*"
+
+# HTTP client
+reqwest = { version = "*", default-features = false, features = ["rustls-tls"] }
+
+# Error handling
+anyhow = "*"
+
+# Logging
+tracing = "*"
+tracing-subscriber = { version = "*", features = ["env-filter"] }
+tracing-log = "*"
+log = "*"
+
+# Utilities
+uuid = { version = "*", features = ["v4"] }

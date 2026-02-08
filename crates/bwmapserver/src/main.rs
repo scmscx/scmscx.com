@@ -1,7 +1,6 @@
 mod actix;
 mod api;
 mod db;
-mod gsfs;
 mod hacks;
 mod middleware;
 mod pumpers;

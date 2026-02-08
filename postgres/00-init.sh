@@ -430,7 +430,8 @@ psql -v ON_ERROR_STOP=1 --username "postgres" -d "bounding.net" <<-'EOSQL'
         denorm_scenario text,
         mapblob_size bigint NOT NULL,
         blackholed boolean DEFAULT false NOT NULL,
-        spoiler_unit_names bool DEFAULT false NOT NULL
+        spoiler_unit_names bool DEFAULT false NOT NULL,
+        rendered boolean DEFAULT false NOT NULL
     );
 
 

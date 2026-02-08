@@ -1,8 +1,8 @@
-use crate::gsfs::gsfs_put_file;
 use anyhow::Result;
 use async_stream::stream;
 use backblaze::api::{b2_authorize_account, b2_get_upload_url, b2_upload_file};
 use bytes::BytesMut;
+use common::gsfs::gsfs_put_file;
 use tokio::io::AsyncReadExt;
 use tracing::{error, info, warn};
 
