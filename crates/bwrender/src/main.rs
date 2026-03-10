@@ -130,12 +130,11 @@ async fn process_batch(
         match process_single_map(config, pool, client, render_ctx, b2_auth, &map).await {
             Ok(()) => {
                 processed += 1;
-                info!(chkblob_hash = %map.chkblob_hash, "Successfully rendered map");
             }
             Err(e) => {
-                // Just log and continue - random ordering means we won't get stuck
                 error!(
                     chkblob_hash = %map.chkblob_hash,
+                    mapblob_hash = %map.mapblob_hash,
                     error = %e,
                     "Failed to render map"
                 );
@@ -177,13 +176,24 @@ async fn download_from_b2_and_upload_to_gsfs(
 ) -> Result<()> {
     let api_info = get_or_refresh_b2_auth(config, client, b2_auth).await?;
 
+    info!(
+        chkblob_hash = %map.chkblob_hash,
+        mapblob_hash = %map.mapblob_hash,
+        bucket = MAPBLOB_BUCKET_NAME,
+        "Downloading mapblob from Backblaze B2"
+    );
+
     let download_result =
         b2_download_file_by_name(client, &api_info, MAPBLOB_BUCKET_NAME, &map.mapblob_hash).await;
 
     let mut stream = match download_result {
         Ok(stream) => stream,
         Err(B2Error::BadAuthToken(_) | B2Error::ExpiredAuthToken(_)) => {
-            warn!("B2 auth token expired, re-authenticating");
+            warn!(
+                chkblob_hash = %map.chkblob_hash,
+                mapblob_hash = %map.mapblob_hash,
+                "B2 auth token expired, re-authenticating"
+            );
             b2_auth.lock().await.invalidate();
             let api_info = get_or_refresh_b2_auth(config, client, b2_auth).await?;
             b2_download_file_by_name(client, &api_info, MAPBLOB_BUCKET_NAME, &map.mapblob_hash)
@@ -210,6 +220,12 @@ async fn download_from_b2_and_upload_to_gsfs(
         mapblob_hash = %map.mapblob_hash,
         size = all_bytes.len(),
         "Downloaded from B2, uploading to GSFS"
+    );
+
+    info!(
+        chkblob_hash = %map.chkblob_hash,
+        mapblob_hash = %map.mapblob_hash,
+        "Uploading mapblob to GSFS for future cache"
     );
 
     // Upload to GSFS so future fetches don't need B2
@@ -271,10 +287,20 @@ async fn process_single_map(
         );
 
         download_from_b2_and_upload_to_gsfs(config, client, b2_auth, map, &temp_path).await?;
+    } else {
+        info!(
+            chkblob_hash = %map.chkblob_hash,
+            mapblob_hash = %map.mapblob_hash,
+            "Downloaded mapblob from GSFS"
+        );
     }
 
     // 2. Render map to WebP
-    info!(chkblob_hash = %map.chkblob_hash, "Rendering map");
+    info!(
+        chkblob_hash = %map.chkblob_hash,
+        mapblob_hash = %map.mapblob_hash,
+        "Rendering map to WebP"
+    );
 
     let render_result = render_ctx
         .render_map(
@@ -286,33 +312,47 @@ async fn process_single_map(
 
     // Clean up temp file regardless of result
     if let Err(e) = tokio::fs::remove_file(&temp_path).await {
-        warn!(path = %temp_path, error = %e, "Failed to remove temp file");
+        warn!(
+            chkblob_hash = %map.chkblob_hash,
+            mapblob_hash = %map.mapblob_hash,
+            path = %temp_path,
+            error = %e,
+            "Failed to remove temp file"
+        );
     }
 
     let webp_data = render_result?;
 
     let file_size = webp_data.len() as i64;
+
+    // 3. Upload rendered image to GSFS
+    let gsfs_path = format!("/img/{}.webp", map.chkblob_hash);
     info!(
         chkblob_hash = %map.chkblob_hash,
+        mapblob_hash = %map.mapblob_hash,
         file_size = file_size,
-        "Render complete, uploading to GSFS"
+        gsfs_path = %gsfs_path,
+        "Uploading rendered image to GSFS"
     );
-
-    // 3. Upload to GSFS
-    let gsfs_path = format!("/img/{}.webp", map.chkblob_hash);
 
     common::gsfs::gsfs_put_bytes(client, &config.gsfsfe_endpoint, &gsfs_path, webp_data).await?;
 
-    // 4. Mark as rendered
+    // 4. Mark as rendered in database
+    info!(
+        chkblob_hash = %map.chkblob_hash,
+        mapblob_hash = %map.mapblob_hash,
+        "Marking map as rendered in database"
+    );
     db::mark_rendered(pool, &map.chkblob_hash).await?;
 
     let render_time_ms = start.elapsed().as_millis();
     info!(
         chkblob_hash = %map.chkblob_hash,
+        mapblob_hash = %map.mapblob_hash,
         render_time_ms = render_time_ms,
         file_size = file_size,
         gsfs_path = %gsfs_path,
-        "Map render completed successfully"
+        "Map render pipeline completed"
     );
 
     Ok(())
