@@ -11,6 +11,7 @@ path = "src/main.rs"
 # Local crates
 chkdraft-bindings = { path = "../chkdraft-bindings" }
 common = { path = "../common" }
+backblaze = { path = "../backblaze" }
 
 # Async runtime
 tokio = { version = "*", features = ["rt-multi-thread", "full"] }
@@ -32,3 +33,4 @@ log = "*"
 
 # Utilities
 uuid = { version = "*", features = ["v4"] }
+futures-util = "*"
