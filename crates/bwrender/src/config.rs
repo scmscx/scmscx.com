@@ -15,6 +15,10 @@ pub struct Config {
     // GSFS
     pub gsfsfe_endpoint: String,
 
+    // Backblaze B2 (fallback)
+    pub backblaze_key_id: String,
+    pub backblaze_application_key: String,
+
     // Rendering
     pub sc_data_path: String,
     pub render_skin: RenderSkin,
@@ -46,6 +50,10 @@ impl Config {
                 .context("DB_CONNECTIONS must be a number")?,
 
             gsfsfe_endpoint: env::var("GSFSFE_ENDPOINT").context("GSFSFE_ENDPOINT not set")?,
+
+            backblaze_key_id: env::var("BACKBLAZE_KEY_ID").context("BACKBLAZE_KEY_ID not set")?,
+            backblaze_application_key: env::var("BACKBLAZE_APPLICATION_KEY")
+                .context("BACKBLAZE_APPLICATION_KEY not set")?,
 
             sc_data_path: env::var("SC_DATA_PATH").context("SC_DATA_PATH not set")?,
             render_skin: parse_render_skin(
