@@ -9,6 +9,7 @@ pub type DbPool = Pool<PostgresConnectionManager<NoTls>>;
 /// Map data needed for rendering
 #[derive(Debug, Clone)]
 pub struct UnrenderedMap {
+    pub map_id: i64,
     pub chkblob_hash: String,
     pub mapblob_hash: String,
 }
@@ -31,25 +32,22 @@ pub async fn setup_pool(config: &Config) -> Result<DbPool> {
     Ok(pool)
 }
 
-/// Get maps that haven't been rendered yet (in random order)
-pub async fn get_unrendered_maps(pool: &DbPool, batch_size: i64) -> Result<Vec<UnrenderedMap>> {
+/// Get maps that haven't been rendered yet, most recently uploaded first.
+pub async fn get_unrendered_maps(pool: &DbPool) -> Result<Vec<UnrenderedMap>> {
     let conn = pool.get().await.context("Failed to get connection")?;
 
     let rows = conn
         .query(
             r#"
-            SELECT chkblob, mapblob2 FROM (
-                SELECT DISTINCT m.chkblob, m.mapblob2
-                FROM map m
-                WHERE m.chkblob IS NOT NULL
-                  AND m.mapblob2 IS NOT NULL
-                  AND m.blackholed = false
-                  AND m.rendered = false
-            ) sub
-            ORDER BY RANDOM()
-            LIMIT $1
+            SELECT DISTINCT m.id, m.chkblob, m.mapblob2
+            FROM map m
+            WHERE m.chkblob IS NOT NULL
+              AND m.mapblob2 IS NOT NULL
+              AND m.blackholed = false
+              AND m.rendered = false
+            ORDER BY m.id DESC
             "#,
-            &[&batch_size],
+            &[],
         )
         .await
         .context("Failed to query unrendered maps")?;
@@ -57,6 +55,7 @@ pub async fn get_unrendered_maps(pool: &DbPool, batch_size: i64) -> Result<Vec<U
     let maps = rows
         .into_iter()
         .map(|row| UnrenderedMap {
+            map_id: row.get("id"),
             chkblob_hash: row.get("chkblob"),
             mapblob_hash: row.get("mapblob2"),
         })

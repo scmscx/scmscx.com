@@ -7,7 +7,6 @@ description = "Rust bindings for Chkdraft map rendering library"
 [dependencies]
 
 [dev-dependencies]
-reqwest = { version = "*", features = ["blocking"] }
 
 [build-dependencies]
 bindgen = "0.70"

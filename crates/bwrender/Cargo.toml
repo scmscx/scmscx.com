@@ -31,6 +31,13 @@ tracing-subscriber = { version = "*", features = ["env-filter"] }
 tracing-log = "*"
 log = "*"
 
+# Image encoding
+webp = "*"
+image = { version = "*", default-features = false, features = ["png"] }
+
 # Utilities
 uuid = { version = "*", features = ["v4"] }
 futures-util = "*"
+async-channel = "*"
+
+[dev-dependencies]

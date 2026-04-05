@@ -18,7 +18,7 @@ use actix_web::{get, web, HttpResponse, Responder};
 use bwcommon::insert_extension;
 use bwcommon::ApiSpecificInfoForLogging;
 use bwcommon::MyError;
-use common::gsfs::gsfs_get_file;
+use common::gsfs::gsfs_get_map_image;
 use common::gsfs::gsfs_get_minimap;
 use common::gsfs::gsfs_put_minimap;
 use serde::{Deserialize, Serialize};
@@ -444,11 +444,7 @@ async fn get_map_image(
     if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
         match tokio::time::timeout(
             std::time::Duration::from_secs(1),
-            gsfs_get_file(
-                &reqwest_client,
-                &endpoint,
-                format!("/img/{}.webp", chkblob_hash.as_str()),
-            ),
+            gsfs_get_map_image(&reqwest_client, &endpoint, chkblob_hash.as_str()),
         )
         .await
         {

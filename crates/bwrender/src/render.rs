@@ -1,5 +1,7 @@
 use anyhow::{Context, Result};
-use chkdraft_bindings::{init_logging, GfxUtil, RenderOptions, RenderSkin, Renderer};
+use chkdraft_bindings::{
+    init_logging, set_log_level, GfxUtil, RawImage, RenderOptions, RenderSkin, Renderer,
+};
 use std::sync::mpsc;
 use std::thread;
 use tokio::sync::oneshot;
@@ -17,11 +19,15 @@ pub struct RenderContext {
     sender: mpsc::Sender<RenderRequest>,
 }
 
+pub struct RenderResult {
+    pub map_image: RawImage,
+    pub minimap_image: RawImage,
+}
+
 struct RenderRequest {
     map_path: String,
     anim_ticks: u64,
-    webp_quality: f32,
-    response_tx: oneshot::Sender<Result<Vec<u8>, String>>,
+    response_tx: oneshot::Sender<Result<RenderResult, String>>,
 }
 
 impl RenderContext {
@@ -43,6 +49,10 @@ impl RenderContext {
             } else {
                 info!("Render thread: WARNING - C++ logging may not be working");
             }
+
+            // Set C++ log level to Warn to suppress noisy info/debug logs
+            set_log_level(300); // 300 = Warn
+            info!("Render thread: C++ log level set to Warn");
 
             // Initialize GfxUtil on this thread - OpenGL context will be bound here
             info!("Render thread: initializing GfxUtil with skin {:?}", skin);
@@ -81,13 +91,8 @@ impl RenderContext {
 
             // Process render requests - reuse the same renderer for all
             while let Ok(request) = request_receiver.recv() {
-                let result = render_map_internal(
-                    &gfx,
-                    &renderer,
-                    &request.map_path,
-                    request.anim_ticks,
-                    request.webp_quality,
-                );
+                let result =
+                    render_map_internal(&gfx, &renderer, &request.map_path, request.anim_ticks);
                 let _ = request.response_tx.send(result);
             }
             info!("Render thread: shutting down");
@@ -104,22 +109,17 @@ impl RenderContext {
         })
     }
 
-    /// Render a map file to WebP bytes.
+    /// Render a map file to raw RGB pixels (map image + minimap).
     ///
     /// This sends the request to the dedicated render thread and waits for the result.
-    pub async fn render_map(
-        &self,
-        map_path: &str,
-        anim_ticks: u64,
-        webp_quality: f32,
-    ) -> Result<Vec<u8>> {
+    /// Encoding is NOT done here — the caller is responsible for encoding.
+    pub async fn render_map(&self, map_path: &str, anim_ticks: u64) -> Result<RenderResult> {
         let (response_tx, response_rx) = oneshot::channel();
 
         self.sender
             .send(RenderRequest {
                 map_path: map_path.to_string(),
                 anim_ticks,
-                webp_quality,
                 response_tx,
             })
             .map_err(|_| anyhow::anyhow!("Render thread died"))?;
@@ -136,8 +136,7 @@ fn render_map_internal(
     renderer: &Renderer,
     map_path: &str,
     anim_ticks: u64,
-    webp_quality: f32,
-) -> Result<Vec<u8>, String> {
+) -> Result<RenderResult, String> {
     info!("render_map_internal: loading map from {}", map_path);
     let mut map = gfx
         .load_map(map_path)
@@ -156,60 +155,31 @@ fn render_map_internal(
     map.simulate_anim(anim_ticks);
     info!("render_map_internal: animation simulation complete");
 
+    info!("render_map_internal: rendering map image");
+    let options = RenderOptions::default();
+    let map_image = renderer
+        .get_raw_image(&map, &options)
+        .map_err(|e| format!("Failed to render map: {}", e))?;
     info!(
-        "render_map_internal: calling get_webp with quality {}",
-        webp_quality
-    );
-    let options = RenderOptions {
-        webp_quality,
-        ..RenderOptions::default()
-    };
-    let webp_data = renderer
-        .get_webp(&map, &options)
-        .map_err(|e| format!("Failed to render map to WebP: {}", e))?;
-    info!(
-        "render_map_internal: get_webp returned {} bytes",
-        webp_data.len()
+        "render_map_internal: rendered {}x{} map image ({} bytes)",
+        map_image.width,
+        map_image.height,
+        map_image.rgb_data.len()
     );
 
-    Ok(webp_data)
-}
+    info!("render_map_internal: rendering minimap");
+    let minimap_image = renderer
+        .get_raw_minimap(&map)
+        .map_err(|e| format!("Failed to render minimap: {}", e))?;
+    info!(
+        "render_map_internal: rendered {}x{} minimap ({} bytes)",
+        minimap_image.width,
+        minimap_image.height,
+        minimap_image.rgb_data.len()
+    );
 
-/// Standalone render function for when you don't want to maintain context
-#[allow(dead_code)]
-pub async fn render_map_standalone(
-    sc_data_path: &str,
-    map_path: &str,
-    skin: RenderSkin,
-    anim_ticks: u64,
-    webp_quality: f32,
-) -> Result<Vec<u8>> {
-    let sc_data_path = sc_data_path.to_string();
-    let map_path = map_path.to_string();
-
-    tokio::task::spawn_blocking(move || {
-        let mut gfx = GfxUtil::new().context("Failed to create GfxUtil")?;
-        gfx.load_sc_data(&sc_data_path)
-            .context("Failed to load StarCraft data")?;
-
-        let renderer = gfx
-            .create_renderer(skin)
-            .context("Failed to create renderer")?;
-
-        let mut map = gfx.load_map(&map_path).context("Failed to load map")?;
-
-        map.simulate_anim(anim_ticks);
-
-        let options = RenderOptions {
-            webp_quality,
-            ..RenderOptions::default()
-        };
-        let webp_data = renderer
-            .get_webp(&map, &options)
-            .context("Failed to render map to WebP")?;
-
-        Ok(webp_data)
+    Ok(RenderResult {
+        map_image,
+        minimap_image,
     })
-    .await
-    .context("Render task panicked")?
 }

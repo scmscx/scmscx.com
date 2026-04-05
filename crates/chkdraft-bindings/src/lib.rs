@@ -111,8 +111,6 @@ pub struct RenderOptions {
     pub draw_fog_player: Option<u8>,
     /// Draw location rectangles
     pub draw_locations: bool,
-    /// WebP quality (0-100, where 100 is highest quality). Values <= 0 use lossless encoding.
-    pub webp_quality: f32,
 }
 
 impl Default for RenderOptions {
@@ -123,7 +121,6 @@ impl Default for RenderOptions {
             draw_actors: true,
             draw_fog_player: None,
             draw_locations: false,
-            webp_quality: 40.0,
         }
     }
 }
@@ -136,7 +133,6 @@ impl RenderOptions {
             draw_actors: self.draw_actors as i32,
             draw_fog_player: self.draw_fog_player.map(|p| p as i32).unwrap_or(-1),
             draw_locations: self.draw_locations as i32,
-            webp_quality: self.webp_quality,
         }
     }
 }
@@ -152,6 +148,17 @@ pub struct SaveWebpResult {
     pub encode_ms: i32,
     /// Time spent writing to disk (ms)
     pub out_file_ms: i32,
+}
+
+/// Raw rendered image (RGB pixels, not yet encoded to any format).
+#[derive(Debug, Clone)]
+pub struct RawImage {
+    /// Image width in pixels
+    pub width: u32,
+    /// Image height in pixels
+    pub height: u32,
+    /// RGB pixel data (length = width * height * 3)
+    pub rgb_data: Vec<u8>,
 }
 
 /// Result of animation simulation.
@@ -173,6 +180,13 @@ pub struct SimulationResult {
 /// Returns `true` if logging is working.
 pub fn init_logging() -> bool {
     unsafe { ffi::chk_init_logging() != 0 }
+}
+
+/// Set the C++ logger log level.
+///
+/// Levels: 0=Off, 100=Fatal, 200=Error, 300=Warn, 400=Info, 500=Debug, 600=Trace
+pub fn set_log_level(level: u32) {
+    unsafe { ffi::chk_set_log_level(level) }
 }
 
 /// Graphics utility for loading StarCraft data and creating renderers/maps.
@@ -282,6 +296,13 @@ pub struct Renderer {
 unsafe impl Send for Renderer {}
 
 impl Renderer {
+    /// Change the renderer's active skin.
+    ///
+    /// The skin will be loaded on the next render call.
+    pub fn set_skin(&self, skin: RenderSkin) {
+        unsafe { ffi::chk_renderer_set_skin(self.ptr, skin.to_ffi()) }
+    }
+
     /// Save a map as a WebP image.
     ///
     /// # Arguments
@@ -366,6 +387,90 @@ impl Renderer {
 
         Ok(data)
     }
+
+    /// Render a map to raw RGB pixels without WebP encoding.
+    ///
+    /// Returns a `RawImage` containing the raw RGB pixel data, width, and height.
+    /// The pixel data is in row-major order, 3 bytes per pixel (R, G, B).
+    pub fn get_raw_image(&self, map: &ScMap, options: &RenderOptions) -> Result<RawImage, Error> {
+        let mut error = ffi::ChkError {
+            code: 0,
+            message: [0; 256],
+        };
+
+        let ffi_options = options.to_ffi();
+        let mut raw_image = ffi::ChkRawImage {
+            data: ptr::null_mut(),
+            width: 0,
+            height: 0,
+            data_size: 0,
+        };
+
+        let success = unsafe {
+            ffi::chk_renderer_get_raw_image(
+                self.ptr,
+                map.ptr,
+                &ffi_options,
+                &mut raw_image,
+                &mut error,
+            )
+        };
+
+        if success == 0 || raw_image.data.is_null() {
+            return Err(error.into());
+        }
+
+        let data = unsafe {
+            let slice = std::slice::from_raw_parts(raw_image.data, raw_image.data_size);
+            let vec = slice.to_vec();
+            ffi::chk_free_raw_image_data(raw_image.data);
+            vec
+        };
+
+        Ok(RawImage {
+            width: raw_image.width as u32,
+            height: raw_image.height as u32,
+            rgb_data: data,
+        })
+    }
+
+    /// Render a minimap to raw RGB pixels.
+    ///
+    /// Returns a `RawImage` containing the 128x128 minimap as raw RGB pixel data.
+    pub fn get_raw_minimap(&self, map: &ScMap) -> Result<RawImage, Error> {
+        let mut error = ffi::ChkError {
+            code: 0,
+            message: [0; 256],
+        };
+
+        let mut raw_image = ffi::ChkRawImage {
+            data: ptr::null_mut(),
+            width: 0,
+            height: 0,
+            data_size: 0,
+        };
+
+        let success = unsafe {
+            ffi::chk_renderer_get_raw_minimap(self.ptr, map.ptr, &mut raw_image, &mut error)
+        };
+
+        if success == 0 || raw_image.data.is_null() {
+            return Err(error.into());
+        }
+
+        let data = unsafe {
+            let slice = std::slice::from_raw_parts(raw_image.data, raw_image.data_size);
+            let vec = slice.to_vec();
+            ffi::chk_free_raw_image_data(raw_image.data);
+            vec
+        };
+
+        Ok(RawImage {
+            width: raw_image.width as u32,
+            height: raw_image.height as u32,
+            rgb_data: data,
+        })
+    }
 }
 
 impl Drop for Renderer {
@@ -433,7 +538,6 @@ mod tests {
         assert!(opts.draw_stars);
         assert!(!opts.draw_locations);
         assert!(opts.draw_fog_player.is_none());
-        assert!((opts.webp_quality - 40.0).abs() < f32::EPSILON);
     }
 
     #[test]
@@ -446,106 +550,5 @@ mod tests {
             RenderSkin::RemasteredHd.to_ffi(),
             ffi::ChkRenderSkin_CHK_SKIN_REMASTERED_HD
         );
-    }
-
-    /// Integration test that actually renders a map to WebP.
-    ///
-    /// This test is ignored by default because it requires external files:
-    /// - SC_DATA_PATH: Path to StarCraft installation with CASC data
-    /// - TEST_MAP_URL: URL to download a .scx or .scm map file
-    ///
-    /// Optional:
-    /// - OUTPUT_PATH: Path to save the rendered WebP (for visual inspection)
-    ///
-    /// Run with:
-    /// ```bash
-    /// SC_DATA_PATH=/starcraft TEST_MAP_URL=https://scmscx.com/api/maps/HASH \
-    ///     cargo test -p chkdraft-bindings test_render_map_to_webp -- --ignored --nocapture
-    /// ```
-    #[test]
-    #[ignore]
-    fn test_render_map_to_webp() {
-        let sc_data_path =
-            std::env::var("SC_DATA_PATH").expect("SC_DATA_PATH environment variable must be set");
-        let map_url =
-            std::env::var("TEST_MAP_URL").expect("TEST_MAP_URL environment variable must be set");
-
-        // Download the map to a temp file
-        println!("Downloading map from: {}", map_url);
-        let map_data = reqwest::blocking::get(&map_url)
-            .expect("Failed to fetch map")
-            .bytes()
-            .expect("Failed to read map bytes");
-        println!("Downloaded {} bytes", map_data.len());
-
-        let temp_dir = std::env::temp_dir();
-        let map_path = temp_dir.join("test_map.scx");
-        std::fs::write(&map_path, &map_data).expect("Failed to write temp map file");
-        println!("Saved to temp file: {}", map_path.display());
-
-        println!("Loading StarCraft data from: {}", sc_data_path);
-        let mut gfx = GfxUtil::new().expect("Failed to create GfxUtil");
-        gfx.load_sc_data(&sc_data_path)
-            .expect("Failed to load StarCraft data");
-        println!("StarCraft data loaded successfully");
-
-        println!("Creating renderer with Classic skin");
-        let renderer = gfx
-            .create_renderer(RenderSkin::Classic)
-            .expect("Failed to create renderer");
-
-        println!("Loading map from: {}", map_path.display());
-        let mut map = gfx
-            .load_map(map_path.to_str().unwrap())
-            .expect("Failed to load map");
-        println!(
-            "Map loaded: {}x{} tiles",
-            map.tile_width(),
-            map.tile_height()
-        );
-
-        println!("Simulating animation (52 ticks)");
-        let sim_result = map.simulate_anim(52);
-        println!(
-            "Simulation complete: {} ticks, {} game ms, {} real ms",
-            sim_result.ticks, sim_result.game_time_ms, sim_result.real_time_ms
-        );
-
-        println!("Rendering map to WebP");
-        let options = RenderOptions::default();
-
-        // Use save_webp (writes directly to file)
-        let output_path = std::env::var("OUTPUT_PATH")
-            .unwrap_or_else(|_| "/tmp/test_render_output.webp".to_string());
-        println!("Saving WebP to: {}", output_path);
-
-        let save_result = renderer
-            .save_webp(&map, &options, &output_path)
-            .expect("Failed to render map to WebP");
-
-        println!(
-            "Render complete! load_skin_tileset: {}ms, render: {}ms, encode: {}ms, out_file: {}ms",
-            save_result.load_skin_tileset_ms,
-            save_result.render_ms,
-            save_result.encode_ms,
-            save_result.out_file_ms
-        );
-
-        // Verify file was created
-        let webp_data = std::fs::read(&output_path).expect("Failed to read output file");
-        println!("WebP file size: {} bytes", webp_data.len());
-        assert!(!webp_data.is_empty(), "WebP data should not be empty");
-
-        // Verify it starts with WebP magic bytes (RIFF....WEBP)
-        assert!(webp_data.len() >= 12, "WebP data too short to be valid");
-        assert_eq!(&webp_data[0..4], b"RIFF", "Missing RIFF header");
-        assert_eq!(&webp_data[8..12], b"WEBP", "Missing WEBP signature");
-
-        println!("Saved to: {}", output_path);
-
-        // Clean up temp file
-        let _ = std::fs::remove_file(&map_path);
-
-        println!("Test passed!");
     }
 }
