@@ -91,7 +91,7 @@ where
                 .connection_info()
                 .realip_remote_addr()
                 .unwrap_or("default:5000")
-                .split(":")
+                .split(':')
                 .next()
                 .unwrap_or("default")
                 .to_owned();

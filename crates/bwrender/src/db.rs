@@ -38,7 +38,7 @@ pub async fn get_unrendered_maps(pool: &DbPool) -> Result<Vec<UnrenderedMap>> {
 
     let rows = conn
         .query(
-            r#"
+            r"
             SELECT DISTINCT m.id, m.chkblob, m.mapblob2
             FROM map m
             WHERE m.chkblob IS NOT NULL
@@ -46,7 +46,7 @@ pub async fn get_unrendered_maps(pool: &DbPool) -> Result<Vec<UnrenderedMap>> {
               AND m.blackholed = false
               AND m.rendered = false
             ORDER BY m.id DESC
-            "#,
+            ",
             &[],
         )
         .await

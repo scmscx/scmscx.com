@@ -140,7 +140,7 @@ where
                                 .await?;
 
                             anyhow::Ok(())
-                        }.await.unwrap()
+                        }.await.unwrap();
                     });
 
                     Ok(res)
@@ -157,7 +157,7 @@ where
                             con.execute("INSERT INTO userlogs (timestamp, host, real_addr, remote_addr, tracking_analytics_id, tracking_analytics_was_provided_by_request, trace_id, path, query_string, method, version, user_agent, error, if_modified_since, if_none_match, sec_ch_ua, sec_ch_ua_mobile, sec_ch_ua_platform, accept_language, accept_encoding, accept, cookies, request_time_us) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)", &[&now, &host, &real_addr, &remote_addr, &tracking_analytics_id, &tracking_analytics_was_provided_by_request, &trace_id, &path, &query_string, &method, &version, &user_agent, &err_string, &if_modified_since, &if_none_match, &sec_ch_ua, &sec_ch_ua_mobile, &sec_ch_ua_platform, &accept_language, &accept_encoding, &accept, &cookies, &request_time]).await?;
 
                             anyhow::Ok(())
-                        }.await.unwrap()
+                        }.await.unwrap();
                     });
 
                     Err(err)

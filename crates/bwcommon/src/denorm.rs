@@ -48,7 +48,7 @@ pub fn calculate_perceptual_hashes(minimap: &Vec<u8>) -> Result<(Vec<u8>, Vec<u8
 
     let ph8x8: Vec<_> = ph8x8
         .iter()
-        .map(|x| if *x < ph8x8_avg { 0 } else { 1 })
+        .map(|x| u8::from(*x >= ph8x8_avg))
         .collect::<Vec<u8>>()
         .chunks_exact(8)
         .map(|x| x.iter().fold(0u8, |acc, x| (acc << 1) | *x))
@@ -57,7 +57,7 @@ pub fn calculate_perceptual_hashes(minimap: &Vec<u8>) -> Result<(Vec<u8>, Vec<u8
 
     let ph16x16: Vec<_> = ph16x16
         .iter()
-        .map(|x| if *x < ph16x16_avg { 0 } else { 1 })
+        .map(|x| u8::from(*x >= ph16x16_avg))
         .collect::<Vec<u8>>()
         .chunks_exact(8)
         .map(|x| x.iter().fold(0u8, |acc, x| (acc << 1) | *x))
@@ -66,7 +66,7 @@ pub fn calculate_perceptual_hashes(minimap: &Vec<u8>) -> Result<(Vec<u8>, Vec<u8
 
     let ph32x32: Vec<_> = ph32x32
         .iter()
-        .map(|x| if *x < ph32x32_avg { 0 } else { 1 })
+        .map(|x| u8::from(*x >= ph32x32_avg))
         .collect::<Vec<u8>>()
         .chunks_exact(8)
         .map(|x| x.iter().fold(0u8, |acc, x| (acc << 1) | *x))
@@ -84,11 +84,11 @@ async fn update_strings(
     pub(crate) fn sanitize_sc_string(s: &str) -> String {
         // split string by left or right marks
 
-        let mut strings: Vec<_> = s.split(|x| x == '\u{0012}' || x == '\u{0013}').collect();
+        let mut strings: Vec<_> = s.split(['\u{0012}', '\u{0013}']).collect();
 
         strings.sort_by_key(|x| std::cmp::Reverse(x.len()));
 
-        if strings.len() == 0 {
+        if strings.is_empty() {
             String::new()
         } else {
             strings[0].chars().filter(|&x| x >= ' ').collect()
@@ -157,22 +157,18 @@ async fn update_strings(
     let (scenario_name, scenario_description) = if let Ok(x) = &parsed_chk.sprp {
         let scenario_string = if x.scenario_name_string_number == 0 {
             None
+        } else if let Ok(s) = parsed_chk.get_string(x.scenario_name_string_number as usize) {
+            Some(sanitize_sc_string_preserve_newlines(s.as_str()))
         } else {
-            if let Ok(s) = parsed_chk.get_string(x.scenario_name_string_number as usize) {
-                Some(sanitize_sc_string_preserve_newlines(s.as_str()))
-            } else {
-                None
-            }
+            None
         };
 
         let scenario_description_string = if x.description_string_number == 0 {
             None
+        } else if let Ok(s) = parsed_chk.get_string(x.description_string_number as usize) {
+            Some(sanitize_sc_string_preserve_newlines(s.as_str()))
         } else {
-            if let Ok(s) = parsed_chk.get_string(x.description_string_number as usize) {
-                Some(sanitize_sc_string_preserve_newlines(s.as_str()))
-            } else {
-                None
-            }
+            None
         };
 
         (scenario_string, scenario_description_string)
@@ -218,7 +214,7 @@ async fn update_strings(
             ],
         )
         .await?;
-    };
+    }
 
     // unit names
     if let Some(unit_names) = unit_names {
@@ -285,10 +281,11 @@ async fn update_minimap(
     tx.execute("delete from minimap where chkhash = $1", &[&chk_hash])
         .await?;
 
-    let binstring = ph16x16
-        .iter()
-        .map(|x| format!("{x:08b}"))
-        .collect::<String>();
+    let binstring = ph16x16.iter().fold(String::new(), |mut s, x| {
+        use std::fmt::Write;
+        write!(s, "{x:08b}").unwrap();
+        s
+    });
 
     tx.execute(
         "INSERT INTO minimap
@@ -447,68 +444,67 @@ pub async fn denormalize_map_tx(map_id: i64, tx: &mut Transaction<'_>) -> Result
         .await?
         .try_get(0)?;
 
-    let chk_hash = match chk_hash {
-        Some(chk_hash) => chk_hash,
-        None => {
-            // hash didn't exist in db, download the map, try to extract it, and so on.
-            let mapblob_hash: String = tx
-                .query_one("select mapblob2 from map where map.id = $1", &[&map_id])
-                .await?
-                .try_get(0)?;
+    let chk_hash = if let Some(chk_hash) = chk_hash {
+        chk_hash
+    } else {
+        // hash didn't exist in db, download the map, try to extract it, and so on.
+        let mapblob_hash: String = tx
+            .query_one("select mapblob2 from map where map.id = $1", &[&map_id])
+            .await?
+            .try_get(0)?;
 
-            const MAPBLOB_BUCKET_NAME: &'static str = "seventyseven-mapblob";
-            let client = Client::new();
+        const MAPBLOB_BUCKET_NAME: &str = "seventyseven-mapblob";
+        let client = Client::new();
 
-            let api_info = b2_authorize_account(
-                &client,
-                &std::env::var("BACKBLAZE_KEY_ID").unwrap(),
-                &std::env::var("BACKBLAZE_APPLICATION_KEY").unwrap(),
-            )
-            .await?;
+        let api_info = b2_authorize_account(
+            &client,
+            &std::env::var("BACKBLAZE_KEY_ID").unwrap(),
+            &std::env::var("BACKBLAZE_APPLICATION_KEY").unwrap(),
+        )
+        .await?;
 
-            let mut stream = b2_download_file_by_name(
-                &client,
-                &api_info,
-                MAPBLOB_BUCKET_NAME,
-                mapblob_hash.as_str(),
-            )
-            .await?;
+        let mut stream = b2_download_file_by_name(
+            &client,
+            &api_info,
+            MAPBLOB_BUCKET_NAME,
+            mapblob_hash.as_str(),
+        )
+        .await?;
 
-            let tmp_filename = format!("/tmp/{}.scx", uuid::Uuid::new_v4().as_simple());
-            let mut file = tokio::fs::File::create(&tmp_filename).await?;
+        let tmp_filename = format!("/tmp/{}.scx", uuid::Uuid::new_v4().as_simple());
+        let mut file = tokio::fs::File::create(&tmp_filename).await?;
 
-            use futures_util::stream::StreamExt;
-            while let Some(chunk) = stream.next().await {
-                let chunk = chunk?;
-                file.write_all(&chunk).await?;
-            }
-
-            file.shutdown().await?;
-
-            drop(file);
-
-            let chk_blob = bwmpq::get_chk_from_mpq_filename(tmp_filename)?;
-
-            let chk_blob_hash = {
-                use sha2::Digest;
-                let mut hasher = sha2::Sha256::new();
-                hasher.update(&chk_blob);
-                format!("{:x}", hasher.finalize())
-            };
-
-            let chk_blob_compressed = zstd::bulk::compress(chk_blob.as_slice(), 15)?;
-
-            tx.execute("INSERT INTO chkblob (hash, ver, length, data) VALUES ($1, 1, $2, $3) ON CONFLICT DO NOTHING RETURNING Cast((xmax = 0) as boolean) AS inserted",
-        &[&chk_blob_hash, &(chk_blob.len() as i64), &chk_blob_compressed]).await?;
-
-            tx.execute(
-                "update map set chkblob = $1 where map.id = $2",
-                &[&chk_blob_hash, &map_id],
-            )
-            .await?;
-
-            chk_blob_hash
+        use futures_util::stream::StreamExt;
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            file.write_all(&chunk).await?;
         }
+
+        file.shutdown().await?;
+
+        drop(file);
+
+        let chk_blob = bwmpq::get_chk_from_mpq_filename(tmp_filename)?;
+
+        let chk_blob_hash = {
+            use sha2::Digest;
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(&chk_blob);
+            format!("{:x}", hasher.finalize())
+        };
+
+        let chk_blob_compressed = zstd::bulk::compress(chk_blob.as_slice(), 15)?;
+
+        tx.execute("INSERT INTO chkblob (hash, ver, length, data) VALUES ($1, 1, $2, $3) ON CONFLICT DO NOTHING RETURNING Cast((xmax = 0) as boolean) AS inserted",
+    &[&chk_blob_hash, &(chk_blob.len() as i64), &chk_blob_compressed]).await?;
+
+        tx.execute(
+            "update map set chkblob = $1 where map.id = $2",
+            &[&chk_blob_hash, &map_id],
+        )
+        .await?;
+
+        chk_blob_hash
     };
 
     let chk_blob = {

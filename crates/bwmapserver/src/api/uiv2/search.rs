@@ -63,5 +63,5 @@ async fn search(
     query_params: Query<SearchParams>,
     pool: Data<Pool<PostgresConnectionManager<NoTls>>>,
 ) -> Result<impl Responder, bwcommon::MyError> {
-    handler(req, "".to_owned(), query_params, pool).await
+    handler(req, String::new(), query_params, pool).await
 }

@@ -8,4 +8,7 @@ edition = "2021"
 [dependencies]
 
 [build-dependencies]
-bindgen = "*"
+bindgen = "0.70.1"
+
+[lints]
+workspace = true

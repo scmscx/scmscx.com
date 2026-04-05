@@ -16,13 +16,11 @@ async fn handler2(
         >,
     >,
 ) -> Result<HttpResponse, bwcommon::MyError> {
-    let user_id = if let Some(user_id) = bwcommon::check_auth4(&req, (**pool).clone()).await? {
-        user_id
-    } else {
+    let Some(user_id) = bwcommon::check_auth4(&req, (**pool).clone()).await? else {
         return Ok(HttpResponse::Unauthorized().body("Unauthorized. Try logging in first/again."));
     };
 
-    if form.username.len() < 1 {
+    if form.username.is_empty() {
         return Ok(
             HttpResponse::BadRequest().body("The provided username must not be the empty string")
         );

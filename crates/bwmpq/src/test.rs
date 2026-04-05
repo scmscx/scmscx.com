@@ -41,7 +41,7 @@ where
             }
         }
 
-        if futs.len() == 0 {
+        if futs.is_empty() {
             break;
         }
 
@@ -77,17 +77,13 @@ async fn download_test_artifacts<'a, T: AsRef<Path>, I: Iterator<Item = &'a str>
         |(path, client), id| async move {
             let path = path.join(id);
 
-            match tokio::fs::read(&path).await {
-                Ok(data) => {
-                    if hash(data.as_slice()) != id {
-                    } else {
-                        return;
-                    }
+            if let Ok(data) = tokio::fs::read(&path).await {
+                if hash(data.as_slice()) == id {
+                    return;
                 }
-                Err(_) => {}
             }
 
-            let url = format!("https://scmscx.com/api/maps/{}", id);
+            let url = format!("https://scmscx.com/api/maps/{id}");
             println!("getting: {url}");
 
             let response = client
@@ -98,7 +94,7 @@ async fn download_test_artifacts<'a, T: AsRef<Path>, I: Iterator<Item = &'a str>
                 .unwrap();
             let bytes = response.bytes().await.unwrap();
 
-            assert!(bytes.len() > 0);
+            assert!(!bytes.is_empty());
             assert_eq!(hash(&bytes[..]), id);
 
             tokio::fs::write(path, &bytes[..]).await.unwrap();
@@ -120,7 +116,7 @@ async fn can_extract_chks() {
     for (mpq_hash, chk_hash) in MPQS {
         let mpq_path = dir.join(mpq_hash);
         let mpq_data = tokio::fs::read(&mpq_path).await.unwrap();
-        let mpq_hash2 = hash(&mpq_data.as_slice());
+        let mpq_hash2 = hash(mpq_data.as_slice());
         let chk = get_chk_from_mpq_in_memory(mpq_data.as_slice()).unwrap();
         let chk_hash2 = hash(chk.as_slice());
 

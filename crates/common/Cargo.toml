@@ -5,18 +5,21 @@ edition = "2021"
 
 [dependencies]
 
-actix-web = "*"
-anyhow = "*"
-tracing = "*"
-tracing-subscriber = { version = "*", features = ["registry", "env-filter", "tracing-log"] }
+actix-web = "4.11.0"
+anyhow = "1.0.99"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.20", features = ["registry", "env-filter", "tracing-log"] }
 #console-subscriber = "*"
-sha2 = "*"
-uuid = { version = "*", features = ["v4"] }
-futures-util = "*"
-futures = "*"
-bytes = "*"
-reqwest = { version = "*", default-features = false, features = ["rustls-tls", "stream"] }
-async-stream = "*"
-bb8-postgres = "*"
-tokio = { version = "*", features = ["full"] }
-serde = "*"
+sha2 = "0.10.9"
+uuid = { version = "1.18.0", features = ["v4"] }
+futures-util = "0.3.31"
+futures = "0.3.31"
+bytes = "1.10.1"
+reqwest = { version = "0.12.4", default-features = false, features = ["rustls-tls", "stream"] }
+async-stream = "0.3.6"
+bb8-postgres = "0.9.0"
+tokio = { version = "1.47.1", features = ["full"] }
+serde = "1.0.219"
+
+[lints]
+workspace = true

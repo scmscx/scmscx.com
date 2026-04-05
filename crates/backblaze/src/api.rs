@@ -49,7 +49,10 @@ pub enum B2Error {
 
 impl From<B2ErrorBody> for B2Error {
     fn from(value: B2ErrorBody) -> Self {
-        use B2Error::*;
+        use B2Error::{
+            BadAuthToken, BadBucketId, BadRequest, ExpiredAuthToken, NotFound, ServiceUnavailable,
+            StorageCapExceeded, Unauthorized, Unknown,
+        };
 
         match value.code.as_str() {
             "bad_bucket_id" => BadBucketId(value.message),
@@ -168,7 +171,7 @@ pub async fn b2_download_file_by_name(
     bucket_name: &str,
     file_name: &str,
 ) -> Result<B2DownloadFileByName<impl Stream<Item = Result<Bytes, reqwest::Error>>>, B2Error> {
-    use crate::api::B2Error::*;
+    use crate::api::B2Error::Network;
 
     let response = client
         .get(format!(

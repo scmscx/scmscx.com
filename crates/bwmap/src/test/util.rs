@@ -31,20 +31,16 @@ pub async fn get_chk(chk_hash: &str) -> Result<Vec<u8>> {
     tokio::fs::create_dir_all(&dir).await.unwrap();
     let path = dir.join(chk_hash);
 
-    match tokio::fs::read(&path).await {
-        Ok(data) => {
-            if hash(data.as_slice()) != chk_hash {
-            } else {
-                return anyhow::Ok(data);
-            }
+    if let Ok(data) = tokio::fs::read(&path).await {
+        if hash(data.as_slice()) == chk_hash {
+            return anyhow::Ok(data);
         }
-        Err(_) => {}
     }
 
-    let url = format!("https://scmscx.com/api/chk/{}", chk_hash);
+    let url = format!("https://scmscx.com/api/chk/{chk_hash}");
     let bytes = reqwest::get(url).await.unwrap().bytes().await.unwrap();
 
-    assert!(bytes.len() > 0);
+    assert!(!bytes.is_empty());
     assert_eq!(hash(&bytes[..]), chk_hash);
 
     tokio::fs::write(&path, &bytes[..]).await.unwrap();

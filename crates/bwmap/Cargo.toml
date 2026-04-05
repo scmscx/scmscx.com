@@ -12,21 +12,24 @@ full = []
 uchardet-bindings = { path = "../uchardet-bindings", optional = true }
 compact_enc_det-bindings = { path = "../compact_enc_det-bindings", optional = true }
 
-serde = { version = "*", features = ["derive"] }
-encoding_rs = "*"
-anyhow = { version = "*", features = ["backtrace"] }
+serde = { version = "1.0.219", features = ["derive"] }
+encoding_rs = "0.8.35"
+anyhow = { version = "1.0.99", features = ["backtrace"] }
 
-scopeguard = "*"
-phf = { version = "0.10", features = ["macros"] }
+scopeguard = "1.2.0"
+phf = { version = "0.10.1", features = ["macros"] }
 
-tracing = "*"
+tracing = "0.1.41"
 
 
 [dev-dependencies]
 
-reqwest = { version = "*", default-features = false, features = ["json", "http2", "rustls-tls"] }
-tokio = { version = "1", features = ["full"] }
-futures = { version = "*" }
-sha2 = "*"
+reqwest = { version = "0.12.4", default-features = false, features = ["json", "http2", "rustls-tls"] }
+tokio = { version = "1.47.1", features = ["full"] }
+futures = { version = "0.3.31" }
+sha2 = "0.10.9"
 
-async-stream = "*"
+async-stream = "0.3.6"
+
+[lints]
+workspace = true

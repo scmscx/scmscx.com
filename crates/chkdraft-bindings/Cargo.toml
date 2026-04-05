@@ -11,3 +11,6 @@ description = "Rust bindings for Chkdraft map rendering library"
 [build-dependencies]
 bindgen = "0.70"
 cc = "1.0"
+
+[lints]
+workspace = true

@@ -37,7 +37,7 @@ async fn get_flag(
     let checked: bool = con.query_one(statement, &[&map_id]).await?.try_get(0)?;
 
     let info = ApiSpecificInfoForLogging {
-        user_id: user_id,
+        user_id,
         map_id: Some(map_id),
         ..Default::default()
     };
@@ -59,9 +59,7 @@ async fn set_flag(
             .body("server is in maintenance mode, try again later.".to_owned()));
     }
 
-    let user_id = if let Some(user_id) = req.extensions().get::<UserSession>().map(|x| x.id) {
-        user_id
-    } else {
+    let Some(user_id) = req.extensions().get::<UserSession>().map(|x| x.id) else {
         return Ok(HttpResponse::Unauthorized().finish());
     };
 

@@ -319,8 +319,8 @@ pub(crate) async fn denormalize_all(
         map_ids.iter(),
         || {},
         128,
-        |x, y| info!("Completed: {}, ret: {:?}", x, y),
-        |_: (), map_id: &i64| async {
+        |x, y| info!("Completed: {x}, ret: {y:?}"),
+        |(): (), map_id: &i64| async {
             let mut con = pool.get().await?;
             let mut tx = con.transaction().await?;
             bwcommon::denormalize_map_tx(*map_id, &mut tx).await?;
@@ -554,7 +554,7 @@ where
             }
         }
 
-        if futs.len() == 0 {
+        if futs.is_empty() {
             break;
         }
 

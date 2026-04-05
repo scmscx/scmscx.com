@@ -3,15 +3,14 @@ use tracing::instrument;
 
 #[instrument(level = "trace", skip_all)]
 pub(crate) fn parse_slice<T: Copy>(s: &[u8]) -> T {
-    if std::mem::size_of::<T>() != s.len() {
-        panic!(
-            "sizeof<t>: {}, s.len(): {}",
-            std::mem::size_of::<T>(),
-            s.len()
-        );
-    }
+    assert!(
+        std::mem::size_of::<T>() == s.len(),
+        "sizeof<t>: {}, s.len(): {}",
+        std::mem::size_of::<T>(),
+        s.len()
+    );
 
-    unsafe { std::ptr::read_unaligned(s.as_ptr() as *const T) }
+    unsafe { std::ptr::read_unaligned(s.as_ptr().cast::<T>()) }
 }
 
 // pub(crate) fn parse_slice2<T: Copy>(s: &mut std::io::Cursor<&[u8]>) -> Result<T, anyhow::Error> {
@@ -46,7 +45,10 @@ pub(crate) fn parse_slice<T: Copy>(s: &[u8]) -> T {
 #[cfg(feature = "full")]
 pub(crate) fn reinterpret_as_slice<T: Sized + Copy>(s: &T) -> Result<&[u8], anyhow::Error> {
     anyhow::Ok(unsafe {
-        std::slice::from_raw_parts((s as *const T) as *const u8, std::mem::size_of::<T>())
+        std::slice::from_raw_parts(
+            std::ptr::from_ref::<T>(s).cast::<u8>(),
+            std::mem::size_of::<T>(),
+        )
     })
 }
 
@@ -64,7 +66,7 @@ pub(crate) fn reinterpret_slice2<T: Sized + Copy>(s: &[u8]) -> Result<Vec<T>, an
     for i in 0..count {
         unsafe {
             result.push(std::ptr::read_unaligned(
-                s.as_ptr().add(i * std::mem::size_of::<T>()) as *const T,
+                s.as_ptr().add(i * std::mem::size_of::<T>()).cast::<T>(),
             ));
         }
     }
@@ -220,7 +222,7 @@ impl<'a> CursorSlicer<'a> {
         anyhow::ensure!(self.s.len() >= self.current_offset + std::mem::size_of::<T>());
 
         let ret =
-            unsafe { std::ptr::read_unaligned(self.s[self.current_offset..].as_ptr() as *const T) };
+            unsafe { std::ptr::read_unaligned(self.s[self.current_offset..].as_ptr().cast::<T>()) };
         self.current_offset += std::mem::size_of::<T>();
         Ok(ret)
     }

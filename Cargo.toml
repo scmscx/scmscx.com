@@ -3,6 +3,63 @@ resolver = "2"
 members = ["crates/*"]
 default-members = ["crates/*"]
 
+[workspace.lints.clippy]
+# Start with all lints allowed, then selectively enable groups
+all = { level = "allow", priority = -2 }
+
+# Deny lint groups
+correctness = { level = "deny", priority = -1 }
+suspicious = { level = "deny", priority = -1 }
+complexity = { level = "deny", priority = -1 }
+perf = { level = "deny", priority = -1 }
+style = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+cargo = { level = "deny", priority = -1 }
+
+# Additional deny lints
+or_fun_call = "deny"
+
+# Allow specific noisy lints from the denied groups
+clone_on_copy = "allow"
+type_complexity = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"
+cast_possible_wrap = "allow"
+cast_lossless = "allow"
+too_many_lines = "allow"
+doc_markdown = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+return_self_not_must_use = "allow"
+unreadable_literal = "allow"
+struct_excessive_bools = "allow"
+similar_names = "allow"
+items_after_statements = "allow"
+wildcard_imports = "allow"
+missing_const_for_fn = "allow"
+needless_pass_by_value = "allow"
+ignored_unit_patterns = "allow"
+allow_attributes_without_reason = "allow"
+ignore_without_reason = "allow"
+non_std_lazy_statics = "allow"
+pub_underscore_fields = "allow"
+cast_precision_loss = "allow"
+struct_field_names = "allow"
+ptr_as_ptr = "allow"
+ref_as_ptr = "allow"
+used_underscore_binding = "allow"
+default_trait_access = "allow"
+match_same_arms = "allow"
+unnecessary_wraps = "allow"
+naive_bytecount = "allow"
+trivially_copy_pass_by_ref = "allow"
+large_futures = "allow"
+unused_async = "allow"
+multiple_crate_versions = "allow"
+cargo_common_metadata = "allow"
+
 #
 # Release
 #

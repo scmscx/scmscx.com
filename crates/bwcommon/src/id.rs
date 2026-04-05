@@ -106,7 +106,7 @@ fn encode_base32(bytes: &[u8; 5]) -> String {
     ];
 
     #[rustfmt::skip]
-    let encoded = String::from_iter([
+    let encoded: String = [
         ((bytes[0] & 0b11111000) >> 3),
         ((bytes[0] & 0b00000111) << 2) |
         ((bytes[1] & 0b11000000) >> 6),
@@ -119,7 +119,7 @@ fn encode_base32(bytes: &[u8; 5]) -> String {
         ((bytes[3] & 0b00000011) << 3) |
         ((bytes[4] & 0b11100000) >> 5),
         (bytes[4] & 0b00011111),
-    ].into_iter().map(|x| CHARACTER_MAP[x as usize]));
+    ].into_iter().map(|x| CHARACTER_MAP[x as usize]).collect();
 
     encoded
 }
@@ -253,17 +253,17 @@ mod test {
         assert_eq!(
             decode_base32(&encode_base32(&input.data)).unwrap(),
             input.data
-        )
+        );
     }
 
     #[quickcheck]
     fn can_obfuscate_deobfuscate_and_get_same_data_back(input: MyStruct, seed: u8) {
-        assert_eq!(deobfuscate(obfuscate(input.data, seed), seed), input.data)
+        assert_eq!(deobfuscate(obfuscate(input.data, seed), seed), input.data);
     }
 
     #[quickcheck]
     fn convert_deconvert_and_get_same_id_back(input: i64) -> TestResult {
-        if input < 0 || input >= (1 << (32 + 3)) {
+        if !(0..(1 << (32 + 3))).contains(&input) {
             return TestResult::discard();
         }
 
@@ -277,7 +277,7 @@ mod test {
 
     #[quickcheck]
     fn get_web_id_from_db_id_and_get_same_id_back(input: i64, seed: u8) -> TestResult {
-        if input < 0 || input >= (1 << (32 + 3)) {
+        if !(0..(1 << (32 + 3))).contains(&input) {
             return TestResult::discard();
         }
 
@@ -301,7 +301,7 @@ mod test {
         }
 
         for case in [1 << 35, -1, 1 << (35 + 1), 1 << 36] {
-            assert_eq!(get_web_id_from_db_id(case, seed).is_err(), true);
+            assert!(get_web_id_from_db_id(case, seed).is_err());
         }
     }
 
@@ -309,7 +309,7 @@ mod test {
     fn web_ids_do_not_repeat_small(seed: u8) {
         let mut set = HashSet::new();
         for i in 0..10_000 {
-            assert_eq!(set.insert(get_web_id_from_db_id(i, seed).unwrap()), true);
+            assert!(set.insert(get_web_id_from_db_id(i, seed).unwrap()));
         }
     }
 
@@ -322,7 +322,7 @@ mod test {
             get_db_id_from_web_id("9z8gR5dp", 97).unwrap()
         );
 
-        assert!(false);
+        unreachable!();
     }
 
     #[test]
@@ -330,7 +330,7 @@ mod test {
     fn web_ids_do_not_repeat() {
         let mut set = HashSet::new();
         for i in 0..1_000_000_000 {
-            assert_eq!(set.insert(get_web_id_from_db_id(i, 32).unwrap()), true);
+            assert!(set.insert(get_web_id_from_db_id(i, 32).unwrap()));
         }
     }
 }

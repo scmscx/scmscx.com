@@ -14,11 +14,11 @@ pub fn is_dev_mode() -> bool {
 pub(crate) fn sanitize_sc_string(s: &str) -> String {
     // split string by left or right marks
 
-    let mut strings: Vec<_> = s.split(|x| x == '\u{0012}' || x == '\u{0013}').collect();
+    let mut strings: Vec<_> = s.split(['\u{0012}', '\u{0013}']).collect();
 
     strings.sort_by_key(|x| std::cmp::Reverse(x.len()));
 
-    if strings.len() == 0 {
+    if strings.is_empty() {
         String::new()
     } else {
         strings[0].chars().filter(|&x| x >= ' ').collect()

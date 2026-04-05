@@ -32,9 +32,7 @@ pub(crate) async fn insert_map(
         format!("{:x}", hasher.finalize())
     };
 
-    let sprp_section = if let Ok(x) = &parsed_chk.sprp {
-        x
-    } else {
+    let Ok(sprp_section) = &parsed_chk.sprp else {
         return Err(parsed_chk.sprp.unwrap_err());
     };
 
@@ -177,11 +175,11 @@ pub(crate) async fn insert_map(
 fn sanitize_sc_scenario_string(s: &str) -> String {
     // split string by left or right marks
 
-    let mut strings: Vec<_> = s.split(|x| x == '\u{0012}' || x == '\u{0013}').collect();
+    let mut strings: Vec<_> = s.split(['\u{0012}', '\u{0013}']).collect();
 
     strings.sort_by_key(|x| std::cmp::Reverse(x.len()));
 
-    if strings.len() == 0 {
+    if strings.is_empty() {
         String::new()
     } else {
         strings[0].to_string()

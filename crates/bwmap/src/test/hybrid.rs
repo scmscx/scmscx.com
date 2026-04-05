@@ -1,3 +1,4 @@
+#![allow(clippy::if_same_then_else, clippy::bool_to_int_with_if)]
 use super::get_chk;
 use crate::{
     chk::{
@@ -658,7 +659,7 @@ async fn test_specific_map_files_for_known_values() {
                     },
                     "{x:?}"
                 ),
-            };
+            }
         }
     }
 

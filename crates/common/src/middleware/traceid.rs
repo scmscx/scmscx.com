@@ -65,16 +65,15 @@ where
             .realip_remote_addr()
             .unwrap_or("x.x.x.x")
             .to_owned();
-        let user_agent = req
-            .headers()
-            .get("user-agent")
-            .map(|x| x.to_str().unwrap_or("couldn't unwrap").to_owned())
-            .unwrap_or_else(|| "couldn't unwrap2".to_string());
+        let user_agent = req.headers().get("user-agent").map_or_else(
+            || "couldn't unwrap2".to_string(),
+            |x| x.to_str().unwrap_or("couldn't unwrap").to_owned(),
+        );
         req.extensions_mut().insert(TraceID {
             id: trace_id.clone(),
             start_time: Instant::now(),
         });
-        tracing::Span::current().record("trace_id", &trace_id.as_str());
+        tracing::Span::current().record("trace_id", trace_id.as_str());
         info!("traceid: {}", trace_id);
         let fut = self.service.call(req);
         async move {

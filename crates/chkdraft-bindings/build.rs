@@ -25,7 +25,7 @@ fn main() {
     let vcpkg_root = env::var("VCPKG_ROOT").ok().or_else(|| {
         let home = env::var("HOME").unwrap_or_default();
         let candidates = [
-            format!("{}/vcpkg", home),
+            format!("{home}/vcpkg"),
             "/usr/local/vcpkg".to_string(),
             "/opt/vcpkg".to_string(),
         ];
@@ -51,14 +51,14 @@ fn main() {
         );
     });
 
-    let cmake_toolchain = format!("{}/scripts/buildsystems/vcpkg.cmake", vcpkg_root);
+    let cmake_toolchain = format!("{vcpkg_root}/scripts/buildsystems/vcpkg.cmake");
     if Path::new(&cmake_toolchain).exists() {
-        cmake_args.push(format!("-DCMAKE_TOOLCHAIN_FILE={}", cmake_toolchain));
-        eprintln!("Using vcpkg toolchain: {}", cmake_toolchain);
+        cmake_args.push(format!("-DCMAKE_TOOLCHAIN_FILE={cmake_toolchain}"));
+        eprintln!("Using vcpkg toolchain: {cmake_toolchain}");
     }
 
     // Run cmake configure
-    eprintln!("Running cmake configure in {:?}", build_dir);
+    eprintln!("Running cmake configure in {}", build_dir.display());
     let mut cmake_cmd = Command::new("cmake");
     cmake_cmd
         .current_dir(&build_dir)
@@ -71,10 +71,10 @@ fn main() {
         eprintln!("=== CMAKE CONFIGURE FAILED ===");
         eprintln!("stdout: {}", String::from_utf8_lossy(&cmake_output.stdout));
         eprintln!("stderr: {}", String::from_utf8_lossy(&cmake_output.stderr));
-        eprintln!("");
+        eprintln!();
         eprintln!("=== BUILD REQUIREMENTS ===");
         eprintln!("The chkdraft-bindings crate requires vcpkg with several C++ libraries.");
-        eprintln!("");
+        eprintln!();
         eprintln!("  git clone https://github.com/microsoft/vcpkg ~/vcpkg");
         eprintln!("  ~/vcpkg/bootstrap-vcpkg.sh");
         eprintln!("  export VCPKG_ROOT=~/vcpkg");
@@ -104,7 +104,7 @@ fn main() {
         println!("cargo:rustc-link-search=native={}", dir.display());
     }
     for lib in &build_info.static_libs {
-        println!("cargo:rustc-link-lib=static={}", lib);
+        println!("cargo:rustc-link-lib=static={lib}");
     }
 
     // Compile the wrapper
@@ -138,7 +138,7 @@ fn main() {
     cc_build.compile("chkdraft_wrapper");
 
     for lib in &build_info.system_libs {
-        println!("cargo:rustc-link-lib={}", lib);
+        println!("cargo:rustc-link-lib={lib}");
     }
 
     // Generate bindings
@@ -219,9 +219,8 @@ fn watch_directory_recursively(dir: &Path) {
     // Watch the directory itself
     println!("cargo:rerun-if-changed={}", dir.display());
 
-    let entries = match std::fs::read_dir(dir) {
-        Ok(entries) => entries,
-        Err(_) => return,
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
     };
 
     for entry in entries.flatten() {
@@ -236,15 +235,11 @@ fn watch_directory_recursively(dir: &Path) {
             watch_directory_recursively(&path);
         } else if path.is_file() {
             // Watch source files, headers, cmake files, and libraries
-            if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                match ext {
-                    "cpp" | "c" | "h" | "hpp" | "hxx" | "cxx" | "cc" |
-                    "cmake" | "txt" | "json" |  // CMakeLists.txt, vcpkg.json, etc.
-                    "a" => {
-                        println!("cargo:rerun-if-changed={}", path.display());
-                    }
-                    _ => {}
-                }
+            if let Some(
+                "cpp" | "c" | "h" | "hpp" | "hxx" | "cxx" | "cc" | "cmake" | "txt" | "json" | "a",
+            ) = path.extension().and_then(|e| e.to_str())
+            {
+                println!("cargo:rerun-if-changed={}", path.display());
             }
             // Also watch CMakeLists.txt specifically (no extension check needed)
             if path.file_name().and_then(|n| n.to_str()) == Some("CMakeLists.txt") {
