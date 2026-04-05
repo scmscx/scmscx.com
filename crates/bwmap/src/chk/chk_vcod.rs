@@ -21,13 +21,13 @@ use serde::Serialize;
 // The only indexes in the seed table that are referenced are those that correspond individual values of OWNR, SIDE, FORC player assignments, and index 0.
 
 #[derive(Debug, Serialize)]
-pub struct ChkVcod<'a> {
+pub struct ChkVcod {
     #[serde(skip_serializing)]
-    pub seed_values: &'a [u32; 256],
-    pub hash: &'a [u8; 16],
+    pub seed_values: [u32; 256],
+    pub hash: [u8; 16],
 }
 
-pub(crate) fn parse_vcod<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkVcod<'a>, anyhow::Error> {
+pub(crate) fn parse_vcod(chunks: &[RiffChunk]) -> Result<ChkVcod, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

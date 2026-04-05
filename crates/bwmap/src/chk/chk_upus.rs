@@ -10,11 +10,11 @@ use serde::Serialize;
 // 01 - Properties slot is used
 
 #[derive(Debug, Serialize)]
-pub struct ChkUpus<'a> {
-    pub cuwp_slot_is_used: &'a [u8],
+pub struct ChkUpus {
+    pub cuwp_slot_is_used: Vec<u8>,
 }
 
-pub(crate) fn parse_upus<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkUpus<'a>, anyhow::Error> {
+pub(crate) fn parse_upus(chunks: &[RiffChunk]) -> Result<ChkUpus, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

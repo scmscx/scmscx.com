@@ -15,30 +15,30 @@ use serde::Serialize;
 // u16[100]: Upgrade bonus weapon damage, in weapon ID order
 
 #[derive(Debug, Serialize)]
-pub struct ChkUnis<'a> {
+pub struct ChkUnis {
     #[serde(skip_serializing)]
-    pub config: &'a [u8; 228],
+    pub config: [u8; 228],
     #[serde(skip_serializing)]
-    pub hit_points: &'a [u32; 228],
+    pub hit_points: [u32; 228],
     #[serde(skip_serializing)]
-    pub shield_points: &'a [u16; 228],
+    pub shield_points: [u16; 228],
     #[serde(skip_serializing)]
-    pub armor_points: &'a [u8; 228],
+    pub armor_points: [u8; 228],
     #[serde(skip_serializing)]
-    pub build_time: &'a [u16; 228],
+    pub build_time: [u16; 228],
     #[serde(skip_serializing)]
-    pub mineral_cost: &'a [u16; 228],
+    pub mineral_cost: [u16; 228],
     #[serde(skip_serializing)]
-    pub gas_cost: &'a [u16; 228],
+    pub gas_cost: [u16; 228],
     #[serde(skip_serializing)]
-    pub string_number: &'a [u16; 228],
+    pub string_number: [u16; 228],
     #[serde(skip_serializing)]
-    pub base_weapon_damage: &'a [u16; 100],
+    pub base_weapon_damage: [u16; 100],
     #[serde(skip_serializing)]
-    pub upgrade_bonus_weapon_damage: &'a [u16; 100],
+    pub upgrade_bonus_weapon_damage: [u16; 100],
 }
 
-pub(crate) fn parse_unis<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkUnis<'a>, anyhow::Error> {
+pub(crate) fn parse_unis(chunks: &[RiffChunk]) -> Result<ChkUnis, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

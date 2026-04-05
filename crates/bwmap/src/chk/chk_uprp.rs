@@ -54,11 +54,11 @@ pub struct ChkUprpIndividual {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ChkUprp<'a> {
-    pub cuwp_slots: &'a [ChkUprpIndividual],
+pub struct ChkUprp {
+    pub cuwp_slots: Vec<ChkUprpIndividual>,
 }
 
-pub(crate) fn parse_uprp<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkUprp<'a>, anyhow::Error> {
+pub(crate) fn parse_uprp(chunks: &[RiffChunk]) -> Result<ChkUprp, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

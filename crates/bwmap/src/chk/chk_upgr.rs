@@ -17,20 +17,20 @@ use serde::Serialize;
 // See #List of Upgrade IDs.
 
 #[derive(Debug, Serialize)]
-pub struct ChkUpgr<'a> {
+pub struct ChkUpgr {
     #[serde(skip_serializing)]
-    pub max_upgrade_level: &'a [[u8; 46]; 12],
+    pub max_upgrade_level: [[u8; 46]; 12],
     #[serde(skip_serializing)]
-    pub starting_upgrade_level: &'a [[u8; 46]; 12],
+    pub starting_upgrade_level: [[u8; 46]; 12],
     #[serde(skip)]
-    pub global_default_maximum_upgrade_level: &'a [u8; 46],
+    pub global_default_maximum_upgrade_level: [u8; 46],
     #[serde(skip)]
-    pub global_default_starting_upgrade_level: &'a [u8; 46],
+    pub global_default_starting_upgrade_level: [u8; 46],
     #[serde(skip_serializing)]
-    pub player_uses_upgrade_defaults: &'a [[u8; 46]; 12],
+    pub player_uses_upgrade_defaults: [[u8; 46]; 12],
 }
 
-pub(crate) fn parse_upgr<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkUpgr<'a>, anyhow::Error> {
+pub(crate) fn parse_upgr(chunks: &[RiffChunk]) -> Result<ChkUpgr, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

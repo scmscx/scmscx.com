@@ -10,11 +10,11 @@ use serde::Serialize;
 // This section does not "replace" IVER in hybrid/Brood War scenarios: both seem to be written by StarEdit but not read by StarCraft.
 
 #[derive(Debug, Serialize)]
-pub struct ChkIve2<'a> {
-    pub additional_file_format_version: &'a u16,
+pub struct ChkIve2 {
+    pub additional_file_format_version: u16,
 }
 
-pub(crate) fn parse_ive2<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkIve2<'a>, anyhow::Error> {
+pub(crate) fn parse_ive2(chunks: &[RiffChunk]) -> Result<ChkIve2, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

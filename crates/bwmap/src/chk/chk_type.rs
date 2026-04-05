@@ -10,11 +10,11 @@ use serde::Serialize;
 // 0x42574152 or RAWB - Brood War
 
 #[derive(Debug, Serialize)]
-pub struct ChkType<'a> {
-    pub scenario_type: &'a u32,
+pub struct ChkType {
+    pub scenario_type: u32,
 }
 
-pub(crate) fn parse_type<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkType<'a>, anyhow::Error> {
+pub(crate) fn parse_type(chunks: &[RiffChunk]) -> Result<ChkType, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

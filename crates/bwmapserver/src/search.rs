@@ -163,20 +163,20 @@ pub(crate) async fn _populate_search_database(
         };
 
         let (scenario_name, scenario_description) = if let Ok(x) = &parsed_chk.sprp {
-            let scenario_string = if *x.scenario_name_string_number == 0 {
+            let scenario_string = if x.scenario_name_string_number == 0 {
                 None
             } else {
-                if let Ok(s) = parsed_chk.get_string(*x.scenario_name_string_number as usize) {
+                if let Ok(s) = parsed_chk.get_string(x.scenario_name_string_number as usize) {
                     Some(sanitize_sc_string_preserve_newlines(s.as_str()))
                 } else {
                     None
                 }
             };
 
-            let scenario_description_string = if *x.description_string_number == 0 {
+            let scenario_description_string = if x.description_string_number == 0 {
                 None
             } else {
-                if let Ok(s) = parsed_chk.get_string(*x.description_string_number as usize) {
+                if let Ok(s) = parsed_chk.get_string(x.description_string_number as usize) {
                     Some(sanitize_sc_string_preserve_newlines(s.as_str()))
                 } else {
                     None

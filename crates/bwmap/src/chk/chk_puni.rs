@@ -17,16 +17,16 @@ use serde::Serialize;
 // 01 - Player uses defaults for this unit
 
 #[derive(Debug, Serialize)]
-pub struct ChkPuni<'a> {
+pub struct ChkPuni {
     #[serde(skip_serializing)]
-    pub unit_player_availability: &'a [[u8; 228]; 12],
+    pub unit_player_availability: [[u8; 228]; 12],
     #[serde(skip_serializing)]
-    pub unit_global_availability: &'a [u8; 228],
+    pub unit_global_availability: [u8; 228],
     #[serde(skip_serializing)]
-    pub unit_player_uses_defaults: &'a [[u8; 228]; 12],
+    pub unit_player_uses_defaults: [[u8; 228]; 12],
 }
 
-pub(crate) fn parse_puni<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkPuni<'a>, anyhow::Error> {
+pub(crate) fn parse_puni(chunks: &[RiffChunk]) -> Result<ChkPuni, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

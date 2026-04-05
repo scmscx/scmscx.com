@@ -305,20 +305,20 @@ pub async fn map(
     let parsed_chk = ParsedChk::from_bytes(chkblob.as_slice());
 
     let (scenario, description) = if let Ok(sprp) = &parsed_chk.sprp {
-        let scenario = if *sprp.scenario_name_string_number == 0 {
+        let scenario = if sprp.scenario_name_string_number == 0 {
             "Untitled Scenario".to_string()
         } else {
-            if let Ok(s) = parsed_chk.get_string(*sprp.scenario_name_string_number as usize) {
+            if let Ok(s) = parsed_chk.get_string(sprp.scenario_name_string_number as usize) {
                 sanitize_sc_string(s.as_str())
             } else {
                 "<<Could not get scenario name>>".to_owned()
             }
         };
 
-        let description = if *sprp.description_string_number == 0 {
+        let description = if sprp.description_string_number == 0 {
             "".to_string()
         } else {
-            if let Ok(s) = parsed_chk.get_string(*sprp.description_string_number as usize) {
+            if let Ok(s) = parsed_chk.get_string(sprp.description_string_number as usize) {
                 sanitize_sc_string(s.as_str())
             } else {
                 "<<Could not get scenario description>>".to_owned()

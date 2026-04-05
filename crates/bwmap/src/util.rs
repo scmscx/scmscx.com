@@ -11,7 +11,7 @@ pub(crate) fn parse_slice<T: Copy>(s: &[u8]) -> T {
         );
     }
 
-    unsafe { *(s.as_ptr() as *const T) }
+    unsafe { std::ptr::read_unaligned(s.as_ptr() as *const T) }
 }
 
 // pub(crate) fn parse_slice2<T: Copy>(s: &mut std::io::Cursor<&[u8]>) -> Result<T, anyhow::Error> {
@@ -51,7 +51,7 @@ pub(crate) fn reinterpret_as_slice<T: Sized + Copy>(s: &T) -> Result<&[u8], anyh
 }
 
 #[instrument(level = "trace", skip_all)]
-pub(crate) fn reinterpret_slice2<T: Sized>(s: &[u8]) -> Result<&[T], anyhow::Error> {
+pub(crate) fn reinterpret_slice2<T: Sized + Copy>(s: &[u8]) -> Result<Vec<T>, anyhow::Error> {
     anyhow::ensure!(
         s.len().is_multiple_of(std::mem::size_of::<T>()),
         "s.len(): {}, std::mem::size_of::<T>(): {}",
@@ -59,9 +59,16 @@ pub(crate) fn reinterpret_slice2<T: Sized>(s: &[u8]) -> Result<&[T], anyhow::Err
         std::mem::size_of::<T>()
     );
 
-    Ok(unsafe {
-        std::slice::from_raw_parts(s.as_ptr() as *const T, s.len() / std::mem::size_of::<T>())
-    })
+    let count = s.len() / std::mem::size_of::<T>();
+    let mut result = Vec::with_capacity(count);
+    for i in 0..count {
+        unsafe {
+            result.push(std::ptr::read_unaligned(
+                s.as_ptr().add(i * std::mem::size_of::<T>()) as *const T,
+            ));
+        }
+    }
+    Ok(result)
 }
 
 pub(crate) trait Extract: Sized + Copy {
@@ -122,10 +129,10 @@ impl<T: Extract, const N: usize> Extract for [T; N] {
         let mut ret: [MaybeUninit<T>; N] = unsafe { MaybeUninit::uninit().assume_init() };
 
         let mut remainder = data;
-        for i in 0..N {
+        for item in &mut ret {
             let (v, r) = T::extract(remainder)?;
             remainder = r;
-            ret[i].write(v);
+            item.write(v);
         }
 
         // TODO: change this to std::mem::transmute when this issue is resolved:
@@ -153,23 +160,25 @@ impl<'a> CursorSlicer<'a> {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub(crate) fn extract_slice<T>(&mut self, elements: usize) -> Result<&'a [T], anyhow::Error> {
-        anyhow::ensure!(self.s.len() >= self.current_offset + elements * std::mem::size_of::<T>());
+    pub(crate) fn extract_slice<T: Copy>(
+        &mut self,
+        elements: usize,
+    ) -> Result<Vec<T>, anyhow::Error> {
+        let byte_len = elements * std::mem::size_of::<T>();
+        anyhow::ensure!(self.s.len() >= self.current_offset + byte_len);
 
-        let ret = reinterpret_slice2(
-            &self.s[self.current_offset..self.current_offset + elements * std::mem::size_of::<T>()],
-        )?;
+        let ret = reinterpret_slice2(&self.s[self.current_offset..self.current_offset + byte_len])?;
 
-        self.current_offset += std::mem::size_of_val(ret);
+        self.current_offset += byte_len;
 
         Ok(ret)
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub(crate) fn extract_slice_lax<T>(
+    pub(crate) fn extract_slice_lax<T: Copy>(
         &mut self,
         elements: usize,
-    ) -> Result<&'a [T], anyhow::Error> {
+    ) -> Result<Vec<T>, anyhow::Error> {
         anyhow::ensure!(self.s.len() >= self.current_offset);
 
         let elements = std::cmp::min(
@@ -177,17 +186,16 @@ impl<'a> CursorSlicer<'a> {
             elements,
         );
 
-        let ret = reinterpret_slice2(
-            &self.s[self.current_offset..self.current_offset + elements * std::mem::size_of::<T>()],
-        )?;
+        let byte_len = elements * std::mem::size_of::<T>();
+        let ret = reinterpret_slice2(&self.s[self.current_offset..self.current_offset + byte_len])?;
 
-        self.current_offset += std::mem::size_of_val(ret);
+        self.current_offset += byte_len;
 
         Ok(ret)
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub(crate) fn extract_rest_as_slice<T>(&mut self) -> Result<&'a [T], anyhow::Error> {
+    pub(crate) fn extract_rest_as_slice<T: Copy>(&mut self) -> Result<Vec<T>, anyhow::Error> {
         anyhow::ensure!(self.s.len() >= self.current_offset);
         anyhow::ensure!((self.s.len() - self.current_offset) % std::mem::size_of::<T>() == 0);
 
@@ -198,7 +206,7 @@ impl<'a> CursorSlicer<'a> {
 
     // If for example there is some kind of protection where one of the objects is mangled, such as [int, int, int, X] where X is 1 byte instead of 4, the lax variant will ignore the last one.
     #[instrument(level = "trace", skip_all)]
-    pub(crate) fn extract_rest_as_slice_lax<T>(&mut self) -> Result<&'a [T], anyhow::Error> {
+    pub(crate) fn extract_rest_as_slice_lax<T: Copy>(&mut self) -> Result<Vec<T>, anyhow::Error> {
         anyhow::ensure!(self.s.len() >= self.current_offset);
         //anyhow::ensure!((self.s.len() - self.current_offset) % std::mem::size_of::<T>() == 0);
 
@@ -208,18 +216,17 @@ impl<'a> CursorSlicer<'a> {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub(crate) fn extract_ref<T>(&mut self) -> Result<&'a T, anyhow::Error> {
+    pub(crate) fn extract_ref<T: Copy>(&mut self) -> Result<T, anyhow::Error> {
         anyhow::ensure!(self.s.len() >= self.current_offset + std::mem::size_of::<T>());
 
-        let ret = &reinterpret_slice2(
-            &self.s[self.current_offset..self.current_offset + std::mem::size_of::<T>()],
-        )?[0];
+        let ret =
+            unsafe { std::ptr::read_unaligned(self.s[self.current_offset..].as_ptr() as *const T) };
         self.current_offset += std::mem::size_of::<T>();
         Ok(ret)
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub(crate) fn extract_ref_lax<T>(&mut self) -> Result<Option<&'a T>, anyhow::Error> {
+    pub(crate) fn extract_ref_lax<T: Copy>(&mut self) -> Result<Option<T>, anyhow::Error> {
         anyhow::ensure!(self.s.len() >= self.current_offset);
 
         if self.s.len() >= self.current_offset + std::mem::size_of::<T>() {
@@ -231,24 +238,21 @@ impl<'a> CursorSlicer<'a> {
 
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn extract_u8_lax(&mut self) -> u8 {
-        let ret = if self.s.len() > self.current_offset {
+        if self.s.len() > self.current_offset {
             let ret = self.s[self.current_offset];
             self.current_offset += 1;
-
             ret
         } else {
             0
-        };
-
-        return ret;
+        }
     }
 
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn extract_u8_array_lax<const N: usize>(&mut self) -> [u8; N] {
         let mut ret = [0u8; N];
 
-        for i in 0..N {
-            ret[i] = self.extract_u8_lax();
+        for item in &mut ret {
+            *item = self.extract_u8_lax();
         }
 
         ret

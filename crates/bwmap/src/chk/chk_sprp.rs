@@ -9,12 +9,12 @@ use serde::Serialize;
 // A string index of 0 for the map name will default it to its file name. A string index of 0 description will default to a predefined string.
 
 #[derive(Debug, Serialize)]
-pub struct ChkSprp<'a> {
-    pub scenario_name_string_number: &'a u16,
-    pub description_string_number: &'a u16,
+pub struct ChkSprp {
+    pub scenario_name_string_number: u16,
+    pub description_string_number: u16,
 }
 
-pub(crate) fn parse_sprp<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkSprp<'a>, anyhow::Error> {
+pub(crate) fn parse_sprp(chunks: &[RiffChunk]) -> Result<ChkSprp, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

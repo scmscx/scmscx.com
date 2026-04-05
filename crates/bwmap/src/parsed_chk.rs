@@ -51,51 +51,51 @@ use serde::{Serialize, Serializer};
 use tracing::instrument;
 
 #[derive(Debug)]
-pub struct ParsedChk<'a> {
+pub struct ParsedChk {
     pub colr: Result<ChkColr>,
     pub crgb: Result<ChkCrgb>,
     pub dd2: Result<ChkDd2>,
-    pub dim: Result<ChkDim<'a>>,
-    pub era: Result<ChkEra<'a>>,
+    pub dim: Result<ChkDim>,
+    pub era: Result<ChkEra>,
     pub forc: Result<ChkForc>,
     pub iown: Result<ChkIown>,
     pub isom: Result<ChkIsom>,
-    pub ive2: Result<ChkIve2<'a>>,
-    pub iver: Result<ChkIver<'a>>,
-    pub mask: Result<ChkMask<'a>>,
+    pub ive2: Result<ChkIve2>,
+    pub iver: Result<ChkIver>,
+    pub mask: Result<ChkMask>,
     pub mbrf: Result<ChkMbrf>,
-    pub mrgn: Result<ChkMrgn<'a>>,
+    pub mrgn: Result<ChkMrgn>,
     pub mtxm: Result<ChkMtxm>,
     pub ownr: Result<ChkOwnr>,
-    pub ptec: Result<ChkPtec<'a>>,
-    pub ptex: Result<ChkPtex<'a>>,
-    pub puni: Result<ChkPuni<'a>>,
-    pub pupx: Result<ChkPupx<'a>>,
+    pub ptec: Result<ChkPtec>,
+    pub ptex: Result<ChkPtex>,
+    pub puni: Result<ChkPuni>,
+    pub pupx: Result<ChkPupx>,
     pub side: Result<ChkSide>,
-    pub sprp: Result<ChkSprp<'a>>,
+    pub sprp: Result<ChkSprp>,
     pub str: Result<ChkStr2>,
     pub strx: Result<ChkStrx2>,
-    pub swnm: Result<ChkSwnm<'a>>,
-    pub tecs: Result<ChkTecs<'a>>,
-    pub tecx: Result<ChkTecx<'a>>,
+    pub swnm: Result<ChkSwnm>,
+    pub tecs: Result<ChkTecs>,
+    pub tecx: Result<ChkTecx>,
     pub thg2: Result<ChkThg2>,
     pub tile: Result<ChkTile>,
     pub trig: Result<ChkTrig>,
-    pub type_: Result<ChkType<'a>>,
-    pub unis: Result<ChkUnis<'a>>,
+    pub type_: Result<ChkType>,
+    pub unis: Result<ChkUnis>,
     pub unit: Result<ChkUnit>,
     pub unix: Result<ChkUnix>,
-    pub upgr: Result<ChkUpgr<'a>>,
-    pub upgs: Result<ChkUpgs<'a>>,
-    pub upgx: Result<ChkUpgx<'a>>,
-    pub uprp: Result<ChkUprp<'a>>,
-    pub upus: Result<ChkUpus<'a>>,
-    pub vcod: Result<ChkVcod<'a>>,
-    pub ver: Result<ChkVer<'a>>,
-    pub wav: Result<ChkWav<'a>>,
+    pub upgr: Result<ChkUpgr>,
+    pub upgs: Result<ChkUpgs>,
+    pub upgx: Result<ChkUpgx>,
+    pub uprp: Result<ChkUprp>,
+    pub upus: Result<ChkUpus>,
+    pub vcod: Result<ChkVcod>,
+    pub ver: Result<ChkVer>,
+    pub wav: Result<ChkWav>,
 }
 
-impl Serialize for ParsedChk<'_> {
+impl Serialize for ParsedChk {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -149,9 +149,9 @@ impl Serialize for ParsedChk<'_> {
     }
 }
 
-impl<'a> ParsedChk<'a> {
+impl ParsedChk {
     #[instrument(level = "trace", skip_all)]
-    pub fn from_bytes(chk: &'a [u8]) -> ParsedChk<'a> {
+    pub fn from_bytes(chk: &[u8]) -> ParsedChk {
         let riff_chunks = parse_riff(chk);
         let riff_chunks = validate_and_group_riff_chunks(riff_chunks.as_slice());
 
@@ -475,8 +475,8 @@ impl<'a> ParsedChk<'a> {
         let mut ret = Vec::new();
 
         if let Ok(x) = &self.sprp {
-            ret.push(*x.scenario_name_string_number as u32);
-            ret.push(*x.description_string_number as u32);
+            ret.push(x.scenario_name_string_number as u32);
+            ret.push(x.description_string_number as u32);
         }
 
         if let Ok(x) = &self.forc {
@@ -500,19 +500,19 @@ impl<'a> ParsedChk<'a> {
         }
 
         if let Ok(x) = &self.wav {
-            for string_number in x.wav_string_number {
-                ret.push(*string_number);
+            for &string_number in &x.wav_string_number {
+                ret.push(string_number);
             }
         }
 
         if let Ok(x) = &self.swnm {
             for switch_name_string_number in x.switch_name_string_number {
-                ret.push(*switch_name_string_number);
+                ret.push(switch_name_string_number);
             }
         }
 
         if let Ok(x) = &self.mrgn {
-            for location in x.locations {
+            for location in &x.locations {
                 ret.push(location.name_string_number as u32);
             }
         }

@@ -15,20 +15,20 @@ async fn test_specific_map_files_for_known_values() {
     let parsed_chk = ParsedChk::from_bytes(chk.as_slice());
 
     if let Ok(x) = parsed_chk.ver {
-        assert_eq!(*x.file_format_version, 59);
+        assert_eq!(x.file_format_version, 59);
     } else {
         unreachable!();
     }
 
     if let Ok(x) = parsed_chk.iver {
-        assert_eq!(*x.additional_file_format_version.unwrap(), 10);
+        assert_eq!(x.additional_file_format_version.unwrap(), 10);
     } else {
         unreachable!();
     }
 
     if let Ok(x) = parsed_chk.vcod {
         assert_eq!(
-            *x.hash,
+            x.hash,
             [1, 4, 5, 6, 2, 1, 5, 2, 0, 3, 7, 7, 5, 4, 6, 3],
             "{x:?}"
         );
@@ -63,14 +63,14 @@ async fn test_specific_map_files_for_known_values() {
     }
 
     if let Ok(x) = parsed_chk.era {
-        assert_eq!(*x.tileset, 1, "{x:?}");
+        assert_eq!(x.tileset, 1, "{x:?}");
     } else {
         unreachable!();
     }
 
     if let Ok(x) = parsed_chk.dim {
-        assert_eq!(*x.width, 128, "{x:?}");
-        assert_eq!(*x.height, 128, "{x:?}");
+        assert_eq!(x.width, 128, "{x:?}");
+        assert_eq!(x.height, 128, "{x:?}");
     } else {
         unreachable!();
     }
@@ -358,7 +358,7 @@ async fn test_specific_map_files_for_known_values() {
 
     if let Ok(x) = parsed_chk.upgr {
         assert_eq!(
-            *x.global_default_maximum_upgrade_level,
+            x.global_default_maximum_upgrade_level,
             [
                 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 14, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1,
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
@@ -366,7 +366,7 @@ async fn test_specific_map_files_for_known_values() {
             "{x:?}"
         );
         assert_eq!(
-            *x.global_default_starting_upgrade_level,
+            x.global_default_starting_upgrade_level,
             [
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -374,7 +374,7 @@ async fn test_specific_map_files_for_known_values() {
             "{x:?}"
         );
         assert_eq!(
-            *x.player_uses_upgrade_defaults,
+            x.player_uses_upgrade_defaults,
             [
                 [
                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -428,7 +428,7 @@ async fn test_specific_map_files_for_known_values() {
             "{x:?}"
         );
         assert_eq!(
-            *x.starting_upgrade_level,
+            x.starting_upgrade_level,
             [
                 [
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -487,7 +487,7 @@ async fn test_specific_map_files_for_known_values() {
 
     if let Ok(x) = parsed_chk.upgs {
         assert_eq!(
-            *x.base_gas_cost,
+            x.base_gas_cost,
             [
                 100, 100, 150, 150, 150, 100, 150, 100, 100, 100, 100, 100, 100, 100, 100, 200,
                 299, 100, 200, 150, 100, 150, 200, 150, 200, 150, 150, 100, 200, 150, 150, 150,
@@ -496,7 +496,7 @@ async fn test_specific_map_files_for_known_values() {
             "{x:?}"
         );
         assert_eq!(
-            *x.base_mineral_cost,
+            x.base_mineral_cost,
             [
                 100, 100, 150, 150, 150, 100, 150, 100, 100, 100, 100, 100, 100, 100, 100, 200, 77,
                 100, 200, 150, 100, 150, 200, 150, 200, 150, 150, 100, 200, 150, 150, 150, 150,
@@ -505,7 +505,7 @@ async fn test_specific_map_files_for_known_values() {
             "{x:?}"
         );
         assert_eq!(
-            *x.base_time,
+            x.base_time,
             [
                 3990, 3990, 3990, 3990, 3990, 3990, 3990, 3990, 3990, 3990, 3990, 3990, 3990, 3990,
                 3990, 3990, 19620, 1500, 2490, 2490, 2490, 2490, 2490, 2490, 2400, 1995, 1995,
@@ -515,7 +515,7 @@ async fn test_specific_map_files_for_known_values() {
             "{x:?}"
         );
         assert_eq!(
-            *x.gas_cost_factor,
+            x.gas_cost_factor,
             [
                 75, 75, 75, 75, 75, 75, 75, 75, 75, 50, 50, 50, 75, 50, 75, 100, 15, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -523,7 +523,7 @@ async fn test_specific_map_files_for_known_values() {
             "{x:?}"
         );
         assert_eq!(
-            *x.mineral_cost_factor,
+            x.mineral_cost_factor,
             [
                 75, 75, 75, 75, 75, 75, 75, 75, 75, 50, 50, 50, 75, 50, 75, 100, 13, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -531,7 +531,7 @@ async fn test_specific_map_files_for_known_values() {
             "{x:?}"
         );
         assert_eq!(
-            *x.time_factor,
+            x.time_factor,
             [
                 480, 480, 480, 480, 480, 480, 480, 480, 480, 480, 480, 480, 480, 480, 480, 480,
                 285, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -540,7 +540,7 @@ async fn test_specific_map_files_for_known_values() {
             "{x:?}"
         );
         assert_eq!(
-            *x.upgrade_uses_default_setings,
+            x.upgrade_uses_default_setings,
             [
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
@@ -766,8 +766,8 @@ async fn test_specific_map_files_for_known_values() {
     }
 
     if let Ok(x) = parsed_chk.sprp {
-        assert_eq!(*x.scenario_name_string_number, 1, "{x:?}");
-        assert_eq!(*x.description_string_number, 2, "{x:?}");
+        assert_eq!(x.scenario_name_string_number, 1, "{x:?}");
+        assert_eq!(x.description_string_number, 2, "{x:?}");
     } else {
         unreachable!();
     }
@@ -789,7 +789,7 @@ async fn test_specific_map_files_for_known_values() {
 
     if let Ok(x) = parsed_chk.ptec {
         assert_eq!(
-            *x.already_researched,
+            x.already_researched,
             [
                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -807,12 +807,12 @@ async fn test_specific_map_files_for_known_values() {
             "{x:?}"
         );
         assert_eq!(
-            *x.global_already_researched_defaults,
+            x.global_already_researched_defaults,
             [0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1],
             "{x:?}"
         );
         assert_eq!(
-            *x.player_availability,
+            x.player_availability,
             [
                 [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
                 [1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -830,7 +830,7 @@ async fn test_specific_map_files_for_known_values() {
             "{x:?}"
         );
         assert_eq!(
-            *x.player_uses_default,
+            x.player_uses_default,
             [
                 [1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
                 [1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -853,7 +853,7 @@ async fn test_specific_map_files_for_known_values() {
 
     if let Ok(x) = parsed_chk.tecs {
         assert_eq!(
-            *x.energy_cost_to_cast,
+            x.energy_cost_to_cast,
             [
                 0, 100, 100, 0, 50, 0, 100, 75, 4723, 25, 25, 0, 0, 150, 100, 150, 0, 75, 75, 75,
                 100, 150, 100, 0
@@ -861,7 +861,7 @@ async fn test_specific_map_files_for_known_values() {
             "{x:?}"
         );
         assert_eq!(
-            *x.gas_cost,
+            x.gas_cost,
             [
                 100, 200, 200, 100, 0, 150, 150, 200, 1256, 150, 100, 100, 100, 100, 100, 200, 100,
                 100, 100, 200, 150, 150, 150, 150
@@ -869,7 +869,7 @@ async fn test_specific_map_files_for_known_values() {
             "{x:?}"
         );
         assert_eq!(
-            *x.mineral_cost,
+            x.mineral_cost,
             [
                 100, 200, 200, 100, 0, 150, 150, 200, 956, 150, 100, 100, 100, 100, 100, 200, 100,
                 100, 100, 200, 150, 150, 150, 150
@@ -877,12 +877,12 @@ async fn test_specific_map_files_for_known_values() {
             "{x:?}"
         );
         assert_eq!(
-            *x.technology_uses_default_settings,
+            x.technology_uses_default_settings,
             [1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             "{x:?}"
         );
         assert_eq!(
-            *x.time,
+            x.time,
             [
                 1200, 1500, 1800, 1200, 0, 1200, 1500, 1200, 3510, 1500, 1200, 1200, 1200, 1200,
                 1200, 1500, 1500, 1200, 1200, 1800, 1200, 1800, 1500, 1500
@@ -952,7 +952,7 @@ async fn test_specific_map_files_for_known_values() {
 
     if let Ok(x) = parsed_chk.upus {
         assert_eq!(
-            *x.cuwp_slot_is_used,
+            x.cuwp_slot_is_used,
             [
                 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -966,7 +966,7 @@ async fn test_specific_map_files_for_known_values() {
 
     if let Ok(x) = parsed_chk.swnm {
         assert_eq!(
-            *x.switch_name_string_number,
+            x.switch_name_string_number,
             [
                 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

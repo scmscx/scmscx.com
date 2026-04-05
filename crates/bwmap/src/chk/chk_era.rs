@@ -19,11 +19,11 @@ use serde::Serialize;
 // Desert, Arctic, and Twilight are Brood War-only tilesets.
 
 #[derive(Debug, Serialize)]
-pub struct ChkEra<'a> {
-    pub tileset: &'a u16,
+pub struct ChkEra {
+    pub tileset: u16,
 }
 
-pub(crate) fn parse_era<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkEra<'a>, anyhow::Error> {
+pub(crate) fn parse_era(chunks: &[RiffChunk]) -> Result<ChkEra, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

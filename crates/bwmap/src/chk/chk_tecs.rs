@@ -17,15 +17,15 @@ use serde::Serialize;
 // See #List of Technology IDs for technology ids.
 
 #[derive(Debug, Serialize)]
-pub struct ChkTecs<'a> {
-    pub technology_uses_default_settings: &'a [u8; 24],
-    pub mineral_cost: &'a [u16; 24],
-    pub gas_cost: &'a [u16; 24],
-    pub time: &'a [u16; 24],
-    pub energy_cost_to_cast: &'a [u16; 24],
+pub struct ChkTecs {
+    pub technology_uses_default_settings: [u8; 24],
+    pub mineral_cost: [u16; 24],
+    pub gas_cost: [u16; 24],
+    pub time: [u16; 24],
+    pub energy_cost_to_cast: [u16; 24],
 }
 
-pub(crate) fn parse_tecs<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkTecs<'a>, anyhow::Error> {
+pub(crate) fn parse_tecs(chunks: &[RiffChunk]) -> Result<ChkTecs, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

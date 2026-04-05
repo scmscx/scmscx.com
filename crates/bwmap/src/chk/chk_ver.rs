@@ -24,11 +24,11 @@ use serde::Serialize;
 // 203 - Brood War internal (map version 203)
 
 #[derive(Debug, Serialize)]
-pub struct ChkVer<'a> {
-    pub file_format_version: &'a u16,
+pub struct ChkVer {
+    pub file_format_version: u16,
 }
 
-pub(crate) fn parse_ver<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkVer<'a>, anyhow::Error> {
+pub(crate) fn parse_ver(chunks: &[RiffChunk]) -> Result<ChkVer, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

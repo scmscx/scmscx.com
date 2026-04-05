@@ -1566,7 +1566,7 @@ pub struct MissionBriefing {
 }
 
 #[instrument(skip_all)]
-pub fn parse_mission_briefing<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<MissionBriefing> {
+pub fn parse_mission_briefing(parsed_chk: &ParsedChk) -> Vec<MissionBriefing> {
     let mut ret = Vec::new();
 
     if let Ok(trig) = &parsed_chk.mbrf {
@@ -1693,7 +1693,7 @@ pub struct Trigger {
 }
 
 #[instrument(skip_all)]
-pub fn parse_triggers<'a>(parsed_chk: &ParsedChk<'a>) -> Vec<Trigger> {
+pub fn parse_triggers(parsed_chk: &ParsedChk) -> Vec<Trigger> {
     let mut ret = Vec::new();
 
     if let Ok(trig) = &parsed_chk.trig {

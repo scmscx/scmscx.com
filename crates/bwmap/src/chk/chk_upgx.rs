@@ -19,25 +19,25 @@ use serde::Serialize;
 // u16[61]: 1 integer per upgrade, gas time factor for each upgrade, in order of upgrade id.
 
 #[derive(Debug, Serialize)]
-pub struct ChkUpgx<'a> {
+pub struct ChkUpgx {
     #[serde(skip_serializing)]
-    pub upgrade_uses_default_setings: &'a [u8; 61],
-    pub unused: &'a u8,
+    pub upgrade_uses_default_setings: [u8; 61],
+    pub unused: u8,
     #[serde(skip_serializing)]
-    pub base_mineral_cost: &'a [u16; 61],
+    pub base_mineral_cost: [u16; 61],
     #[serde(skip_serializing)]
-    pub mineral_cost_factor: &'a [u16; 61],
+    pub mineral_cost_factor: [u16; 61],
     #[serde(skip_serializing)]
-    pub base_gas_cost: &'a [u16; 61],
+    pub base_gas_cost: [u16; 61],
     #[serde(skip_serializing)]
-    pub gas_cost_factor: &'a [u16; 61],
+    pub gas_cost_factor: [u16; 61],
     #[serde(skip_serializing)]
-    pub base_time: &'a [u16; 61],
+    pub base_time: [u16; 61],
     #[serde(skip_serializing)]
-    pub time_factor: &'a [u16; 61],
+    pub time_factor: [u16; 61],
 }
 
-pub(crate) fn parse_upgx<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkUpgx<'a>, anyhow::Error> {
+pub(crate) fn parse_upgx(chunks: &[RiffChunk]) -> Result<ChkUpgx, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);
