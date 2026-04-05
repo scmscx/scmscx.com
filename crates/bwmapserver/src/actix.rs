@@ -13,7 +13,6 @@ use bwcommon::{ApiSpecificInfoForLogging, MyError};
 
 use crate::api::uiv2::get_map_image;
 use crate::pumpers::start_backblaze_pumper;
-use crate::pumpers::start_gsfs_pumper;
 use crate::util::finalize_hash_of_hasher;
 use crate::util::is_dev_mode;
 use actix_files::Files;
@@ -197,15 +196,8 @@ async fn get_map(
                             yield Result::<_, anyhow::Error>::Ok(chunk);
                         }
 
-                        if finalize_hash_of_hasher(hasher) == mapblob_hash {
-                            tokio::fs::create_dir_all("./pending/gsfs/mapblob").await?;
-                            if let Err(e) = tokio::fs::rename(&temp_filename, format!("./pending/gsfs/mapblob/{mapblob_hash}")).await {
-                                error!("Failed to rename temp file: {e}, temp_filename: {temp_filename}");
-                            }
-                        } else {
-                            if let Err(e) = tokio::fs::remove_file(&temp_filename).await {
-                                error!("Failed to remove temp file: {e}, temp_filename: {temp_filename}");
-                            }
+                        if let Err(e) = tokio::fs::remove_file(&temp_filename).await {
+                            error!("Failed to remove temp file: {e}, temp_filename: {temp_filename}");
                         }
                     }));
             }
@@ -944,7 +936,6 @@ pub(crate) async fn start() -> Result<()> {
     // Pump files up to backblaze
     let reqwest_client = reqwest::Client::new();
 
-    start_gsfs_pumper(reqwest_client.clone()).await?;
     start_backblaze_pumper(reqwest_client.clone()).await?;
 
     let server = actix_web::HttpServer::new(move || {

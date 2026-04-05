@@ -175,6 +175,15 @@ pub async fn gsfs_put_mapblob(
     gsfs_put_bytes(client, endpoint, &format!("/mapblob/{mapblob_hash}"), data).await
 }
 
+pub async fn gsfs_put_chkblob(
+    client: &Client,
+    endpoint: &str,
+    chkblob_hash: &str,
+    data: Vec<u8>,
+) -> Result<()> {
+    gsfs_put_bytes(client, endpoint, &format!("/chkblob/{chkblob_hash}"), data).await
+}
+
 async fn gsfs_put_bytes(client: &Client, endpoint: &str, path: &str, data: Vec<u8>) -> Result<()> {
     gsfs_put(
         client,
