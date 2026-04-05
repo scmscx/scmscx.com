@@ -64,9 +64,6 @@ async fn upload_map(
 
     tokio::fs::create_dir_all("./pending/tmp").await?;
     tokio::fs::create_dir_all("./pending/backblaze").await?;
-    tokio::fs::create_dir_all("./pending/gsfs").await?;
-    tokio::fs::create_dir_all("./pending/render").await?;
-
     let fake_filename = format!("./pending/tmp/{}.scx", uuid::Uuid::new_v4().as_simple());
 
     let mut sha256hasher = Sha256::new();
@@ -129,7 +126,7 @@ async fn upload_map(
     new_tags.insert("autogen_uploaded".to_owned(), "v3".to_owned());
 
     info!("insert map");
-    let (map_id, chkblob, chkblob_hash) = insert_map(
+    let (map_id, _chkblob, _chkblob_hash) = insert_map(
         query.filename.as_str(),
         fake_filename.as_str(),
         sha256hash.as_str(),
@@ -154,45 +151,6 @@ async fn upload_map(
         tokio::fs::rename(
             fake_filename2,
             format!("./pending/backblaze/{sha1hash}-{sha256hash}"),
-        )
-        .await?;
-    }
-
-    // gsfs
-    {
-        // mpq
-        info!("copying mpq for gsfs");
-        let fake_filename2 = format!("./pending/tmp/{}", uuid::Uuid::new_v4().as_simple());
-        tokio::fs::copy(&fake_filename, fake_filename2.as_str()).await?;
-
-        tokio::fs::create_dir_all("./pending/gsfs/mapblob").await?;
-        tokio::fs::rename(
-            &fake_filename2,
-            format!("./pending/gsfs/mapblob/{sha256hash}"),
-        )
-        .await?;
-
-        // chk
-        info!("copying chk for gsfs");
-        let fake_filename2 = format!("./pending/tmp/{}", uuid::Uuid::new_v4().as_simple());
-        tokio::fs::write(&fake_filename2, chkblob).await?;
-
-        tokio::fs::create_dir_all("./pending/gsfs/chkblob").await?;
-        tokio::fs::rename(
-            &fake_filename2,
-            format!("./pending/gsfs/chkblob/{chkblob_hash}"),
-        )
-        .await?;
-    }
-
-    // mpq for rendering
-    if std::env::var("SCMSCX_RENDER").unwrap_or_else(|_| "false".to_owned()) == "true" {
-        info!("copying mpq for rendering");
-        let fake_filename2 = format!("./pending/tmp/{}", uuid::Uuid::new_v4().as_simple());
-        tokio::fs::copy(&fake_filename, fake_filename2.as_str()).await?;
-        tokio::fs::rename(
-            &fake_filename2,
-            format!("./pending/render/{chkblob_hash}.scx"),
         )
         .await?;
     }

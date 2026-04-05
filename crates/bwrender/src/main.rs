@@ -347,6 +347,51 @@ async fn download_worker(
             "gsfs"
         };
 
+        // Extract CHK and upload to GSFS
+        {
+            let chkblob_hash = map.chkblob_hash.clone();
+            let temp_path_clone = temp_path.clone();
+            match tokio::task::spawn_blocking(move || {
+                bwmpq::get_chk_from_mpq_filename(&temp_path_clone)
+            })
+            .await
+            {
+                Ok(Ok(chkblob)) => {
+                    if let Err(e) = common::gsfs::gsfs_put_chkblob(
+                        client,
+                        &config.gsfsfe_endpoint,
+                        &chkblob_hash,
+                        chkblob,
+                    )
+                    .await
+                    {
+                        warn!(
+                            worker_id = worker_id,
+                            chkblob_hash = %chkblob_hash,
+                            error = %e,
+                            "Failed to upload chkblob to GSFS"
+                        );
+                    }
+                }
+                Ok(Err(e)) => {
+                    warn!(
+                        worker_id = worker_id,
+                        chkblob_hash = %map.chkblob_hash,
+                        error = %e,
+                        "Failed to extract CHK from map"
+                    );
+                }
+                Err(e) => {
+                    warn!(
+                        worker_id = worker_id,
+                        chkblob_hash = %map.chkblob_hash,
+                        error = %e,
+                        "CHK extraction task panicked"
+                    );
+                }
+            }
+        }
+
         let download_ms = start.elapsed().as_millis();
         let map_size = tokio::fs::metadata(&temp_path)
             .await

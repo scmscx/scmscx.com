@@ -12,6 +12,7 @@ path = "src/main.rs"
 chkdraft-bindings = { path = "../chkdraft-bindings" }
 common = { path = "../common" }
 backblaze = { path = "../backblaze" }
+bwmpq = { path = "../bwmpq" }
 
 # Async runtime
 tokio = { version = "*", features = ["rt-multi-thread", "full"] }
