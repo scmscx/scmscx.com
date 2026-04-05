@@ -35,11 +35,11 @@ pub struct ChkMrgnIndividual {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ChkMrgn<'a> {
-    pub locations: &'a [ChkMrgnIndividual],
+pub struct ChkMrgn {
+    pub locations: Vec<ChkMrgnIndividual>,
 }
 
-pub(crate) fn parse_mrgn<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkMrgn<'a>, anyhow::Error> {
+pub(crate) fn parse_mrgn(chunks: &[RiffChunk]) -> Result<ChkMrgn, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

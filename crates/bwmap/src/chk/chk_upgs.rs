@@ -19,24 +19,24 @@ use serde::Serialize;
 // See #List of Upgrade IDs for upgrade ids.
 
 #[derive(Debug, Serialize)]
-pub struct ChkUpgs<'a> {
+pub struct ChkUpgs {
     #[serde(skip_serializing)]
-    pub upgrade_uses_default_setings: &'a [u8; 46],
+    pub upgrade_uses_default_setings: [u8; 46],
     #[serde(skip_serializing)]
-    pub base_mineral_cost: &'a [u16; 46],
+    pub base_mineral_cost: [u16; 46],
     #[serde(skip_serializing)]
-    pub mineral_cost_factor: &'a [u16; 46],
+    pub mineral_cost_factor: [u16; 46],
     #[serde(skip_serializing)]
-    pub base_gas_cost: &'a [u16; 46],
+    pub base_gas_cost: [u16; 46],
     #[serde(skip_serializing)]
-    pub gas_cost_factor: &'a [u16; 46],
+    pub gas_cost_factor: [u16; 46],
     #[serde(skip_serializing)]
-    pub base_time: &'a [u16; 46],
+    pub base_time: [u16; 46],
     #[serde(skip_serializing)]
-    pub time_factor: &'a [u16; 46],
+    pub time_factor: [u16; 46],
 }
 
-pub(crate) fn parse_upgs<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkUpgs<'a>, anyhow::Error> {
+pub(crate) fn parse_upgs(chunks: &[RiffChunk]) -> Result<ChkUpgs, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

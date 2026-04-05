@@ -8,11 +8,11 @@ use serde::Serialize;
 // u32[512]: 1 long for each WAV. Indicates a string index is used for a WAV path in the MPQ. If the entry is not used, it will be 0.
 
 #[derive(Debug, Serialize)]
-pub struct ChkWav<'a> {
-    pub wav_string_number: &'a [u32],
+pub struct ChkWav {
+    pub wav_string_number: Vec<u32>,
 }
 
-pub(crate) fn parse_wav<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkWav<'a>, anyhow::Error> {
+pub(crate) fn parse_wav(chunks: &[RiffChunk]) -> Result<ChkWav, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

@@ -79,7 +79,7 @@ pub fn calculate_perceptual_hashes(minimap: &Vec<u8>) -> Result<(Vec<u8>, Vec<u8
 async fn update_strings(
     tx: &mut Transaction<'_>,
     map_id: i64,
-    parsed_chk: &ParsedChk<'_>,
+    parsed_chk: &ParsedChk,
 ) -> Result<()> {
     pub(crate) fn sanitize_sc_string(s: &str) -> String {
         // split string by left or right marks
@@ -155,20 +155,20 @@ async fn update_strings(
     };
 
     let (scenario_name, scenario_description) = if let Ok(x) = &parsed_chk.sprp {
-        let scenario_string = if *x.scenario_name_string_number == 0 {
+        let scenario_string = if x.scenario_name_string_number == 0 {
             None
         } else {
-            if let Ok(s) = parsed_chk.get_string(*x.scenario_name_string_number as usize) {
+            if let Ok(s) = parsed_chk.get_string(x.scenario_name_string_number as usize) {
                 Some(sanitize_sc_string_preserve_newlines(s.as_str()))
             } else {
                 None
             }
         };
 
-        let scenario_description_string = if *x.description_string_number == 0 {
+        let scenario_description_string = if x.description_string_number == 0 {
             None
         } else {
-            if let Ok(s) = parsed_chk.get_string(*x.description_string_number as usize) {
+            if let Ok(s) = parsed_chk.get_string(x.description_string_number as usize) {
                 Some(sanitize_sc_string_preserve_newlines(s.as_str()))
             } else {
                 None
@@ -253,7 +253,7 @@ async fn update_strings(
 async fn update_minimap(
     tx: &mut Transaction<'_>,
     chk_hash: &str,
-    parsed_chk: &ParsedChk<'_>,
+    parsed_chk: &ParsedChk,
 ) -> Result<()> {
     let mtxm_section = if let Ok(x) = &parsed_chk.mtxm {
         anyhow::Ok(x)
@@ -275,9 +275,9 @@ async fn update_minimap(
 
     let minimap = bwminimaprender::render_minimap(
         mtxm_section.data.as_slice(),
-        *dim_section.width as usize,
-        *dim_section.height as usize,
-        *era_section.tileset,
+        dim_section.width as usize,
+        dim_section.height as usize,
+        era_section.tileset,
     )?;
 
     let (ph8x8, ph16x16, ph32x32) = calculate_perceptual_hashes(&minimap)?;
@@ -296,8 +296,8 @@ async fn update_minimap(
             ($1, $2, $3, $4, $5, $6, $7, ($8::text)::bit(256)) ON CONFLICT DO NOTHING",
         &[
             &chk_hash,
-            &(*dim_section.width as i32),
-            &(*dim_section.height as i32),
+            &(dim_section.width as i32),
+            &(dim_section.height as i32),
             &minimap,
             &ph8x8,
             &ph16x16,
@@ -313,10 +313,10 @@ async fn update_minimap(
 async fn update_chkdenorm(
     transaction: &mut Transaction<'_>,
     chk_hash: &str,
-    parsed_chk: &ParsedChk<'_>,
+    parsed_chk: &ParsedChk,
 ) -> Result<()> {
     let (width, height) = if let Ok(x) = &parsed_chk.dim {
-        (Some(*x.width as i64), Some(*x.height as i64))
+        (Some(x.width as i64), Some(x.height as i64))
     } else {
         (None, None)
     };
@@ -391,19 +391,19 @@ async fn update_chkdenorm(
     };
 
     let (scenario_name, scenario_description) = if let Ok(x) = &parsed_chk.sprp {
-        let scenario_string = if *x.scenario_name_string_number == 0 {
+        let scenario_string = if x.scenario_name_string_number == 0 {
             None
         } else {
             parsed_chk
-                .get_string(*x.scenario_name_string_number as usize)
+                .get_string(x.scenario_name_string_number as usize)
                 .ok()
         };
 
-        let scenario_description_string = if *x.description_string_number == 0 {
+        let scenario_description_string = if x.description_string_number == 0 {
             None
         } else {
             parsed_chk
-                .get_string(*x.description_string_number as usize)
+                .get_string(x.description_string_number as usize)
                 .ok()
         };
 

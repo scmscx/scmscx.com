@@ -8,20 +8,20 @@ use serde::Serialize;
 // This section is indentical to UNIS section except it uses the Brood War set of 44 technologies instead of the original 24.
 
 #[derive(Debug, Serialize)]
-pub struct ChkTecx<'a> {
+pub struct ChkTecx {
     #[serde(skip_serializing)]
-    pub technology_uses_default_settings: &'a [u8; 44],
+    pub technology_uses_default_settings: [u8; 44],
     #[serde(skip_serializing)]
-    pub mineral_cost: &'a [u16; 44],
+    pub mineral_cost: [u16; 44],
     #[serde(skip_serializing)]
-    pub gas_cost: &'a [u16; 44],
+    pub gas_cost: [u16; 44],
     #[serde(skip_serializing)]
-    pub time: &'a [u16; 44],
+    pub time: [u16; 44],
     #[serde(skip_serializing)]
-    pub energy_cost_to_cast: &'a [u16; 44],
+    pub energy_cost_to_cast: [u16; 44],
 }
 
-pub(crate) fn parse_tecx<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkTecx<'a>, anyhow::Error> {
+pub(crate) fn parse_tecx(chunks: &[RiffChunk]) -> Result<ChkTecx, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

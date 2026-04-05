@@ -111,19 +111,19 @@ async fn map_info(
     let parsed_chk = ParsedChk::from_bytes(chkblob.as_slice());
 
     let ver = if let Ok(x) = &parsed_chk.ver {
-        Some(*x.file_format_version)
+        Some(x.file_format_version)
     } else {
         None
     };
 
     let (width, height) = if let Ok(x) = &parsed_chk.dim {
-        (Some(*x.width as i64), Some(*x.height as i64))
+        (Some(x.width as i64), Some(x.height as i64))
     } else {
         (None, None)
     };
 
     let tileset = if let Ok(x) = &parsed_chk.era {
-        Some(*x.tileset as i64)
+        Some(x.tileset as i64)
     } else {
         None
     };
@@ -356,19 +356,19 @@ async fn map_info(
     };
 
     let (scenario_name, scenario_description) = if let Ok(x) = &parsed_chk.sprp {
-        let scenario_string = if *x.scenario_name_string_number == 0 {
+        let scenario_string = if x.scenario_name_string_number == 0 {
             None
         } else {
             parsed_chk
-                .get_string(*x.scenario_name_string_number as usize)
+                .get_string(x.scenario_name_string_number as usize)
                 .ok()
         };
 
-        let scenario_description_string = if *x.description_string_number == 0 {
+        let scenario_description_string = if x.description_string_number == 0 {
             None
         } else {
             parsed_chk
-                .get_string(*x.description_string_number as usize)
+                .get_string(x.description_string_number as usize)
                 .ok()
         };
 

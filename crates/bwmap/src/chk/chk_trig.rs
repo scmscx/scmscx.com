@@ -115,7 +115,7 @@ pub(crate) fn parse_trig(chunks: &[RiffChunk]) -> Result<ChkTrig, anyhow::Error>
 
     for chunk in chunks {
         let mut slicer = CursorSlicer::new(chunk.data);
-        triggers.extend_from_slice(slicer.extract_rest_as_slice_lax()?);
+        triggers.extend_from_slice(&slicer.extract_rest_as_slice_lax()?);
     }
 
     Ok(ChkTrig { triggers })

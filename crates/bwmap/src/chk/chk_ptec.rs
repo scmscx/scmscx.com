@@ -25,15 +25,15 @@ use serde::Serialize;
 // See #List of Technology IDs.
 
 #[derive(Debug, Serialize)]
-pub struct ChkPtec<'a> {
-    pub player_availability: &'a [[u8; 24]; 12],
-    pub already_researched: &'a [[u8; 24]; 12],
-    pub global_availability_defaults: &'a [u8; 24],
-    pub global_already_researched_defaults: &'a [u8; 24],
-    pub player_uses_default: &'a [[u8; 24]; 12],
+pub struct ChkPtec {
+    pub player_availability: [[u8; 24]; 12],
+    pub already_researched: [[u8; 24]; 12],
+    pub global_availability_defaults: [u8; 24],
+    pub global_already_researched_defaults: [u8; 24],
+    pub player_uses_default: [[u8; 24]; 12],
 }
 
-pub(crate) fn parse_ptec<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkPtec<'a>, anyhow::Error> {
+pub(crate) fn parse_ptec(chunks: &[RiffChunk]) -> Result<ChkPtec, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

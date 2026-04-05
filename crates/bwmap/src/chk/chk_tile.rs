@@ -19,12 +19,12 @@ pub(crate) fn parse_tile(chunks: &[RiffChunk<'_>]) -> Result<ChkTile, anyhow::Er
     let sec = chunks[chunks.len() - 1].data;
 
     let data = if sec.len().is_multiple_of(2) {
-        Vec::from(reinterpret_slice2::<u16>(sec)?)
+        reinterpret_slice2::<u16>(sec)?
     } else {
         let mut ret = if sec.len() == 1 {
             Vec::new()
         } else {
-            Vec::from(reinterpret_slice2::<u16>(&sec[0..sec.len() - 1])?)
+            reinterpret_slice2::<u16>(&sec[0..sec.len() - 1])?
         };
 
         ret.push(sec[sec.len() - 1] as u16);

@@ -16,8 +16,11 @@ fn test_load_all_tilesets() {
 fn test_minimap_rendering_badlands() {
     let mtxm = include_bytes!("test_vectors/badlands_mtxm");
     let bytes = include_bytes!("test_vectors/badlands_rendered.png");
-    let view = unsafe { std::slice::from_raw_parts(mtxm.as_ptr() as *const u16, 16384) };
-    let png = crate::render_minimap(view, 128, 128, 0).unwrap();
+    let view: Vec<u16> = mtxm
+        .chunks_exact(2)
+        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .collect();
+    let png = crate::render_minimap(&view, 128, 128, 0).unwrap();
     // std::fs::write(
     //     "/home/stan/git/starcraft/crates/bwminimaprender/src/test_vectors/badlands_rendered2.png",
     //     &png,
@@ -30,8 +33,11 @@ fn test_minimap_rendering_badlands() {
 fn test_minimap_rendering_jungle() {
     let mtxm = include_bytes!("test_vectors/jungle_mtxm");
     let bytes = include_bytes!("test_vectors/jungle_rendered.png");
-    let view = unsafe { std::slice::from_raw_parts(mtxm.as_ptr() as *const u16, 32768) };
-    let png = crate::render_minimap(view, 128, 256, 4).unwrap();
+    let view: Vec<u16> = mtxm
+        .chunks_exact(2)
+        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .collect();
+    let png = crate::render_minimap(&view, 128, 256, 4).unwrap();
     // std::fs::write(
     //     "/home/stan/git/starcraft/crates/bwminimaprender/src/test_vectors/jungle_rendered2.png",
     //     &png,

@@ -12,12 +12,12 @@ use serde::Serialize;
 // Standard Dimensions are 64, 96, 128, 192, and 256.
 
 #[derive(Debug, Serialize)]
-pub struct ChkDim<'a> {
-    pub width: &'a u16,
-    pub height: &'a u16,
+pub struct ChkDim {
+    pub width: u16,
+    pub height: u16,
 }
 
-pub(crate) fn parse_dim<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkDim<'a>, anyhow::Error> {
+pub(crate) fn parse_dim(chunks: &[RiffChunk]) -> Result<ChkDim, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

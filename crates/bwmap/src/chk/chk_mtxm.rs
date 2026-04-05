@@ -29,12 +29,12 @@ pub(crate) fn parse_mtxm(chunks: &[RiffChunk]) -> Result<ChkMtxm, anyhow::Error>
         let sec = chunk.data;
 
         let data = if sec.len() % 2 == 0 {
-            Vec::from(reinterpret_slice2::<u16>(sec)?)
+            reinterpret_slice2::<u16>(sec)?
         } else {
             let mut ret = if sec.len() == 1 {
                 Vec::new()
             } else {
-                Vec::from(reinterpret_slice2::<u16>(&sec[0..sec.len() - 1])?)
+                reinterpret_slice2::<u16>(&sec[0..sec.len() - 1])?
             };
 
             ret.push(sec[sec.len() - 1] as u16);

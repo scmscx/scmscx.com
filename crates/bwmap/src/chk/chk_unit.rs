@@ -83,7 +83,7 @@ pub(crate) fn parse_unit(chunks: &[RiffChunk]) -> Result<ChkUnit, anyhow::Error>
 
     for chunk in chunks {
         let mut slicer = CursorSlicer::new(chunk.data);
-        units.extend_from_slice(slicer.extract_rest_as_slice_lax()?);
+        units.extend_from_slice(&slicer.extract_rest_as_slice_lax()?);
     }
 
     Ok(ChkUnit { units })

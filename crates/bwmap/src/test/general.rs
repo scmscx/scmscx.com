@@ -90,7 +90,7 @@ async fn test_constrain_encoding_detection_algorithm() {
         let parsed_chk = ParsedChk::from_bytes(chk.as_slice());
 
         let sprp_scenario_index = if let Ok(x) = &parsed_chk.sprp {
-            *x.scenario_name_string_number
+            x.scenario_name_string_number
         } else {
             unreachable!();
         };

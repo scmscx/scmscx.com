@@ -44,7 +44,7 @@ pub(crate) fn parse_thg2(chunks: &[RiffChunk]) -> Result<ChkThg2, anyhow::Error>
 
     for chunk in chunks {
         let mut slicer = CursorSlicer::new(chunk.data);
-        sprites.extend_from_slice(slicer.extract_rest_as_slice_lax()?);
+        sprites.extend_from_slice(&slicer.extract_rest_as_slice_lax()?);
     }
 
     Ok(ChkThg2 { sprites })

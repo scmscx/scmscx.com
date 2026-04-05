@@ -18,11 +18,11 @@ use serde::Serialize;
 // Any size greater than width*height will be ignored. Any size less will default missing tiles to 0xFF
 
 #[derive(Debug, Serialize)]
-pub struct ChkMask<'a> {
-    pub fog: &'a [u8],
+pub struct ChkMask {
+    pub fog: Vec<u8>,
 }
 
-pub(crate) fn parse_mask<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkMask<'a>, anyhow::Error> {
+pub(crate) fn parse_mask(chunks: &[RiffChunk]) -> Result<ChkMask, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

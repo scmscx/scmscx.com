@@ -8,12 +8,12 @@ use serde::Serialize;
 // u32[256]: One long for each switch, specifies the string number for the name of each switch. Unnamed switches will have an index of 0, and have a default switch name.
 
 #[derive(Debug, Serialize)]
-pub struct ChkSwnm<'a> {
+pub struct ChkSwnm {
     #[serde(skip_serializing)]
-    pub switch_name_string_number: &'a [u32; 256],
+    pub switch_name_string_number: [u32; 256],
 }
 
-pub(crate) fn parse_swnm<'a>(chunks: &[RiffChunk<'a>]) -> Result<ChkSwnm<'a>, anyhow::Error> {
+pub(crate) fn parse_swnm(chunks: &[RiffChunk]) -> Result<ChkSwnm, anyhow::Error> {
     anyhow::ensure!(chunks.len() > 0);
 
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);

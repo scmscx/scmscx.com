@@ -61,7 +61,7 @@ pub(crate) async fn insert_map(
     // calculate denormalized stuff
     let scenario_name = sanitize_sc_scenario_string(
         parsed_chk
-            .get_string(*sprp_section.scenario_name_string_number as usize)?
+            .get_string(sprp_section.scenario_name_string_number as usize)?
             .as_str(),
     );
 
