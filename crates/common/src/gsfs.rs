@@ -5,7 +5,7 @@ use futures_util::StreamExt;
 use reqwest::{Body, Client};
 use std::path::Path;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tracing::error;
+use tracing::{error, info};
 
 fn read_vec_as_stream(
     slice: Vec<u8>,
@@ -45,7 +45,7 @@ async fn read_file_as_stream(
     })
 }
 
-pub async fn gsfs_put(
+async fn gsfs_put(
     client: &Client,
     endpoint: &str,
     src: impl Stream<Item = Result<Bytes, std::io::Error>> + Sync + Send + 'static,
@@ -73,7 +73,7 @@ pub async fn gsfs_put(
     Ok(())
 }
 
-pub async fn gsfs_get(
+async fn gsfs_get(
     client: &Client,
     endpoint: &str,
     path: impl AsRef<str> + 'static,
@@ -90,6 +90,10 @@ pub async fn gsfs_get(
 
     match response.status() {
         reqwest::StatusCode::OK => (),
+        reqwest::StatusCode::NOT_FOUND => {
+            info!("gsfs get failed: {}", response.status());
+            anyhow::bail!("gsfs get failed, NotFound");
+        }
         e => {
             error!("gsfs get failed: {}", response.status());
             anyhow::bail!("gsfs get failed: {e}");
@@ -97,6 +101,14 @@ pub async fn gsfs_get(
     }
 
     Ok(response.bytes_stream())
+}
+
+pub async fn gsfs_get_map_image(
+    client: &Client,
+    endpoint: &str,
+    chkblob_hash: &str,
+) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
+    gsfs_get(client, endpoint, format!("/img/{chkblob_hash}.webp")).await
 }
 
 pub async fn gsfs_get_mapblob(
@@ -122,24 +134,16 @@ pub async fn gsfs_put_file(
     .await
 }
 
-pub async fn gsfs_get_file(
-    client: &Client,
-    endpoint: &str,
-    filename: String,
-) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
-    gsfs_get(client, endpoint, filename).await
-}
-
 pub async fn gsfs_put_minimap(
     client: &Client,
     endpoint: &str,
     chkblob_hash: &str,
-    chkblob_data: Vec<u8>,
+    png_data: Vec<u8>,
 ) -> Result<()> {
     gsfs_put(
         client,
         endpoint,
-        read_vec_as_stream(chkblob_data, 1024 * 1024),
+        read_vec_as_stream(png_data, 1024 * 1024),
         format!("/minimap/{chkblob_hash}"),
     )
     .await
@@ -153,12 +157,25 @@ pub async fn gsfs_get_minimap(
     gsfs_get(client, endpoint, format!("/minimap/{chkblob_hash}")).await
 }
 
-pub async fn gsfs_put_bytes(
+pub async fn gsfs_put_map_image(
     client: &Client,
     endpoint: &str,
-    path: &str,
+    chkblob_hash: &str,
     data: Vec<u8>,
 ) -> Result<()> {
+    gsfs_put_bytes(client, endpoint, &format!("/img/{chkblob_hash}.webp"), data).await
+}
+
+pub async fn gsfs_put_mapblob(
+    client: &Client,
+    endpoint: &str,
+    mapblob_hash: &str,
+    data: Vec<u8>,
+) -> Result<()> {
+    gsfs_put_bytes(client, endpoint, &format!("/mapblob/{mapblob_hash}"), data).await
+}
+
+async fn gsfs_put_bytes(client: &Client, endpoint: &str, path: &str, data: Vec<u8>) -> Result<()> {
     gsfs_put(
         client,
         endpoint,
@@ -168,7 +185,22 @@ pub async fn gsfs_put_bytes(
     .await
 }
 
-pub async fn gsfs_download_to_file(
+pub async fn gsfs_download_mapblob_to_file(
+    client: &Client,
+    endpoint: &str,
+    mapblob_hash: &str,
+    dest_path: impl AsRef<Path>,
+) -> Result<()> {
+    gsfs_download_to_file(
+        client,
+        endpoint,
+        &format!("/mapblob/{mapblob_hash}"),
+        dest_path,
+    )
+    .await
+}
+
+async fn gsfs_download_to_file(
     client: &Client,
     endpoint: &str,
     gsfs_path: &str,

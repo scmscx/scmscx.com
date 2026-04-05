@@ -22,10 +22,13 @@ pub struct Config {
     // Rendering
     pub sc_data_path: String,
     pub render_skin: RenderSkin,
-    pub render_batch_size: i64,
     pub render_poll_interval_secs: u64,
     pub render_anim_ticks: u64,
     pub render_webp_quality: f32,
+    pub max_concurrent_downloads: usize,
+    pub max_concurrent_renders: usize,
+    pub max_concurrent_encodes: usize,
+    pub max_concurrent_uploads: usize,
 
     // Temp directory
     pub temp_dir: String,
@@ -59,10 +62,6 @@ impl Config {
             render_skin: parse_render_skin(
                 &env::var("RENDER_SKIN").unwrap_or_else(|_| "classic".to_string()),
             ),
-            render_batch_size: env::var("RENDER_BATCH_SIZE")
-                .unwrap_or_else(|_| "10".to_string())
-                .parse()
-                .context("RENDER_BATCH_SIZE must be a number")?,
             render_poll_interval_secs: env::var("RENDER_POLL_INTERVAL_SECS")
                 .unwrap_or_else(|_| "30".to_string())
                 .parse()
@@ -72,9 +71,25 @@ impl Config {
                 .parse()
                 .context("RENDER_ANIM_TICKS must be a number")?,
             render_webp_quality: env::var("RENDER_WEBP_QUALITY")
-                .unwrap_or_else(|_| "80".to_string())
+                .unwrap_or_else(|_| "90".to_string())
                 .parse()
                 .context("RENDER_WEBP_QUALITY must be a number")?,
+            max_concurrent_downloads: env::var("RENDER_MAX_CONCURRENT_DOWNLOADS")
+                .unwrap_or_else(|_| "5".to_string())
+                .parse()
+                .context("RENDER_MAX_CONCURRENT_DOWNLOADS must be a number")?,
+            max_concurrent_renders: env::var("RENDER_MAX_CONCURRENT_RENDERS")
+                .unwrap_or_else(|_| "1".to_string())
+                .parse()
+                .context("RENDER_MAX_CONCURRENT_RENDERS must be a number")?,
+            max_concurrent_encodes: env::var("RENDER_MAX_CONCURRENT_ENCODES")
+                .unwrap_or_else(|_| "5".to_string())
+                .parse()
+                .context("RENDER_MAX_CONCURRENT_ENCODES must be a number")?,
+            max_concurrent_uploads: env::var("RENDER_MAX_CONCURRENT_UPLOADS")
+                .unwrap_or_else(|_| "5".to_string())
+                .parse()
+                .context("RENDER_MAX_CONCURRENT_UPLOADS must be a number")?,
 
             temp_dir: env::var("RENDER_TEMP_DIR").unwrap_or_else(|_| "./tmp/render".to_string()),
         })

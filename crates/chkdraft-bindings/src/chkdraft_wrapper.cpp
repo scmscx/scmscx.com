@@ -70,7 +70,6 @@ static Renderer::Options to_cpp_options(const ChkRenderOptions* opts) {
         }
         result.drawLocations = opts->draw_locations != 0;
         result.displayFps = false; // Not exposed in C API
-        result.webpQuality = opts->webp_quality;
     }
     return result;
 }
@@ -88,6 +87,10 @@ int chk_init_logging(void) {
     std::cout << "chkdraft-bindings: direct cout test" << std::endl;
 
     return 1;
+}
+
+void chk_set_log_level(uint32_t level) {
+    logger.setLogLevel(LogLevel(level));
 }
 
 // ============================================================================
@@ -197,6 +200,12 @@ ChkScMap* chk_gfxutil_load_map(ChkGfxUtil* gfx, const char* map_path, ChkError* 
 
 void chk_renderer_destroy(ChkRenderer* renderer) {
     delete renderer;
+}
+
+void chk_renderer_set_skin(ChkRenderer* renderer, ChkRenderSkin skin) {
+    if (renderer && renderer->impl) {
+        renderer->impl->renderSkin = to_cpp_skin(skin);
+    }
 }
 
 ChkSaveWebpResult chk_renderer_save_webp(
@@ -314,6 +323,147 @@ size_t chk_renderer_get_webp(
 }
 
 void chk_free_webp_data(uint8_t* data) {
+    free(data);
+}
+
+int chk_renderer_get_raw_image(
+    ChkRenderer* renderer,
+    ChkScMap* map,
+    const ChkRenderOptions* options,
+    ChkRawImage* raw_image,
+    ChkError* error
+) {
+    clear_error(error);
+    if (raw_image) {
+        raw_image->data = nullptr;
+        raw_image->width = 0;
+        raw_image->height = 0;
+        raw_image->data_size = 0;
+    }
+
+    if (!renderer || !renderer->impl) {
+        set_error(error, 1, "Renderer is null");
+        return 0;
+    }
+    if (!map || !map->impl) {
+        set_error(error, 2, "Map is null");
+        return 0;
+    }
+    if (!raw_image) {
+        set_error(error, 3, "raw_image pointer is null");
+        return 0;
+    }
+
+    try {
+        auto tileWidth = map->impl->getTileWidth();
+        auto tileHeight = map->impl->getTileHeight();
+        logger.info() << "chk_renderer_get_raw_image: map size " << tileWidth << "x" << tileHeight
+                      << " tiles, loading skin and tileset" << std::endl;
+
+        renderer->impl->loadSkinAndTileSet(renderer->impl->renderSkin, *map->impl);
+        logger.info() << "chk_renderer_get_raw_image: skin and tileset loaded, starting render" << std::endl;
+
+        Renderer::Options cpp_opts = to_cpp_options(options);
+        auto result = renderer->impl->renderMapToRawImage(*map->impl, cpp_opts);
+
+        logger.info() << "chk_renderer_get_raw_image: render complete in " << result.renderTimeMs << "ms, "
+                      << result.width << "x" << result.height << " pixels" << std::endl;
+
+        size_t data_size = result.pixelData.size();
+        if (data_size > 0) {
+            raw_image->data = static_cast<uint8_t*>(malloc(data_size));
+            if (raw_image->data) {
+                memcpy(raw_image->data, result.pixelData.data(), data_size);
+                raw_image->width = result.width;
+                raw_image->height = result.height;
+                raw_image->data_size = data_size;
+                logger.info() << "chk_renderer_get_raw_image: success, returning " << data_size << " bytes" << std::endl;
+                return 1;
+            } else {
+                logger.error() << "chk_renderer_get_raw_image: failed to allocate " << data_size << " bytes" << std::endl;
+                set_error(error, 4, "Failed to allocate memory for raw image data");
+                return 0;
+            }
+        } else {
+            logger.error() << "chk_renderer_get_raw_image: render returned empty data" << std::endl;
+            set_error(error, 5, "Render returned empty image");
+            return 0;
+        }
+    } catch (const std::exception& e) {
+        logger.error() << "chk_renderer_get_raw_image: exception: " << e.what() << std::endl;
+        set_error(error, 6, e.what());
+        return 0;
+    } catch (...) {
+        logger.error() << "chk_renderer_get_raw_image: unknown exception" << std::endl;
+        set_error(error, 7, "Unknown error getting raw image");
+        return 0;
+    }
+}
+
+int chk_renderer_get_raw_minimap(
+    ChkRenderer* renderer,
+    ChkScMap* map,
+    ChkRawImage* raw_image,
+    ChkError* error
+) {
+    clear_error(error);
+    if (raw_image) {
+        raw_image->data = nullptr;
+        raw_image->width = 0;
+        raw_image->height = 0;
+        raw_image->data_size = 0;
+    }
+
+    if (!renderer || !renderer->impl) {
+        set_error(error, 1, "Renderer is null");
+        return 0;
+    }
+    if (!map || !map->impl) {
+        set_error(error, 2, "Map is null");
+        return 0;
+    }
+    if (!raw_image) {
+        set_error(error, 3, "raw_image pointer is null");
+        return 0;
+    }
+
+    try {
+        auto result = renderer->impl->renderMiniMapToRawImage(*map->impl);
+
+        logger.info() << "chk_renderer_get_raw_minimap: render complete in " << result.renderTimeMs << "ms, "
+                      << result.width << "x" << result.height << " pixels" << std::endl;
+
+        size_t data_size = result.pixelData.size();
+        if (data_size > 0) {
+            raw_image->data = static_cast<uint8_t*>(malloc(data_size));
+            if (raw_image->data) {
+                memcpy(raw_image->data, result.pixelData.data(), data_size);
+                raw_image->width = result.width;
+                raw_image->height = result.height;
+                raw_image->data_size = data_size;
+                return 1;
+            } else {
+                logger.error() << "chk_renderer_get_raw_minimap: failed to allocate " << data_size << " bytes" << std::endl;
+                set_error(error, 4, "Failed to allocate memory for raw minimap data");
+                return 0;
+            }
+        } else {
+            logger.error() << "chk_renderer_get_raw_minimap: render returned empty data" << std::endl;
+            set_error(error, 5, "Minimap render returned empty image");
+            return 0;
+        }
+    } catch (const std::exception& e) {
+        logger.error() << "chk_renderer_get_raw_minimap: exception: " << e.what() << std::endl;
+        set_error(error, 6, e.what());
+        return 0;
+    } catch (...) {
+        logger.error() << "chk_renderer_get_raw_minimap: unknown exception" << std::endl;
+        set_error(error, 7, "Unknown error getting raw minimap");
+        return 0;
+    }
+}
+
+void chk_free_raw_image_data(uint8_t* data) {
     free(data);
 }
 

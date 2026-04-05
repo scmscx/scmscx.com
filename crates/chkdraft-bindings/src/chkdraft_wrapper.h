@@ -30,7 +30,6 @@ typedef struct ChkRenderOptions {
     int draw_actors;      // bool (units & sprites)
     int draw_fog_player;  // -1 for none, 0-11 for player index
     int draw_locations;   // bool
-    float webp_quality;   // 0-100, where 100 is highest quality. Values <= 0 use lossless encoding.
 } ChkRenderOptions;
 
 // Result struct for save_webp operation
@@ -55,6 +54,10 @@ typedef struct ChkError {
 // Initialize and test logging - call this early to verify logging is working
 // Prints a test message to stdout and returns 1 if successful
 int chk_init_logging(void);
+
+// Set the C++ logger log level
+// 0=Off, 100=Fatal, 200=Error, 300=Warn, 400=Info, 500=Debug, 600=Trace
+void chk_set_log_level(uint32_t level);
 
 // ============================================================================
 // GfxUtil functions
@@ -85,6 +88,9 @@ ChkScMap* chk_gfxutil_load_map(ChkGfxUtil* gfx, const char* map_path, ChkError* 
 // Destroy a renderer
 void chk_renderer_destroy(ChkRenderer* renderer);
 
+// Change the renderer's active skin
+void chk_renderer_set_skin(ChkRenderer* renderer, ChkRenderSkin skin);
+
 // Save map as WebP image
 // Returns result with success=1 on success, success=0 on failure
 ChkSaveWebpResult chk_renderer_save_webp(
@@ -108,6 +114,36 @@ size_t chk_renderer_get_webp(
 
 // Free WebP data allocated by chk_renderer_get_webp
 void chk_free_webp_data(uint8_t* data);
+
+// Raw image result (RGB pixels, no WebP encoding)
+typedef struct ChkRawImage {
+    uint8_t* data;      // RGB pixel data, caller must free with chk_free_raw_image_data()
+    int width;
+    int height;
+    size_t data_size;   // width * height * 3
+} ChkRawImage;
+
+// Render map to raw RGB pixels (no WebP encoding)
+// Returns 1 on success, 0 on failure. On success, raw_image is populated.
+int chk_renderer_get_raw_image(
+    ChkRenderer* renderer,
+    ChkScMap* map,
+    const ChkRenderOptions* options,
+    ChkRawImage* raw_image,
+    ChkError* error
+);
+
+// Render minimap to raw RGB pixels (no WebP encoding)
+// Returns 1 on success, 0 on failure. On success, raw_image is populated.
+int chk_renderer_get_raw_minimap(
+    ChkRenderer* renderer,
+    ChkScMap* map,
+    ChkRawImage* raw_image,
+    ChkError* error
+);
+
+// Free raw image data allocated by chk_renderer_get_raw_image or chk_renderer_get_raw_minimap
+void chk_free_raw_image_data(uint8_t* data);
 
 // ============================================================================
 // ScMap functions
