@@ -66,7 +66,7 @@ pub async fn get_auth(
     if lock.auth.is_none() || reacquire {
         lock.auth = Some(
             b2_authorize_account(
-                &client,
+                client,
                 &std::env::var("BACKBLAZE_KEY_ID").unwrap(),
                 &std::env::var("BACKBLAZE_APPLICATION_KEY").unwrap(),
             )
@@ -119,7 +119,7 @@ async fn get_map(
         }
     }
 
-    const MAPBLOB_BUCKET_NAME: &'static str = "seventyseven-mapblob";
+    const MAPBLOB_BUCKET_NAME: &str = "seventyseven-mapblob";
     let client = Client::new();
 
     let mut retries_remaining = 5;
@@ -206,7 +206,7 @@ async fn get_map(
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     }
 
-    return Ok(insert_extension(HttpResponse::InternalServerError(), info).finish());
+    Ok(insert_extension(HttpResponse::InternalServerError(), info).finish())
 }
 
 #[get("/api/replays/{replay_id}")]
@@ -247,7 +247,7 @@ async fn recent_activity(
         let conn = pool.get().await?;
         let mut v = Vec::new();
 
-        for row in conn
+        for row in &conn
             .query(
                 "
                 select replay.id, denorm_scenario, account.username, replay.uploaded_time
@@ -259,7 +259,6 @@ async fn recent_activity(
                 &[],
             )
             .await?
-            .iter()
         {
             v.push((
                 row.try_get::<_, i64>(0)?,
@@ -279,7 +278,7 @@ async fn recent_activity(
         let mut v = Vec::new();
         let conn = pool.get().await?;
 
-        for row in conn
+        for row in &conn
             .query(
                 "
             select map.id, denorm_scenario, account.username, uploaded_time
@@ -291,7 +290,6 @@ async fn recent_activity(
                 &[],
             )
             .await?
-            .iter()
         {
             v.push((
                 bwcommon::get_web_id_from_db_id(
@@ -650,7 +648,7 @@ async fn get_tags(
         .collect::<Result<Vec<_>, _>>()?;
 
     let info = ApiSpecificInfoForLogging {
-        user_id: user_id,
+        user_id,
         map_id: Some(map_id),
         ..Default::default()
     };
@@ -677,9 +675,7 @@ async fn set_tags(
         bwcommon::get_db_id_from_web_id(&map_id, crate::util::SEED_MAP_ID)?
     };
 
-    let user_id = if let Some(user_id) = bwcommon::check_auth4(&req, (**pool).clone()).await? {
-        user_id
-    } else {
+    let Some(user_id) = bwcommon::check_auth4(&req, (**pool).clone()).await? else {
         return Ok(HttpResponse::Unauthorized().finish());
     };
 
@@ -719,9 +715,7 @@ async fn add_tags(
         bwcommon::get_db_id_from_web_id(&map_id, crate::util::SEED_MAP_ID)?
     };
 
-    let user_id = if let Some(user_id) = bwcommon::check_auth4(&req, (**pool).clone()).await? {
-        user_id
-    } else {
+    let Some(user_id) = bwcommon::check_auth4(&req, (**pool).clone()).await? else {
         return Ok(HttpResponse::Unauthorized().finish());
     };
 
@@ -750,18 +744,18 @@ fn parse_lst_files() -> std::collections::HashMap<u32, std::collections::HashMap
 
         for result in reader.lines() {
             let line: String = result.unwrap();
-            if line.len() == 0 {
+            if line.is_empty() {
                 continue;
             }
 
-            let split: Vec<&str> = line.split("\t").collect();
+            let split: Vec<&str> = line.split('\t').collect();
 
             if split.len() != 5 {
                 continue;
             }
 
             let id = split[0].parse::<u16>().unwrap();
-            let rgb: Vec<u8> = (&split[1][1..split[1].len() - 1])
+            let rgb: Vec<u8> = split[1][1..split[1].len() - 1]
                 .split(',')
                 .map(|x| x.parse::<u8>().unwrap())
                 .collect();
@@ -844,7 +838,7 @@ fn register_handlebars() -> Result<web::Data<Handlebars<'static>>> {
     }
 
     let mut options = DirectorySourceOptions::default();
-    options.tpl_extension = ".hbs".to_owned();
+    ".hbs".clone_into(&mut options.tpl_extension);
     registry
         .register_templates_directory(
             std::path::Path::new(std::env::var("ROOT_DIR").unwrap().as_str()).join("uiv2"),
@@ -1077,13 +1071,12 @@ pub(crate) async fn start() -> Result<()> {
                 |req: HttpRequest, client: web::Data<awc::Client>| async move {
                     use actix_proxy::IntoHttpResponse;
 
-                    let path_query = req
-                        .uri()
-                        .path_and_query()
-                        .map(|v| v.as_str())
-                        .unwrap_or_else(|| req.uri().path());
+                    let path_query = req.uri().path_and_query().map_or_else(
+                        || req.uri().path(),
+                        actix_web::http::uri::PathAndQuery::as_str,
+                    );
 
-                    let url = format!("http://localhost:3000{}", path_query);
+                    let url = format!("http://localhost:3000{path_query}");
 
                     info!("proxying to {}", url);
 

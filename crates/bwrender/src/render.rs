@@ -59,7 +59,7 @@ impl RenderContext {
             let mut gfx = match GfxUtil::new() {
                 Ok(g) => g,
                 Err(e) => {
-                    let _ = init_tx.send(Err(format!("Failed to create GfxUtil: {}", e)));
+                    let _ = init_tx.send(Err(format!("Failed to create GfxUtil: {e}")));
                     return;
                 }
             };
@@ -69,7 +69,7 @@ impl RenderContext {
                 sc_data_path
             );
             if let Err(e) = gfx.load_sc_data(&sc_data_path) {
-                let _ = init_tx.send(Err(format!("Failed to load SC data: {}", e)));
+                let _ = init_tx.send(Err(format!("Failed to load SC data: {e}")));
                 return;
             }
             info!("Render thread: StarCraft data loaded successfully");
@@ -80,7 +80,7 @@ impl RenderContext {
             let renderer = match gfx.create_renderer(skin) {
                 Ok(r) => r,
                 Err(e) => {
-                    let _ = init_tx.send(Err(format!("Failed to create renderer: {}", e)));
+                    let _ = init_tx.send(Err(format!("Failed to create renderer: {e}")));
                     return;
                 }
             };
@@ -140,7 +140,7 @@ fn render_map_internal(
     info!("render_map_internal: loading map from {}", map_path);
     let mut map = gfx
         .load_map(map_path)
-        .map_err(|e| format!("Failed to load map: {}", e))?;
+        .map_err(|e| format!("Failed to load map: {e}"))?;
     info!(
         "render_map_internal: map loaded, size {}x{}",
         map.tile_width(),
@@ -159,7 +159,7 @@ fn render_map_internal(
     let options = RenderOptions::default();
     let map_image = renderer
         .get_raw_image(&map, &options)
-        .map_err(|e| format!("Failed to render map: {}", e))?;
+        .map_err(|e| format!("Failed to render map: {e}"))?;
     info!(
         "render_map_internal: rendered {}x{} map image ({} bytes)",
         map_image.width,
@@ -170,7 +170,7 @@ fn render_map_internal(
     info!("render_map_internal: rendering minimap");
     let minimap_image = renderer
         .get_raw_minimap(&map)
-        .map_err(|e| format!("Failed to render minimap: {}", e))?;
+        .map_err(|e| format!("Failed to render minimap: {e}"))?;
     info!(
         "render_map_internal: rendered {}x{} minimap ({} bytes)",
         minimap_image.width,

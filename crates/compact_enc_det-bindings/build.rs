@@ -8,7 +8,7 @@ use std::process::Command;
 fn main() {
     assert!(Command::new("bash")
         .current_dir("compact_enc_det")
-        .args(&["./autogen.sh"])
+        .args(["./autogen.sh"])
         .status()
         .expect("failed to autogen")
         .success());

@@ -12,8 +12,8 @@ use reqwest::{Client, Error};
 use sha1::{Digest, Sha1};
 use std::pin::pin;
 
-const TEST_BUCKET: &'static str = "386b8f2e6e36dc507ee50d1c";
-const TEST_BUCKET_NAME: &'static str = "sventyseven-test";
+const TEST_BUCKET: &str = "386b8f2e6e36dc507ee50d1c";
+const TEST_BUCKET_NAME: &str = "sventyseven-test";
 
 async fn download_stream(stream: impl Stream<Item = Result<Bytes, Error>>) -> Result<Bytes> {
     let mut bytes = BytesMut::new();
@@ -158,7 +158,7 @@ async fn test_b2_upload_file() -> Result<(), anyhow::Error> {
         let (len, sha1_hash, stream) = prepare_stream(data);
         assert_matches!(
             b2_upload_file(&client, &upload_url, &filename, len, sha1_hash, stream).await,
-            Ok(_)
+            Ok(())
         );
     }
 

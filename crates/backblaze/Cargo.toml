@@ -6,20 +6,23 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "*", features = ["rt-multi-thread","tracing","full"] }
-tokio-util = { version = "*", features = ["codec"] }
-anyhow = "*"
-reqwest = { version = "*", default-features = false, features = ["json", "stream", "http2", "h3", "rustls-tls"] }
-serde = { version = "*", features = ["derive"] }
-serde_json = "*"
-bytes = "*"
-futures-core = "*"
-sha1 = "*"
-thiserror = "*"
-async-stream = "*"
-futures = "*"
-pin-project = "*"
+tokio = { version = "1.47.1", features = ["rt-multi-thread","tracing","full"] }
+tokio-util = { version = "0.7.16", features = ["codec"] }
+anyhow = "1.0.99"
+reqwest = { version = "0.12.4", default-features = false, features = ["json", "stream", "http2", "h3", "rustls-tls"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.143"
+bytes = "1.10.1"
+futures-core = "0.3.31"
+sha1 = "0.10.6"
+thiserror = "2.0.16"
+async-stream = "0.3.6"
+futures = "0.3.31"
+pin-project = "1.1.10"
 
 [dev-dependencies]
-uuid = { version = "*", features = ["v4"] }
-assert_matches = "*"
+uuid = { version = "1.18.0", features = ["v4"] }
+assert_matches = "1.5.0"
+
+[lints]
+workspace = true

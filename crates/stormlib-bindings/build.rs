@@ -8,7 +8,7 @@ use std::process::Command;
 fn main() {
     assert!(Command::new("cmake")
         .current_dir("StormLib")
-        .args(&["CMakeLists.txt"])
+        .args(["CMakeLists.txt"])
         .status()
         .expect("failed to cmake")
         .success());
@@ -22,7 +22,7 @@ fn main() {
 
     assert!(Command::new("cmake")
         .current_dir("bzip2")
-        .args(&["CMakeLists.txt", "-DENABLE_STATIC_LIB=1"])
+        .args(["CMakeLists.txt", "-DENABLE_STATIC_LIB=1"])
         .status()
         .expect("failed to cmake")
         .success());
@@ -36,7 +36,7 @@ fn main() {
 
     assert!(Command::new("bash")
         .current_dir("zlib")
-        .args(&["./configure"])
+        .args(["./configure"])
         .status()
         .expect("failed to configure")
         .success());

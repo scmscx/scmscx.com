@@ -18,7 +18,7 @@ async fn handler2(
         >,
     >,
 ) -> Result<HttpResponse, bwcommon::MyError> {
-    if form.username.len() < 1 {
+    if form.username.is_empty() {
         return Ok(
             HttpResponse::BadRequest().body("The provided username must not be the empty string")
         );
@@ -34,7 +34,7 @@ async fn handler2(
         return Ok(HttpResponse::BadRequest().body("The two provided passwords must match"));
     }
 
-    if form.password.len() < 1 {
+    if form.password.is_empty() {
         return Ok(
             HttpResponse::BadRequest().body("The provided password must not be the empty string")
         );

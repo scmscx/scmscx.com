@@ -131,7 +131,7 @@ impl RenderOptions {
             draw_stars: self.draw_stars as i32,
             draw_terrain: self.draw_terrain as i32,
             draw_actors: self.draw_actors as i32,
-            draw_fog_player: self.draw_fog_player.map(|p| p as i32).unwrap_or(-1),
+            draw_fog_player: self.draw_fog_player.map_or(-1, |p| p as i32),
             draw_locations: self.draw_locations as i32,
         }
     }
@@ -227,7 +227,7 @@ impl GfxUtil {
         };
 
         let result =
-            unsafe { ffi::chk_gfxutil_load_sc_data(self.ptr, c_path.as_ptr(), &mut error) };
+            unsafe { ffi::chk_gfxutil_load_sc_data(self.ptr, c_path.as_ptr(), &raw mut error) };
 
         if result != 0 {
             return Err(error.into());
@@ -246,7 +246,8 @@ impl GfxUtil {
             message: [0; 256],
         };
 
-        let ptr = unsafe { ffi::chk_gfxutil_create_renderer(self.ptr, skin.to_ffi(), &mut error) };
+        let ptr =
+            unsafe { ffi::chk_gfxutil_create_renderer(self.ptr, skin.to_ffi(), &raw mut error) };
 
         if ptr.is_null() {
             return Err(error.into());
@@ -270,7 +271,7 @@ impl GfxUtil {
             message: [0; 256],
         };
 
-        let ptr = unsafe { ffi::chk_gfxutil_load_map(self.ptr, c_path.as_ptr(), &mut error) };
+        let ptr = unsafe { ffi::chk_gfxutil_load_map(self.ptr, c_path.as_ptr(), &raw mut error) };
 
         if ptr.is_null() {
             return Err(error.into());
@@ -332,9 +333,9 @@ impl Renderer {
             ffi::chk_renderer_save_webp(
                 self.ptr,
                 map.ptr,
-                &ffi_options,
+                &raw const ffi_options,
                 c_path.as_ptr(),
-                &mut error,
+                &raw mut error,
             )
         };
 
@@ -370,7 +371,13 @@ impl Renderer {
         let mut data_ptr: *mut u8 = ptr::null_mut();
 
         let size = unsafe {
-            ffi::chk_renderer_get_webp(self.ptr, map.ptr, &ffi_options, &mut data_ptr, &mut error)
+            ffi::chk_renderer_get_webp(
+                self.ptr,
+                map.ptr,
+                &raw const ffi_options,
+                &raw mut data_ptr,
+                &raw mut error,
+            )
         };
 
         if size == 0 || data_ptr.is_null() {
@@ -410,9 +417,9 @@ impl Renderer {
             ffi::chk_renderer_get_raw_image(
                 self.ptr,
                 map.ptr,
-                &ffi_options,
-                &mut raw_image,
-                &mut error,
+                &raw const ffi_options,
+                &raw mut raw_image,
+                &raw mut error,
             )
         };
 
@@ -451,7 +458,7 @@ impl Renderer {
         };
 
         let success = unsafe {
-            ffi::chk_renderer_get_raw_minimap(self.ptr, map.ptr, &mut raw_image, &mut error)
+            ffi::chk_renderer_get_raw_minimap(self.ptr, map.ptr, &raw mut raw_image, &raw mut error)
         };
 
         if success == 0 || raw_image.data.is_null() {

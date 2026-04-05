@@ -110,7 +110,7 @@ mod test {
         while let Some(chk) = stream.try_next().await.unwrap() {
             let riff_chunks = parse_riff(&chk);
 
-            assert!(riff_chunks.len() > 0);
+            assert!(!riff_chunks.is_empty());
             assert!(riff_chunks
                 .iter()
                 .any(|x| std::mem::discriminant(&x.chunk_name)

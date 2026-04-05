@@ -51,7 +51,7 @@ async fn gsfs_put(
     src: impl Stream<Item = Result<Bytes, std::io::Error>> + Sync + Send + 'static,
     dst: impl AsRef<str> + 'static,
 ) -> Result<()> {
-    anyhow::ensure!(dst.as_ref().starts_with("/"), "dst must start with /");
+    anyhow::ensure!(dst.as_ref().starts_with('/'), "dst must start with /");
 
     let response = client
         .put(format!(
@@ -78,7 +78,7 @@ async fn gsfs_get(
     endpoint: &str,
     path: impl AsRef<str> + 'static,
 ) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
-    anyhow::ensure!(path.as_ref().starts_with("/"), "path must start with /");
+    anyhow::ensure!(path.as_ref().starts_with('/'), "path must start with /");
 
     let response = client
         .get(format!(

@@ -130,7 +130,7 @@ pub async fn search_no_query(
     manifest: Data<HashMap<String, ManifestChunk>>,
 ) -> Result<impl Responder, MyError> {
     search_handler(
-        "".to_owned(),
+        String::new(),
         &search_params.into_inner(),
         req,
         pool,
@@ -234,7 +234,7 @@ pub async fn map(
     let user_id = req.extensions().get::<UserSession>().map(|x| x.id);
 
     let map_id = path.into_inner();
-    let map_id = if map_id.chars().all(|x| x.is_numeric()) && map_id.len() < 8 {
+    let map_id = if map_id.chars().all(char::is_numeric) && map_id.len() < 8 {
         return Ok(HttpResponse::PermanentRedirect()
             .append_header((
                 "Location",
@@ -248,12 +248,12 @@ pub async fn map(
             ))
             .finish()
             .customize());
+    } else if let Ok(id) =
+        bwcommon::get_db_id_from_web_id(map_id.as_str(), crate::util::SEED_MAP_ID)
+    {
+        id
     } else {
-        if let Ok(id) = bwcommon::get_db_id_from_web_id(map_id.as_str(), crate::util::SEED_MAP_ID) {
-            id
-        } else {
-            return Ok(HttpResponse::NotFound().finish().customize());
-        }
+        return Ok(HttpResponse::NotFound().finish().customize());
     };
 
     let (chkblob, uploaded_by, nsfw, blackholed) = {
@@ -277,7 +277,7 @@ pub async fn map(
             )
             .await?;
 
-        if rows.len() == 0 {
+        if rows.is_empty() {
             return Ok(HttpResponse::NotFound().finish().customize());
         }
 
@@ -307,22 +307,18 @@ pub async fn map(
     let (scenario, description) = if let Ok(sprp) = &parsed_chk.sprp {
         let scenario = if sprp.scenario_name_string_number == 0 {
             "Untitled Scenario".to_string()
+        } else if let Ok(s) = parsed_chk.get_string(sprp.scenario_name_string_number as usize) {
+            sanitize_sc_string(s.as_str())
         } else {
-            if let Ok(s) = parsed_chk.get_string(sprp.scenario_name_string_number as usize) {
-                sanitize_sc_string(s.as_str())
-            } else {
-                "<<Could not get scenario name>>".to_owned()
-            }
+            "<<Could not get scenario name>>".to_owned()
         };
 
         let description = if sprp.description_string_number == 0 {
-            "".to_string()
+            String::new()
+        } else if let Ok(s) = parsed_chk.get_string(sprp.description_string_number as usize) {
+            sanitize_sc_string(s.as_str())
         } else {
-            if let Ok(s) = parsed_chk.get_string(sprp.description_string_number as usize) {
-                sanitize_sc_string(s.as_str())
-            } else {
-                "<<Could not get scenario description>>".to_owned()
-            }
+            "<<Could not get scenario description>>".to_owned()
         };
 
         (scenario, description)
@@ -333,7 +329,7 @@ pub async fn map(
         )
     };
 
-    if nsfw && user_id == None {
+    if nsfw && user_id.is_none() {
         return Ok(HttpResponse::Forbidden().finish().customize());
     }
 

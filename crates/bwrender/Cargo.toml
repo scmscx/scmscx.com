@@ -15,30 +15,33 @@ backblaze = { path = "../backblaze" }
 bwmpq = { path = "../bwmpq" }
 
 # Async runtime
-tokio = { version = "*", features = ["rt-multi-thread", "full"] }
+tokio = { version = "1.47.1", features = ["rt-multi-thread", "full"] }
 
 # Database
-bb8-postgres = "*"
+bb8-postgres = "0.9.0"
 
 # HTTP client
-reqwest = { version = "*", default-features = false, features = ["rustls-tls"] }
+reqwest = { version = "0.12.4", default-features = false, features = ["rustls-tls"] }
 
 # Error handling
-anyhow = "*"
+anyhow = "1.0.99"
 
 # Logging
-tracing = "*"
-tracing-subscriber = { version = "*", features = ["env-filter"] }
-tracing-log = "*"
-log = "*"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+tracing-log = "0.2.0"
+log = "0.4.27"
 
 # Image encoding
-webp = "*"
-image = { version = "*", default-features = false, features = ["png"] }
+webp = "0.3.1"
+image = { version = "0.25.6", default-features = false, features = ["png"] }
 
 # Utilities
-uuid = { version = "*", features = ["v4"] }
-futures-util = "*"
-async-channel = "*"
+uuid = { version = "1.18.0", features = ["v4"] }
+futures-util = "0.3.31"
+async-channel = "2.5.0"
 
 [dev-dependencies]
+
+[lints]
+workspace = true

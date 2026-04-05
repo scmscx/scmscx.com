@@ -49,12 +49,7 @@ pub fn get_chk_from_mpq_filename<T: AsRef<Path>>(filename: T) -> Result<Vec<u8>>
     let _lock = LOCK.lock().unwrap();
     unsafe {
         let mut mpq_handle = 0 as HANDLE;
-        if !SFileOpenArchive(
-            cstr.as_ptr(),
-            0,
-            STREAM_FLAG_READ_ONLY,
-            &mut mpq_handle as *mut _,
-        ) {
+        if !SFileOpenArchive(cstr.as_ptr(), 0, STREAM_FLAG_READ_ONLY, &raw mut mpq_handle) {
             bail!(
                 "SFileOpenArchive. GetLastError: {}, filename: {}",
                 GetLastError(),
@@ -80,12 +75,7 @@ pub fn get_chk_from_mpq_filename<T: AsRef<Path>>(filename: T) -> Result<Vec<u8>>
 
             SFileSetLocale(locale);
             let mut archive_file_handle = 0 as HANDLE;
-            if !SFileOpenFileEx(
-                mpq_handle,
-                cstr.as_ptr(),
-                0,
-                &mut archive_file_handle as *mut _,
-            ) {
+            if !SFileOpenFileEx(mpq_handle, cstr.as_ptr(), 0, &raw mut archive_file_handle) {
                 bail!(
                     "SFileOpenFileEx. GetLastError: {}, filename: {filename}, locale: {locale}",
                     GetLastError()
@@ -108,9 +98,9 @@ pub fn get_chk_from_mpq_filename<T: AsRef<Path>>(filename: T) -> Result<Vec<u8>>
             if !SFileGetFileInfo(
                 archive_file_handle,
                 _SFileInfoClass_SFileInfoLocale,
-                &mut gotten_locale as *mut _ as *mut c_void,
+                (&raw mut gotten_locale).cast::<c_void>(),
                 size_of::<u32>() as u32,
-                0 as *mut _,
+                std::ptr::null_mut(),
             ) {
                 bail!(
                     "SFileGetFileInfo. GetLastError: {}, filename: {filename}, locale: {locale}",
@@ -122,10 +112,9 @@ pub fn get_chk_from_mpq_filename<T: AsRef<Path>>(filename: T) -> Result<Vec<u8>>
                 bail!("not found");
             }
 
-            let file_size_low;
             let mut file_size_high: u32 = 0;
 
-            file_size_low = SFileGetFileSize(archive_file_handle, &mut file_size_high as *mut _);
+            let file_size_low = SFileGetFileSize(archive_file_handle, &raw mut file_size_high);
 
             if file_size_low == SFILE_INVALID_SIZE {
                 bail!(
@@ -145,10 +134,10 @@ pub fn get_chk_from_mpq_filename<T: AsRef<Path>>(filename: T) -> Result<Vec<u8>>
             let mut size: u32 = 0;
             if !SFileReadFile(
                 archive_file_handle,
-                chk_data.as_mut_ptr() as *mut _,
+                chk_data.as_mut_ptr().cast(),
                 chk_data.len() as u32,
-                &mut size as *mut _,
-                0 as *mut _,
+                &raw mut size,
+                std::ptr::null_mut(),
             ) {
                 let last_error = GetLastError();
                 if last_error != ERROR_HANDLE_EOF || size == chk_data.len() as u32 {

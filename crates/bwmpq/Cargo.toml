@@ -6,14 +6,17 @@ edition = "2021"
 [dependencies]
 stormlib-bindings = { path = "../stormlib-bindings" }
 
-anyhow = { version = "*", features = ["backtrace"] }
-scopeguard = "*"
-lazy_static = "*"
-tracing = "*"
-uuid = { version = "*", features = ["v4"] }
+anyhow = { version = "1.0.99", features = ["backtrace"] }
+scopeguard = "1.2.0"
+lazy_static = "1.5.0"
+tracing = "0.1.41"
+uuid = { version = "1.18.0", features = ["v4"] }
 
 [dev-dependencies]
-reqwest = { version = "*", default-features = false, features = ["json", "http2", "rustls-tls"] }
-tokio = { version = "1", features = ["full"] }
-sha2 = "*"
-futures-util = "*"
+reqwest = { version = "0.12.4", default-features = false, features = ["json", "http2", "rustls-tls"] }
+tokio = { version = "1.47.1", features = ["full"] }
+sha2 = "0.10.9"
+futures-util = "0.3.31"
+
+[lints]
+workspace = true

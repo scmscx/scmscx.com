@@ -74,9 +74,9 @@ pub(crate) async fn change_password(
 
     let hashed_password = {
         let mut hasher = Sha256::new();
-        hasher.update(&username.as_bytes());
-        hasher.update(&password.as_bytes());
-        hasher.update(&salt.as_bytes());
+        hasher.update(username.as_bytes());
+        hasher.update(password.as_bytes());
+        hasher.update(salt.as_bytes());
         format!("{:x}", hasher.finalize())
     };
 
@@ -109,9 +109,9 @@ pub(crate) async fn check_password(
 
     let hashed_provided_password = {
         let mut hasher = Sha256::new();
-        hasher.update(&username.as_bytes());
-        hasher.update(&password.as_bytes());
-        hasher.update(&salt.as_bytes());
+        hasher.update(username.as_bytes());
+        hasher.update(password.as_bytes());
+        hasher.update(salt.as_bytes());
         format!("{:x}", hasher.finalize())
     };
 
@@ -142,9 +142,9 @@ pub(crate) async fn change_username(
 
     let hashed_password = {
         let mut hasher = Sha256::new();
-        hasher.update(&new_username.as_bytes());
-        hasher.update(&password.as_bytes());
-        hasher.update(&salt.as_bytes());
+        hasher.update(new_username.as_bytes());
+        hasher.update(password.as_bytes());
+        hasher.update(salt.as_bytes());
         format!("{:x}", hasher.finalize())
     };
 
@@ -250,9 +250,9 @@ pub(crate) async fn login(
 
     let hashed_password = {
         let mut hasher = Sha256::new();
-        hasher.update(&username.as_bytes());
-        hasher.update(&password.as_bytes());
-        hasher.update(&salt.as_bytes());
+        hasher.update(username.as_bytes());
+        hasher.update(password.as_bytes());
+        hasher.update(salt.as_bytes());
         format!("{:x}", hasher.finalize())
     };
 
@@ -282,9 +282,9 @@ pub(crate) async fn register(
 
     let hashed_password = {
         let mut hasher = Sha256::new();
-        hasher.update(&username.as_bytes());
-        hasher.update(&password.as_bytes());
-        hasher.update(&salt.as_bytes());
+        hasher.update(username.as_bytes());
+        hasher.update(password.as_bytes());
+        hasher.update(salt.as_bytes());
         format!("{:x}", hasher.finalize())
     };
 

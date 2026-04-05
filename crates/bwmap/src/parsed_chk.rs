@@ -157,47 +157,47 @@ impl ParsedChk {
 
         #[rustfmt::skip]
         let ret = ParsedChk {
-            colr: riff_chunks.get(&ChunkName::COLR).map(|x| parse_colr(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            crgb: riff_chunks.get(&ChunkName::CRGB).map(|x| parse_crgb(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            dd2:  riff_chunks.get(&ChunkName::DD2 ).map(|x| parse_dd2 (x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            dim:  riff_chunks.get(&ChunkName::DIM ).map(|x| parse_dim (x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            era:  riff_chunks.get(&ChunkName::ERA ).map(|x| parse_era (x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            forc: riff_chunks.get(&ChunkName::FORC).map(|x| parse_forc(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            iown: riff_chunks.get(&ChunkName::IOWN).map(|x| parse_iown(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            isom: riff_chunks.get(&ChunkName::ISOM).map(|x| parse_isom(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            ive2: riff_chunks.get(&ChunkName::IVE2).map(|x| parse_ive2(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            iver: riff_chunks.get(&ChunkName::IVER).map(|x| parse_iver(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            mask: riff_chunks.get(&ChunkName::MASK).map(|x| parse_mask(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            mbrf: riff_chunks.get(&ChunkName::MBRF).map(|x| parse_mbrf(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            mrgn: riff_chunks.get(&ChunkName::MRGN).map(|x| parse_mrgn(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            mtxm: riff_chunks.get(&ChunkName::MTXM).map(|x| parse_mtxm(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            ownr: riff_chunks.get(&ChunkName::OWNR).map(|x| parse_ownr(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            ptec: riff_chunks.get(&ChunkName::PTEC).map(|x| parse_ptec(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            ptex: riff_chunks.get(&ChunkName::PTEx).map(|x| parse_ptex(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            puni: riff_chunks.get(&ChunkName::PUNI).map(|x| parse_puni(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            pupx: riff_chunks.get(&ChunkName::PUPx).map(|x| parse_pupx(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            side: riff_chunks.get(&ChunkName::SIDE).map(|x| parse_side(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            sprp: riff_chunks.get(&ChunkName::SPRP).map(|x| parse_sprp(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            str:  riff_chunks.get(&ChunkName::STR ).map(|x| parse_str (x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            strx: riff_chunks.get(&ChunkName::STRx).map(|x| parse_strx(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            swnm: riff_chunks.get(&ChunkName::SWNM).map(|x| parse_swnm(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            tecs: riff_chunks.get(&ChunkName::TECS).map(|x| parse_tecs(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            tecx: riff_chunks.get(&ChunkName::TECx).map(|x| parse_tecx(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            thg2: riff_chunks.get(&ChunkName::THG2).map(|x| parse_thg2(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            tile: riff_chunks.get(&ChunkName::TILE).map(|x| parse_tile(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            trig: riff_chunks.get(&ChunkName::TRIG).map(|x| parse_trig(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            type_:riff_chunks.get(&ChunkName::TYPE).map(|x| parse_type(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            unis: riff_chunks.get(&ChunkName::UNIS).map(|x| parse_unis(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            unit: riff_chunks.get(&ChunkName::UNIT).map(|x| parse_unit(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            unix: riff_chunks.get(&ChunkName::UNIx).map(|x| parse_unix(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            upgr: riff_chunks.get(&ChunkName::UPGR).map(|x| parse_upgr(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            upgs: riff_chunks.get(&ChunkName::UPGS).map(|x| parse_upgs(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            upgx: riff_chunks.get(&ChunkName::UPGx).map(|x| parse_upgx(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            uprp: riff_chunks.get(&ChunkName::UPRP).map(|x| parse_uprp(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            upus: riff_chunks.get(&ChunkName::UPUS).map(|x| parse_upus(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            vcod: riff_chunks.get(&ChunkName::VCOD).map(|x| parse_vcod(x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            ver:  riff_chunks.get(&ChunkName::VER ).map(|x| parse_ver (x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
-            wav:  riff_chunks.get(&ChunkName::WAV ).map(|x| parse_wav (x.as_slice())).unwrap_or(Err(anyhow::anyhow!("Not Found"))),
+            colr: riff_chunks.get(&ChunkName::COLR).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_colr(x.as_slice())),
+            crgb: riff_chunks.get(&ChunkName::CRGB).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_crgb(x.as_slice())),
+            dd2:  riff_chunks.get(&ChunkName::DD2 ).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_dd2 (x.as_slice())),
+            dim:  riff_chunks.get(&ChunkName::DIM ).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_dim (x.as_slice())),
+            era:  riff_chunks.get(&ChunkName::ERA ).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_era (x.as_slice())),
+            forc: riff_chunks.get(&ChunkName::FORC).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_forc(x.as_slice())),
+            iown: riff_chunks.get(&ChunkName::IOWN).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_iown(x.as_slice())),
+            isom: riff_chunks.get(&ChunkName::ISOM).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_isom(x.as_slice())),
+            ive2: riff_chunks.get(&ChunkName::IVE2).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_ive2(x.as_slice())),
+            iver: riff_chunks.get(&ChunkName::IVER).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_iver(x.as_slice())),
+            mask: riff_chunks.get(&ChunkName::MASK).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_mask(x.as_slice())),
+            mbrf: riff_chunks.get(&ChunkName::MBRF).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_mbrf(x.as_slice())),
+            mrgn: riff_chunks.get(&ChunkName::MRGN).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_mrgn(x.as_slice())),
+            mtxm: riff_chunks.get(&ChunkName::MTXM).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_mtxm(x.as_slice())),
+            ownr: riff_chunks.get(&ChunkName::OWNR).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_ownr(x.as_slice())),
+            ptec: riff_chunks.get(&ChunkName::PTEC).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_ptec(x.as_slice())),
+            ptex: riff_chunks.get(&ChunkName::PTEx).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_ptex(x.as_slice())),
+            puni: riff_chunks.get(&ChunkName::PUNI).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_puni(x.as_slice())),
+            pupx: riff_chunks.get(&ChunkName::PUPx).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_pupx(x.as_slice())),
+            side: riff_chunks.get(&ChunkName::SIDE).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_side(x.as_slice())),
+            sprp: riff_chunks.get(&ChunkName::SPRP).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_sprp(x.as_slice())),
+            str:  riff_chunks.get(&ChunkName::STR ).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_str (x.as_slice())),
+            strx: riff_chunks.get(&ChunkName::STRx).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_strx(x.as_slice())),
+            swnm: riff_chunks.get(&ChunkName::SWNM).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_swnm(x.as_slice())),
+            tecs: riff_chunks.get(&ChunkName::TECS).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_tecs(x.as_slice())),
+            tecx: riff_chunks.get(&ChunkName::TECx).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_tecx(x.as_slice())),
+            thg2: riff_chunks.get(&ChunkName::THG2).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_thg2(x.as_slice())),
+            tile: riff_chunks.get(&ChunkName::TILE).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_tile(x.as_slice())),
+            trig: riff_chunks.get(&ChunkName::TRIG).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_trig(x.as_slice())),
+            type_:riff_chunks.get(&ChunkName::TYPE).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_type(x.as_slice())),
+            unis: riff_chunks.get(&ChunkName::UNIS).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_unis(x.as_slice())),
+            unit: riff_chunks.get(&ChunkName::UNIT).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_unit(x.as_slice())),
+            unix: riff_chunks.get(&ChunkName::UNIx).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_unix(x.as_slice())),
+            upgr: riff_chunks.get(&ChunkName::UPGR).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_upgr(x.as_slice())),
+            upgs: riff_chunks.get(&ChunkName::UPGS).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_upgs(x.as_slice())),
+            upgx: riff_chunks.get(&ChunkName::UPGx).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_upgx(x.as_slice())),
+            uprp: riff_chunks.get(&ChunkName::UPRP).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_uprp(x.as_slice())),
+            upus: riff_chunks.get(&ChunkName::UPUS).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_upus(x.as_slice())),
+            vcod: riff_chunks.get(&ChunkName::VCOD).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_vcod(x.as_slice())),
+            ver:  riff_chunks.get(&ChunkName::VER ).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_ver (x.as_slice())),
+            wav:  riff_chunks.get(&ChunkName::WAV ).map_or(Err(anyhow::anyhow!("Not Found")), |x| parse_wav (x.as_slice())),
         };
 
         ret
@@ -254,7 +254,7 @@ impl ParsedChk {
             }
 
             let str_offset: usize =
-                u16::from_le_bytes(x.string_data[offset..offset + 2].try_into()?).try_into()?;
+                u16::from_le_bytes(x.string_data[offset..offset + 2].try_into()?).into();
 
             if str_offset >= x.string_data.len() {
                 return Ok(format!(
@@ -269,7 +269,7 @@ impl ParsedChk {
         };
 
         if bytes.is_empty() {
-            return Ok("".to_owned());
+            return Ok(String::new());
         }
 
         let mut euc_kr_failed = false;
@@ -326,7 +326,7 @@ impl ParsedChk {
             // filter out color codes because it might be breaking uchardet.
             let vec: Vec<_> = bytes.iter().filter(|&&x| x >= 0x20).copied().collect();
 
-            if uchardet_bindings::uchardet_handle_data(handle, vec.as_ptr() as *const i8, vec.len())
+            if uchardet_bindings::uchardet_handle_data(handle, vec.as_ptr().cast::<i8>(), vec.len())
                 != 0
             {
                 panic!();
@@ -363,7 +363,7 @@ impl ParsedChk {
             let mut is_reliable = false;
 
             let encoding = compact_enc_det_bindings::CompactEncDet_DetectEncoding(
-                vec.as_ptr() as *const i8,
+                vec.as_ptr().cast::<i8>(),
                 vec.len() as i32,
                 std::ptr::null::<i8>(),
                 std::ptr::null::<i8>(),
@@ -372,8 +372,8 @@ impl ParsedChk {
                 compact_enc_det_bindings::Language_UNKNOWN_LANGUAGE,
                 compact_enc_det_bindings::CompactEncDet_TextCorpusType_WEB_CORPUS,
                 true,
-                &mut bytes_consumed,
-                &mut is_reliable,
+                &raw mut bytes_consumed,
+                &raw mut is_reliable,
             );
 
             // println!("is_reliable: {is_reliable}, bytes_consumed: {bytes_consumed}");
@@ -549,7 +549,7 @@ impl ParsedChk {
             }
 
             if mrgn.locations[index - 1].name_string_number == 0 {
-                Ok(format!("Location {} has a string name index of 0", index))
+                Ok(format!("Location {index} has a string name index of 0"))
             } else {
                 self.get_string(mrgn.locations[index - 1].name_string_number as usize)
             }

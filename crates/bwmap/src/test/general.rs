@@ -98,7 +98,7 @@ async fn test_constrain_encoding_detection_algorithm() {
         parsed_chk
             .get_string(sprp_scenario_index as usize)
             .unwrap()
-            .to_owned()
+            .clone()
     };
 
     #[rustfmt::skip]
@@ -115,7 +115,7 @@ async fn test_constrain_encoding_detection_algorithm() {
         ("d3e7310b02fc5f296299b6dd6c22f9850db879407f39c8244cb794a385505fa3", "\u{3}Marine Special Forces \u{7}Re"),
     ];
 
-    for (a, b) in test_vectors.into_iter() {
+    for (a, b) in test_vectors {
         assert_eq!(b, f(a.to_owned()).await);
     }
 }
@@ -144,7 +144,7 @@ async fn test_constrain_encoding_detection_algorithm2() {
         ("7e887e2b72a146becbdfa4832d30e1adbde9c9ed3ebe5294def6c8dda4232522", 6,  "Snow 3.5 정식버전"),
     ];
 
-    for (a, b, c) in test_vectors.into_iter() {
+    for (a, b, c) in test_vectors {
         assert_eq!(c, f(a.to_owned(), b).await);
     }
 }

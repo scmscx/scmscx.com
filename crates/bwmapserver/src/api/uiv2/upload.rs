@@ -54,11 +54,7 @@ async fn upload_map(
             .customize());
     }
 
-    let user_id = req
-        .extensions()
-        .get::<UserSession>()
-        .map(|x| x.id)
-        .unwrap_or(10);
+    let user_id = req.extensions().get::<UserSession>().map_or(10, |x| x.id);
 
     let query = query.into_inner();
 

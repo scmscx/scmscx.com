@@ -130,12 +130,12 @@ where
                             token: db_idtoken.1,
                         });
 
-                        return s.call(req).await;
+                        s.call(req).await
                     } else {
-                        return Ok(req.into_response(log_out_user()));
+                        Ok(req.into_response(log_out_user()))
                     }
                 } else {
-                    return Ok(req.into_response(log_out_user()));
+                    Ok(req.into_response(log_out_user()))
                 }
             } else {
                 Ok(s.call(req).await?)

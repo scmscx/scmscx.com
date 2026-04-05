@@ -38,7 +38,7 @@ async fn random_core(
 
     let maps = search_cache(query, allow_nsfw, &query_params, (**pool).clone()).await?;
 
-    if maps.len() == 0 {
+    if maps.is_empty() {
         return Err(anyhow::anyhow!("no maps found").into());
     }
 

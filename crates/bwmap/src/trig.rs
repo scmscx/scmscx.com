@@ -486,7 +486,7 @@ fn parse_ai_script(aiscript_id: u32) -> &'static str {
     if let Ok(x) = reinterpret_as_slice(&aiscript_id) {
         AI_SCRIPT_MAP
             .get(x)
-            .cloned()
+            .copied()
             .unwrap_or("Failed to find ai script")
     } else {
         ""

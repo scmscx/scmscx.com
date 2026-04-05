@@ -118,7 +118,7 @@ pub async fn start_backblaze_pumper(client: reqwest::Client) -> Result<()> {
                     )
                     .await
                     {
-                        Ok(_) => {}
+                        Ok(()) => {}
                         Err(e) => {
                             error!("failed to b2_upload_file: {e}");
                             continue 'full_retry;
@@ -127,7 +127,7 @@ pub async fn start_backblaze_pumper(client: reqwest::Client) -> Result<()> {
 
                     // Only proceed the file to the next stage if it was uploaded successfully.
                     match tokio::fs::remove_file(entry.path()).await {
-                        Ok(_) => {}
+                        Ok(()) => {}
                         Err(e) => {
                             error!("failed to remove file: {e}");
                             continue;

@@ -317,7 +317,7 @@ async fn get_minimap(
 
     let user_id = req.extensions().get::<UserSession>().map(|x| x.id);
 
-    if nsfw && user_id == None {
+    if nsfw && user_id.is_none() {
         return Ok(HttpResponse::Forbidden().finish().customize());
     }
 
@@ -427,7 +427,7 @@ async fn get_map_image(
 
     let user_id = req.extensions().get::<UserSession>().map(|x| x.id);
 
-    if nsfw && user_id == None {
+    if nsfw && user_id.is_none() {
         return Ok(HttpResponse::Forbidden().finish().customize());
     }
 

@@ -88,8 +88,8 @@ pub async fn search_cache(
                 ((modified_time <= $12 and modified_time >= $13) or modified_time is null) and
                 ($19 = '' or account.username = $19)
             group by map.id, chkdenorm.scenario_name, uploaded_time, chkdenorm.width, chkdenorm.height, chkdenorm.tileset, chkdenorm.human_players, chkdenorm.computer_players
-            order by {} {}
-            ", sort, sortorder);
+            order by {sort} {sortorder}
+            ");
 
         con.query(
             &qs,
@@ -166,8 +166,8 @@ pub async fn search_cache(
                         ((modified_time <= $19 and modified_time >= $20) or modified_time is null) and
                         ($25 = '' or account.username = $25)
                     group by map.id, chkdenorm.scenario_name, dist2
-                    order by {} {}
-                ) as sq3",  sort, sortorder);
+                    order by {sort} {sortorder}
+                ) as sq3");
 
         con.query(
             &qs,
@@ -240,7 +240,7 @@ fn default2524608000000() -> i64 {
 }
 
 fn defaultempty() -> String {
-    "".to_owned()
+    String::new()
 }
 
 fn defaultfalse() -> bool {

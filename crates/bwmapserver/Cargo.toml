@@ -13,74 +13,74 @@ backblaze = { path = "../backblaze" }
 bwminimaprender = { path = "../bwminimaprender" }
 bwmpq = { path = "../bwmpq" }
 
-cached = { version = "*", features = ["async", "proc_macro"] }
+cached = { version = "0.56.0", features = ["async", "proc_macro"] }
 
 #itertools = "*"
-base64 = "*"
-handlebars = { version = "*", features = ["dir_source"] }
-lazy_static = "*"
+base64 = "0.22.1"
+handlebars = { version = "6.3.2", features = ["dir_source"] }
+lazy_static = "1.5.0"
 #lru = "*"
 # rusqlite = "0.24.2"
 # rocket = { version = "" }
 # rocket_contrib = ""
-serde = { version = "*", features = ["derive"] }
-serde_json = "*"
-tokio-util = { version = "*", features = ["codec"] }
-tokio = { version = "*", features = ["rt-multi-thread","tracing","full"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.143"
+tokio-util = { version = "0.7.16", features = ["codec"] }
+tokio = { version = "1.47.1", features = ["rt-multi-thread","tracing","full"] }
 #tokio = { version = "*", features = ["rt-multi-thread"] }
 #console-subscriber = "*"
-sha2 = "*"
-sha1 = "*"
+sha2 = "0.10.9"
+sha1 = "0.10.6"
 # tempfile = "*"
 # url = "*"
-encoding_rs = "*"
+encoding_rs = "0.8.35"
 # widestring = ""
-walkdir = "*"
+walkdir = "2.5.0"
 # slog = ""
 # sloggers = ""
 # rocket-slog = ""
-image = { version = "*", default-features = false, features = ["png"] }
+image = { version = "0.25.6", default-features = false, features = ["png"] }
 # png = { version = "*", optional = true }
 # nude = ""
-regex = "*"
-anyhow = "*"
-actix-web = { version = "*", features = ["rustls"] }
-actix-proxy = "*"
-awc = "*"
+regex = "1.11.2"
+anyhow = "1.0.99"
+actix-web = { version = "4.11.0", features = ["rustls"] }
+actix-proxy = "0.2.0"
+awc = "3.7.0"
 # actix-http = "*"
 # actix-session = ""
-actix-files = "*"
+actix-files = "0.6.7"
 # actix-service = "*"
 # actix-rt = "*"
-actix-multipart = "*"
+actix-multipart = "0.7.2"
 #env_logger = "*"
 #mime = "*"
 # time = "0.2.27"
-reqwest = { version = "*", default-features = false, features = ["json", "stream", "http2", "h3", "rustls-tls"] }
-futures-core = "*"
-futures-util = "*"
-bytes = "*"
-async-stream = "*"
+reqwest = { version = "0.12.4", default-features = false, features = ["json", "stream", "http2", "h3", "rustls-tls"] }
+futures-core = "0.3.31"
+futures-util = "0.3.31"
+bytes = "1.10.1"
+async-stream = "0.3.6"
 
 # actix-web-middleware-redirect-scheme = ""
-futures = "*"
+futures = "0.3.31"
 # reqwest = "*"
-uuid = { version = "*", features = ["v4"] }
+uuid = { version = "1.18.0", features = ["v4"] }
 # r2d2 = "*"
 # r2d2_sqlite = ""
 # r2d2_postgres = "*"
-bb8-postgres = "*"
+bb8-postgres = "0.9.0"
 # bitreader = ""
 # flate2 = "*"
 # hex = "*"
-zstd = "*"
+zstd = "0.13.3"
 
-log = "*"
-tracing = "*"
-tracing-subscriber = { version = "*", features = ["registry", "env-filter"] }
-tracing-log = "*"
+log = "0.4.27"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.20", features = ["registry", "env-filter"] }
+tracing-log = "0.2.0"
 
-rand = "*"
+rand = "0.9.2"
 
 [dev-dependencies]
 
@@ -96,3 +96,6 @@ rand = "*"
 #  ├─── "rocket_contrib"
 #  ├─── "slog"
 #  └─── "sloggers"
+
+[lints]
+workspace = true

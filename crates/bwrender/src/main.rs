@@ -781,7 +781,7 @@ mod tests {
         std::fs::create_dir_all(&output_dir).expect("Failed to create output dir");
 
         // Download the map to a temp file
-        println!("Downloading map from: {}", map_url);
+        println!("Downloading map from: {map_url}");
         let map_data = reqwest::get(&map_url)
             .await
             .expect("Failed to fetch map")
@@ -806,7 +806,7 @@ mod tests {
             .expect("Failed to create renderer");
 
         for &(skin, skin_name) in ALL_SKINS {
-            println!("\n=== Rendering with skin: {} ===", skin_name);
+            println!("\n=== Rendering with skin: {skin_name} ===");
 
             renderer.set_skin(skin);
 
@@ -851,9 +851,9 @@ mod tests {
                 decoded.height()
             );
 
-            let webp_path = format!("{}/{}.webp", output_dir, skin_name);
+            let webp_path = format!("{output_dir}/{skin_name}.webp");
             std::fs::write(&webp_path, &webp_data).expect("Failed to write WebP file");
-            println!("Map saved to: {}", webp_path);
+            println!("Map saved to: {webp_path}");
         }
 
         // Render minimap once (skin-independent)
@@ -875,9 +875,9 @@ mod tests {
                 .expect("Failed to encode minimap PNG");
         println!("Minimap PNG: {} bytes", minimap_png.len());
 
-        let minimap_path = format!("{}/minimap.png", output_dir);
+        let minimap_path = format!("{output_dir}/minimap.png");
         std::fs::write(&minimap_path, &minimap_png).expect("Failed to write minimap PNG");
-        println!("Minimap saved to: {}", minimap_path);
+        println!("Minimap saved to: {minimap_path}");
 
         // Clean up
         let _ = std::fs::remove_file(&map_path);

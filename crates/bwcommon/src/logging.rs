@@ -57,49 +57,45 @@ pub async fn create_mixpanel_channel() -> std::sync::mpsc::Sender<serde_json::Va
                 }
             }
 
-            if events.len() > 0 {
-                if std::env::var("MIXPANEL_DISABLED").is_err() {
-                    for _ in 0..5 {
-                        let ret = client
-                            .post("https://api.mixpanel.com/import")
-                            .basic_auth(
-                                std::env::var("MIXPANEL_ACCOUNT_NAME").unwrap(),
-                                Some(std::env::var("MIXPANEL_API_KEY").unwrap()),
-                            )
-                            .query(&[
-                                ("strict", 1),
-                                (
-                                    "project_id",
-                                    std::env::var("MIXPANEL_PROJECT_ID")
-                                        .unwrap()
-                                        .parse()
-                                        .unwrap(),
-                                ),
-                            ])
-                            .json(&events)
-                            .send()
-                            .await;
+            if !events.is_empty() && std::env::var("MIXPANEL_DISABLED").is_err() {
+                for _ in 0..5 {
+                    let ret = client
+                        .post("https://api.mixpanel.com/import")
+                        .basic_auth(
+                            std::env::var("MIXPANEL_ACCOUNT_NAME").unwrap(),
+                            Some(std::env::var("MIXPANEL_API_KEY").unwrap()),
+                        )
+                        .query(&[
+                            ("strict", 1),
+                            (
+                                "project_id",
+                                std::env::var("MIXPANEL_PROJECT_ID")
+                                    .unwrap()
+                                    .parse()
+                                    .unwrap(),
+                            ),
+                        ])
+                        .json(&events)
+                        .send()
+                        .await;
 
-                        match ret {
-                            Ok(ret) => match ret.status() {
-                                StatusCode::OK => {
-                                    break;
-                                }
-                                _ => {
-                                    error!(
-                                        "error from mixpanel. status: {}, body: {}",
-                                        ret.status(),
-                                        ret.text()
-                                            .await
-                                            .unwrap_or_else(|_| "failed to unwrap body".to_string())
-                                    );
-                                    sleep(std::time::Duration::from_secs(5)).await;
-                                }
-                            },
-                            Err(err) => {
-                                error!("error sending stuff to mixpanel: {err:?}");
-                                sleep(std::time::Duration::from_secs(5)).await;
+                    match ret {
+                        Ok(ret) => {
+                            if ret.status() == StatusCode::OK {
+                                break;
                             }
+                            error!(
+                                "error from mixpanel. status: {}, body: {}",
+                                ret.status(),
+                                ret.text()
+                                    .await
+                                    .unwrap_or_else(|_| "failed to unwrap body".to_string())
+                            );
+                            sleep(std::time::Duration::from_secs(5)).await;
+                        }
+                        Err(err) => {
+                            error!("error sending stuff to mixpanel: {err:?}");
+                            sleep(std::time::Duration::from_secs(5)).await;
                         }
                     }
                 }
@@ -180,42 +176,38 @@ pub struct TrackingAnalytics {
 }
 
 pub fn get_request_logging_info(req: &actix_web::HttpRequest) -> ApiRequestLoggingInfo {
-    let ip = match req.connection_info().realip_remote_addr() {
-        Some(ip) => Some(ip.to_string()),
-        None => None,
-    };
+    let ip = req
+        .connection_info()
+        .realip_remote_addr()
+        .map(std::string::ToString::to_string);
 
-    let query = match req.uri().query() {
-        Some(query) => Some(query.to_string()),
-        None => None,
-    };
+    let query = req.uri().query().map(std::string::ToString::to_string);
 
-    let tac = match req.extensions().get::<TrackingAnalytics>() {
-        Some(tac) => Some(tac.tracking_analytics_id.clone()),
-        None => None,
-    };
+    let tac = req
+        .extensions()
+        .get::<TrackingAnalytics>()
+        .map(|tac| tac.tracking_analytics_id.clone());
 
     ApiRequestLoggingInfo {
         ip,
         tac,
-        event: Some(
-            req.match_pattern()
-                .map(|x| {
-                    if x.is_empty() {
-                        req.path().to_owned()
-                    } else {
-                        x
-                    }
-                })
-                .unwrap_or_else(|| req.path().to_owned()),
-        ),
+        event: Some(req.match_pattern().map_or_else(
+            || req.path().to_owned(),
+            |x| {
+                if x.is_empty() {
+                    req.path().to_owned()
+                } else {
+                    x
+                }
+            },
+        )),
         method: req.method().to_string(),
         path: req.uri().path().to_string(),
         query,
-        referer: get_header(&req, "referer").to_string(),
-        accept_language: get_header(&req, "accept-language").to_string(),
-        accept_encoding: get_header(&req, "accept-encoding").to_string(),
-        user_agent: get_header(&req, "user-agent").to_string(),
+        referer: get_header(req, "referer").to_string(),
+        accept_language: get_header(req, "accept-language").to_string(),
+        accept_encoding: get_header(req, "accept-encoding").to_string(),
+        user_agent: get_header(req, "user-agent").to_string(),
     }
 }
 

@@ -15,9 +15,7 @@ async fn handler2(
         >,
     >,
 ) -> Result<HttpResponse, bwcommon::MyError> {
-    let user_id = if let Some(user_id) = bwcommon::check_auth4(&req, (**pool).clone()).await? {
-        user_id
-    } else {
+    let Some(user_id) = bwcommon::check_auth4(&req, (**pool).clone()).await? else {
         return Ok(HttpResponse::Unauthorized().body("Unauthorized. Try logging in first/again."));
     };
 
@@ -25,7 +23,7 @@ async fn handler2(
         return Ok(HttpResponse::BadRequest().body("The two provided passwords must match"));
     }
 
-    if form.password.len() < 1 {
+    if form.password.is_empty() {
         return Ok(
             HttpResponse::BadRequest().body("The provided password must not be the empty string")
         );

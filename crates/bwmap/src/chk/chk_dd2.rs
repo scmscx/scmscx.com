@@ -36,6 +36,6 @@ pub(crate) fn parse_dd2(chunks: &[RiffChunk]) -> Result<ChkDd2, anyhow::Error> {
     let mut slicer = CursorSlicer::new(chunks[chunks.len() - 1].data);
 
     Ok(ChkDd2 {
-        doodads: slicer.extract_rest_as_slice_lax()?.to_vec(),
+        doodads: slicer.extract_rest_as_slice_lax()?.clone(),
     })
 }

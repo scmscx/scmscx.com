@@ -100,7 +100,7 @@ async fn map_info(
 
     let user_id = req.extensions().get::<UserSession>().map(|x| x.id);
 
-    if nsfw && user_id == None {
+    if nsfw && user_id.is_none() {
         return Ok(HttpResponse::Forbidden().finish().customize());
     }
 
@@ -241,7 +241,7 @@ async fn map_info(
     .unwrap_or_default();
 
     let unique_terrain_tiles = (if let Ok(x) = &parsed_chk.mtxm {
-        let hash_set: std::collections::HashSet<u16> = x.data.iter().cloned().collect();
+        let hash_set: std::collections::HashSet<u16> = x.data.iter().copied().collect();
         Some(hash_set.len())
     } else {
         None
@@ -276,23 +276,21 @@ async fn map_info(
 
         for trigger in &parsed_triggers {
             for condition in &trigger.conditions {
-                match condition {
-                    bwmap::Condition::Deaths {
-                        player: _,
-                        comparison: _,
-                        unit_type: _,
-                        number: _,
-                        eud_offset,
-                    } => {
-                        if *eud_offset < 0x58A364 || *eud_offset >= 0x58CE24 {
-                            get_death_euds += 1;
-                        }
-
-                        if *eud_offset >= 0x51A280 && *eud_offset < 0x51A2E0 {
-                            trigger_list_reads += 1;
-                        }
+                if let bwmap::Condition::Deaths {
+                    player: _,
+                    comparison: _,
+                    unit_type: _,
+                    number: _,
+                    eud_offset,
+                } = condition
+                {
+                    if *eud_offset < 0x58A364 || *eud_offset >= 0x58CE24 {
+                        get_death_euds += 1;
                     }
-                    _ => {}
+
+                    if *eud_offset >= 0x51A280 && *eud_offset < 0x51A2E0 {
+                        trigger_list_reads += 1;
+                    }
                 }
             }
             for action in &trigger.actions {
@@ -352,7 +350,7 @@ async fn map_info(
             }
         }
 
-        Vec::from_iter(set.drain().cloned())
+        set.drain().cloned().collect::<Vec<_>>()
     };
 
     let (scenario_name, scenario_description) = if let Ok(x) = &parsed_chk.sprp {
