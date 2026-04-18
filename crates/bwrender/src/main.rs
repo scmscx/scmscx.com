@@ -393,10 +393,7 @@ async fn download_worker(
         }
 
         let download_ms = start.elapsed().as_millis();
-        let map_size = tokio::fs::metadata(&temp_path)
-            .await
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let map_size = tokio::fs::metadata(&temp_path).await.map_or(0, |m| m.len());
 
         if tx
             .send(RenderJob {
