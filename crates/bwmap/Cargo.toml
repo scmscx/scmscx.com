@@ -17,14 +17,14 @@ encoding_rs = "0.8.35"
 anyhow = { version = "1.0.99", features = ["backtrace"] }
 
 scopeguard = "1.2.0"
-phf = { version = "0.10.1", features = ["macros"] }
+phf = { version = "0.13.1", features = ["macros"] }
 
 tracing = "0.1.41"
 
 
 [dev-dependencies]
 
-reqwest = { version = "0.12.4", default-features = false, features = ["json", "http2", "rustls-tls"] }
+reqwest = { version = "0.12.24", default-features = false, features = ["json", "http2", "rustls-tls"] }
 tokio = { version = "1.47.1", features = ["full"] }
 futures = { version = "0.3.31" }
 sha2 = "0.10.9"
