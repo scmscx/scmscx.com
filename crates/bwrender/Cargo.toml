@@ -21,7 +21,7 @@ tokio = { version = "1.47.1", features = ["rt-multi-thread", "full"] }
 bb8-postgres = "0.9.0"
 
 # HTTP client
-reqwest = { version = "0.12.4", default-features = false, features = ["rustls-tls"] }
+reqwest = { version = "0.12.24", default-features = false, features = ["rustls-tls"] }
 
 # Error handling
 anyhow = "1.0.99"
