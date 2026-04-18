@@ -50,7 +50,7 @@ pub async fn setup_db() -> Result<Pool<PostgresConnectionManager<NoTls>>> {
                 .parse::<u32>()?,
         )
         .min_idle(Some(1))
-        .max_lifetime(Some(std::time::Duration::from_secs(60)))
+        .max_lifetime(Some(std::time::Duration::from_mins(1)))
         .idle_timeout(Some(std::time::Duration::from_secs(30)))
         .test_on_check_out(true)
         .build(manager)

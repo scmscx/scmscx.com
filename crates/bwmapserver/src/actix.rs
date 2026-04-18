@@ -818,7 +818,7 @@ async fn setup_db() -> Result<
                 .parse::<u32>()?,
         )
         .min_idle(Some(1))
-        .max_lifetime(Some(std::time::Duration::from_secs(60)))
+        .max_lifetime(Some(std::time::Duration::from_mins(1)))
         .idle_timeout(Some(std::time::Duration::from_secs(30)))
         .test_on_check_out(true)
         .build(manager)
@@ -1093,7 +1093,7 @@ pub(crate) async fn start() -> Result<()> {
     });
 
     server
-        .keep_alive(std::time::Duration::from_secs(120))
+        .keep_alive(std::time::Duration::from_mins(2))
         .on_connect(|_x, _y| {
             // let x = x.downcast_ref::<actix_web::rt::net::TcpStream>().unwrap();
 
