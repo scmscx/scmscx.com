@@ -27,7 +27,7 @@ jobs:
           - rust: stable
           # - rust: 1.74.0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: "recursive"
       - uses: dtolnay/rust-toolchain@master
@@ -46,5 +46,5 @@ jobs:
     name: Push CI runner image
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: make push-ci-runner-scmscx.com
