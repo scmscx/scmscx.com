@@ -4,6 +4,7 @@ mod db;
 mod hacks;
 mod middleware;
 mod pumpers;
+mod ratelimit;
 mod search2;
 mod static_pages;
 mod tests;
