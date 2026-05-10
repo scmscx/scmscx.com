@@ -15,11 +15,7 @@ async fn get_chk_strings(
 ) -> Result<impl Responder, MyError> {
     let (map_id,) = path.into_inner();
 
-    let map_id = if map_id.chars().all(|x| x.is_ascii_digit()) && map_id.len() < 8 {
-        map_id.parse::<i64>()?
-    } else {
-        bwcommon::get_db_id_from_web_id(&map_id, crate::util::SEED_MAP_ID)?
-    };
+    let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
         let con = pool.get().await?;
@@ -66,11 +62,7 @@ async fn get_chk_riff_chunks(
 ) -> Result<impl Responder, MyError> {
     let (map_id,) = path.into_inner();
 
-    let map_id = if map_id.chars().all(|x| x.is_ascii_digit()) && map_id.len() < 8 {
-        map_id.parse::<i64>()?
-    } else {
-        bwcommon::get_db_id_from_web_id(&map_id, crate::util::SEED_MAP_ID)?
-    };
+    let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
         let con = pool.get().await?;
@@ -106,11 +98,7 @@ async fn get_chk_json(
 ) -> Result<impl Responder, MyError> {
     let (map_id,) = path.into_inner();
 
-    let map_id = if map_id.chars().all(|x| x.is_ascii_digit()) && map_id.len() < 8 {
-        map_id.parse::<i64>()?
-    } else {
-        bwcommon::get_db_id_from_web_id(&map_id, crate::util::SEED_MAP_ID)?
-    };
+    let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
         let con = pool.get().await?;
@@ -144,11 +132,7 @@ async fn get_chk_trig_json(
 ) -> Result<impl Responder, MyError> {
     let (map_id,) = path.into_inner();
 
-    let map_id = if map_id.chars().all(|x| x.is_ascii_digit()) && map_id.len() < 8 {
-        map_id.parse::<i64>()?
-    } else {
-        bwcommon::get_db_id_from_web_id(&map_id, crate::util::SEED_MAP_ID)?
-    };
+    let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
         let con = pool.get().await?;
@@ -184,11 +168,7 @@ async fn get_chk_mbrf_json(
 ) -> Result<impl Responder, MyError> {
     let (map_id,) = path.into_inner();
 
-    let map_id = if map_id.chars().all(|x| x.is_ascii_digit()) && map_id.len() < 8 {
-        map_id.parse::<i64>()?
-    } else {
-        bwcommon::get_db_id_from_web_id(&map_id, crate::util::SEED_MAP_ID)?
-    };
+    let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
         let con = pool.get().await?;
@@ -224,11 +204,7 @@ async fn get_eups(
 ) -> Result<impl Responder, MyError> {
     let (map_id,) = path.into_inner();
 
-    let map_id = if map_id.chars().all(|x| x.is_ascii_digit()) && map_id.len() < 8 {
-        map_id.parse::<i64>()?
-    } else {
-        bwcommon::get_db_id_from_web_id(&map_id, crate::util::SEED_MAP_ID)?
-    };
+    let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
         let con = pool.get().await?;

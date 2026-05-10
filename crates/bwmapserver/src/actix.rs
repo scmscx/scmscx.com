@@ -349,8 +349,58 @@ async fn recent_activity(
         .body(serde_json::to_string(&ret).unwrap()))
 }
 
+enum ChkAccess {
+    Allowed,
+    NotFound,
+    Unauthorized,
+}
+
+async fn check_chk_access(
+    pool: &bb8_postgres::bb8::Pool<
+        bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
+    >,
+    chk_id: &str,
+    user_id: Option<i64>,
+) -> Result<ChkAccess, anyhow::Error> {
+    // A chk inherits the most-restrictive flag of any map that references
+    // it: if even one map is blackholed, treat the whole chk as blackholed;
+    // if any is NSFW, treat the whole chk as NSFW.
+    let row = pool
+        .get()
+        .await?
+        .query_one(
+            "select
+                count(*) > 0 as exists_any,
+                coalesce(bool_or(blackholed), false) as any_blackholed,
+                coalesce(bool_or(nsfw), false) as any_nsfw
+             from map
+             where chkblob = $1",
+            &[&chk_id],
+        )
+        .await?;
+
+    let exists_any: bool = row.try_get("exists_any")?;
+    let any_blackholed: bool = row.try_get("any_blackholed")?;
+    let any_nsfw: bool = row.try_get("any_nsfw")?;
+
+    let is_admin = user_id == Some(4);
+
+    if !exists_any {
+        return Ok(ChkAccess::NotFound);
+    }
+    if any_blackholed && !is_admin {
+        return Ok(ChkAccess::NotFound);
+    }
+    if any_nsfw && user_id.is_none() {
+        return Ok(ChkAccess::Unauthorized);
+    }
+
+    Ok(ChkAccess::Allowed)
+}
+
 #[get("/api/minimap/{chk_id}")]
 async fn get_minimap(
+    req: HttpRequest,
     path: web::Path<(String,)>,
     pool: web::Data<
         bb8_postgres::bb8::Pool<
@@ -359,6 +409,23 @@ async fn get_minimap(
     >,
 ) -> Result<impl Responder, bwcommon::MyError> {
     let (chk_id,) = path.into_inner();
+    let user_id = req.extensions().get::<UserSession>().map(|x| x.id);
+
+    match check_chk_access(&pool, &chk_id, user_id).await? {
+        ChkAccess::NotFound => {
+            return Ok(HttpResponse::NotFound()
+                .finish()
+                .customize()
+                .insert_header(("Cache-Control", "no-cache")));
+        }
+        ChkAccess::Unauthorized => {
+            return Ok(HttpResponse::Unauthorized()
+                .finish()
+                .customize()
+                .insert_header(("Cache-Control", "no-cache")));
+        }
+        ChkAccess::Allowed => {}
+    }
 
     let minimap = db::get_minimap(chk_id, (**pool).clone()).await?.2;
 
@@ -371,6 +438,7 @@ async fn get_minimap(
 
 #[get("/api/search_result_popup/{map_id}")]
 async fn get_search_result_popup(
+    req: HttpRequest,
     path: web::Path<(String,)>,
     pool: web::Data<
         bb8_postgres::bb8::Pool<
@@ -380,25 +448,43 @@ async fn get_search_result_popup(
 ) -> Result<impl Responder, bwcommon::MyError> {
     let (map_id,) = path.into_inner();
 
-    let map_id = if map_id.chars().all(|x| x.is_ascii_digit()) && map_id.len() < 8 {
-        map_id.parse::<i64>()?
-    } else {
-        bwcommon::get_db_id_from_web_id(&map_id, crate::util::SEED_MAP_ID)?
-    };
+    let map_id = crate::util::parse_map_id(&map_id)?;
 
-    let (chkhash, scenario) = {
+    let user_id = req.extensions().get::<UserSession>().map(|x| x.id);
+
+    let (chkhash, scenario, uploaded_by, nsfw, blackholed) = {
         let con = pool.get().await?;
         let row = con
             .query_one(
-                "select chkblob, denorm_scenario
+                "select chkblob, denorm_scenario, uploaded_by, nsfw, blackholed
                 from map
                 where map.id = $1",
                 &[&map_id],
             )
             .await?;
 
-        (row.try_get::<_, String>(0)?, row.try_get::<_, String>(1)?)
+        (
+            row.try_get::<_, String>("chkblob")?,
+            row.try_get::<_, String>("denorm_scenario")?,
+            row.try_get::<_, i64>("uploaded_by")?,
+            row.try_get::<_, bool>("nsfw")?,
+            row.try_get::<_, bool>("blackholed")?,
+        )
     };
+
+    if blackholed && user_id != Some(uploaded_by) && user_id != Some(4) {
+        return Ok(HttpResponse::NotFound()
+            .finish()
+            .customize()
+            .insert_header(("Cache-Control", "no-cache")));
+    }
+
+    if nsfw && user_id.is_none() {
+        return Ok(HttpResponse::Unauthorized()
+            .finish()
+            .customize()
+            .insert_header(("Cache-Control", "no-cache")));
+    }
 
     let minimap = db::get_minimap(chkhash.clone(), (**pool).clone()).await?.2;
 
@@ -422,6 +508,7 @@ async fn get_search_result_popup(
 
 #[get("/api/minimap_resized/{chk_id}")]
 async fn get_minimap_resized(
+    req: HttpRequest,
     path: web::Path<(String,)>,
     pool: web::Data<
         bb8_postgres::bb8::Pool<
@@ -430,6 +517,23 @@ async fn get_minimap_resized(
     >,
 ) -> Result<impl Responder, bwcommon::MyError> {
     let (chk_id,) = path.into_inner();
+    let user_id = req.extensions().get::<UserSession>().map(|x| x.id);
+
+    match check_chk_access(&pool, &chk_id, user_id).await? {
+        ChkAccess::NotFound => {
+            return Ok(HttpResponse::NotFound()
+                .finish()
+                .customize()
+                .insert_header(("Cache-Control", "no-cache")));
+        }
+        ChkAccess::Unauthorized => {
+            return Ok(HttpResponse::Unauthorized()
+                .finish()
+                .customize()
+                .insert_header(("Cache-Control", "no-cache")));
+        }
+        ChkAccess::Allowed => {}
+    }
 
     use image::ImageDecoder;
 
@@ -490,15 +594,10 @@ async fn get_selection_of_random_maps(
         >,
     >,
 ) -> Result<impl Responder, bwcommon::MyError> {
-    let _ = if let Some(user_id) = bwcommon::check_auth4(&req, (**pool).clone()).await? {
-        if user_id == 4 || user_id == 5 || user_id == 18 || user_id == 24 || user_id == 32 {
-            user_id
-        } else {
-            return Ok(HttpResponse::Unauthorized().finish());
-        }
-    } else {
+    let user_id = req.extensions().get::<UserSession>().map(|x| x.id);
+    if !matches!(user_id, Some(4 | 5 | 18 | 24 | 32)) {
         return Ok(HttpResponse::Unauthorized().finish());
-    };
+    }
 
     #[derive(Debug, Serialize, Deserialize)]
     struct MapRow {
@@ -553,15 +652,10 @@ async fn get_selection_of_random_nsfw_maps(
         >,
     >,
 ) -> Result<impl Responder, bwcommon::MyError> {
-    let _ = if let Some(user_id) = bwcommon::check_auth4(&req, (**pool).clone()).await? {
-        if user_id == 4 || user_id == 18 || user_id == 24 || user_id == 32 {
-            user_id
-        } else {
-            return Ok(HttpResponse::Unauthorized().finish());
-        }
-    } else {
+    let user_id = req.extensions().get::<UserSession>().map(|x| x.id);
+    if !matches!(user_id, Some(4 | 18 | 24 | 32)) {
         return Ok(HttpResponse::Unauthorized().finish());
-    };
+    }
 
     #[derive(Debug, Serialize, Deserialize)]
     struct MapRow {
@@ -617,11 +711,7 @@ async fn get_tags(
 ) -> Result<impl Responder, bwcommon::MyError> {
     let (map_id,) = path.into_inner();
 
-    let map_id = if map_id.chars().all(|x| x.is_ascii_digit()) && map_id.len() < 8 {
-        map_id.parse::<i64>()?
-    } else {
-        bwcommon::get_db_id_from_web_id(&map_id, crate::util::SEED_MAP_ID)?
-    };
+    let map_id = crate::util::parse_map_id(&map_id)?;
 
     let user_id = req.extensions().get::<UserSession>().map(|x| x.id);
 
@@ -669,13 +759,9 @@ async fn set_tags(
 ) -> Result<impl Responder, bwcommon::MyError> {
     let (map_id,) = path.into_inner();
 
-    let map_id = if map_id.chars().all(|x| x.is_ascii_digit()) && map_id.len() < 8 {
-        map_id.parse::<i64>()?
-    } else {
-        bwcommon::get_db_id_from_web_id(&map_id, crate::util::SEED_MAP_ID)?
-    };
+    let map_id = crate::util::parse_map_id(&map_id)?;
 
-    let Some(user_id) = bwcommon::check_auth4(&req, (**pool).clone()).await? else {
+    let Some(user_id) = req.extensions().get::<UserSession>().map(|x| x.id) else {
         return Ok(HttpResponse::Unauthorized().finish());
     };
 
@@ -685,7 +771,7 @@ async fn set_tags(
         map.insert(t.key, t.value);
     }
 
-    db::set_tags(map_id, map, Some(user_id), pool).await?;
+    let outcome = db::set_tags(map_id, map, user_id, pool).await?;
 
     let info = ApiSpecificInfoForLogging {
         user_id: Some(user_id),
@@ -693,7 +779,11 @@ async fn set_tags(
         ..Default::default()
     };
 
-    Ok(insert_extension(HttpResponse::Ok(), info).finish())
+    match outcome {
+        None => Ok(insert_extension(HttpResponse::NotFound(), info).finish()),
+        Some(false) => Ok(insert_extension(HttpResponse::Forbidden(), info).finish()),
+        Some(true) => Ok(insert_extension(HttpResponse::Ok(), info).finish()),
+    }
 }
 
 #[post("/api/addtags/{map_id}")]
@@ -709,13 +799,9 @@ async fn add_tags(
 ) -> Result<impl Responder, bwcommon::MyError> {
     let (map_id,) = path.into_inner();
 
-    let map_id = if map_id.chars().all(|x| x.is_ascii_digit()) && map_id.len() < 8 {
-        map_id.parse::<i64>()?
-    } else {
-        bwcommon::get_db_id_from_web_id(&map_id, crate::util::SEED_MAP_ID)?
-    };
+    let map_id = crate::util::parse_map_id(&map_id)?;
 
-    let Some(user_id) = bwcommon::check_auth4(&req, (**pool).clone()).await? else {
+    let Some(user_id) = req.extensions().get::<UserSession>().map(|x| x.id) else {
         return Ok(HttpResponse::Unauthorized().finish());
     };
 
@@ -725,7 +811,7 @@ async fn add_tags(
         map.insert(t.key, t.value);
     }
 
-    db::add_tags(map_id, map, pool).await?;
+    let outcome = db::add_tags(map_id, map, user_id, pool).await?;
 
     let info = ApiSpecificInfoForLogging {
         user_id: Some(user_id),
@@ -733,7 +819,11 @@ async fn add_tags(
         ..Default::default()
     };
 
-    Ok(insert_extension(HttpResponse::Ok(), info).finish())
+    match outcome {
+        None => Ok(insert_extension(HttpResponse::NotFound(), info).finish()),
+        Some(false) => Ok(insert_extension(HttpResponse::Forbidden(), info).finish()),
+        Some(true) => Ok(insert_extension(HttpResponse::Ok(), info).finish()),
+    }
 }
 
 fn parse_lst_files() -> std::collections::HashMap<u32, std::collections::HashMap<u16, [u8; 3]>> {
@@ -995,7 +1085,6 @@ pub(crate) async fn start() -> Result<()> {
             .service(crate::api::chk::get_chk_strings)
             .service(crate::api::chk::get_chk_riff_chunks)
             .service(crate::api::chk::get_chk_json)
-            .service(crate::api::tests::get_all_maps)
             .service(crate::api::random::handler)
             .service(crate::api::chk::get_chk_trig_json)
             .service(crate::api::chk::get_chk_mbrf_json)

@@ -35,6 +35,12 @@ export default function (props: any) {
                 body: JSON.stringify([
                   { key: "minimap_checked", value: "true" },
                 ]),
+              }).then((r) => {
+                if (!r.ok) {
+                  throw new Error(
+                    `/api/addtags/${map.map_id} returned ${r.status}`
+                  );
+                }
               })
             );
           }

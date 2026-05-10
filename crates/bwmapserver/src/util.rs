@@ -4,6 +4,14 @@ use sha1::digest;
 
 pub const SEED_MAP_ID: u8 = 97;
 
+pub fn parse_map_id(s: &str) -> Result<i64, anyhow::Error> {
+    if s.chars().all(|c| c.is_ascii_digit()) && s.len() < 8 {
+        Ok(s.parse::<i64>()?)
+    } else {
+        bwcommon::get_db_id_from_web_id(s, SEED_MAP_ID)
+    }
+}
+
 pub fn is_dev_mode() -> bool {
     std::env::var("DEV_MODE")
         .unwrap_or_else(|_| "false".to_string())

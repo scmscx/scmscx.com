@@ -4,7 +4,6 @@ mod denorm;
 mod id;
 mod logging;
 
-pub use common::check_auth4;
 pub use common::MyError;
 pub use logging::create_mixpanel_channel;
 pub use logging::do_mixpanel_stuff;

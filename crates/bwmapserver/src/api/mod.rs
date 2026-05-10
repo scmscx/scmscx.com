@@ -9,5 +9,4 @@ pub mod random;
 pub mod register;
 pub mod similar_maps;
 pub mod sitemap;
-pub mod tests;
 pub mod uiv2;
