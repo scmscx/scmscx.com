@@ -1,5 +1,97 @@
 use actix_web::web;
+use argon2::Argon2;
+use base64::engine::general_purpose::STANDARD_NO_PAD;
+use base64::Engine as _;
+use rand::RngCore;
 use sha2::{Digest, Sha256};
+use tracing::warn;
+
+const ARGON2_SALT_LEN: usize = 16;
+const ARGON2_HASH_LEN: usize = 32;
+
+pub(crate) const PASSWORD_ALGO_ARGON2ID: &str = "argon2id";
+pub(crate) const PASSWORD_ALGO_SHA256_LEGACY: &str = "sha256-legacy";
+
+pub(crate) struct HashedPassword {
+    pub algorithm: &'static str,
+    pub salt: String,
+    pub hash: String,
+}
+
+/// Run Argon2id with default OWASP params for the given password + salt.
+fn argon2id_kdf(password: &[u8], salt: &[u8]) -> Result<[u8; ARGON2_HASH_LEN], anyhow::Error> {
+    let mut out = [0u8; ARGON2_HASH_LEN];
+    Argon2::default()
+        .hash_password_into(password, salt, &mut out)
+        .map_err(|e| anyhow::anyhow!("argon2 hash failed: {e}"))?;
+    Ok(out)
+}
+
+/// Hash a password with Argon2id and a fresh random salt. Returns the
+/// algorithm label plus base64-encoded salt and hash bytes, ready to write
+/// into the `password_algorithm`, `salt`, and `passwordhash` columns.
+fn hash_password(password: &str) -> Result<HashedPassword, anyhow::Error> {
+    let mut salt_bytes = [0u8; ARGON2_SALT_LEN];
+    rand::rng().fill_bytes(&mut salt_bytes);
+
+    let hash_bytes = argon2id_kdf(password.as_bytes(), &salt_bytes)?;
+
+    Ok(HashedPassword {
+        algorithm: PASSWORD_ALGO_ARGON2ID,
+        salt: STANDARD_NO_PAD.encode(salt_bytes),
+        hash: STANDARD_NO_PAD.encode(hash_bytes),
+    })
+}
+
+/// Verify `password` against the stored hash, dispatching on `algorithm`
+/// (the `password_algorithm` column). `username` is only used by the
+/// legacy SHA-256 path.
+fn verify_password(
+    algorithm: &str,
+    password: &str,
+    username: &str,
+    salt: &str,
+    stored_hash: &str,
+) -> bool {
+    match algorithm {
+        PASSWORD_ALGO_ARGON2ID => {
+            let Ok(salt_bytes) = STANDARD_NO_PAD.decode(salt) else {
+                return false;
+            };
+            let Ok(expected) = STANDARD_NO_PAD.decode(stored_hash) else {
+                return false;
+            };
+            let Ok(computed) = argon2id_kdf(password.as_bytes(), &salt_bytes) else {
+                return false;
+            };
+            ct_eq(&computed, &expected)
+        }
+        PASSWORD_ALGO_SHA256_LEGACY => {
+            let computed = {
+                let mut hasher = Sha256::new();
+                hasher.update(username.as_bytes());
+                hasher.update(password.as_bytes());
+                hasher.update(salt.as_bytes());
+                format!("{:x}", hasher.finalize())
+            };
+            ct_eq(computed.as_bytes(), stored_hash.as_bytes())
+        }
+        _ => false,
+    }
+}
+
+/// Constant-time byte slice equality. Avoids early-exit timing leaks that
+/// `==` on slices may have.
+fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff: u8 = 0;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
 
 pub(crate) async fn get_chk(
     chk_id: String,
@@ -61,28 +153,10 @@ pub(crate) async fn change_password(
     >,
 ) -> Result<(), anyhow::Error> {
     let con = pool.get().await?;
-    let username = con
-        .query_one(
-            "
-            select username from account where id = $1",
-            &[&user_id],
-        )
-        .await?
-        .try_get::<_, String>("username")?;
-
-    let salt = uuid::Uuid::new_v4().as_simple().to_string();
-
-    let hashed_password = {
-        let mut hasher = Sha256::new();
-        hasher.update(username.as_bytes());
-        hasher.update(password.as_bytes());
-        hasher.update(salt.as_bytes());
-        format!("{:x}", hasher.finalize())
-    };
-
+    let new = hash_password(&password)?;
     con.execute(
-        "UPDATE account set passwordhash = $1, salt = $2 where id = $3",
-        &[&hashed_password, &salt, &user_id],
+        "UPDATE account set password_algorithm = $1, passwordhash = $2, salt = $3 where id = $4",
+        &[&new.algorithm, &new.hash, &new.salt, &user_id],
     )
     .await?;
     anyhow::Ok(())
@@ -100,30 +174,22 @@ pub(crate) async fn check_password(
     let con = pool.get().await?;
     let row = con
         .query_one(
-            "select username, salt from account where id = $1",
+            "select username, password_algorithm, salt, passwordhash from account where id = $1",
             &[&user_id],
         )
         .await?;
-    let username = row.try_get::<_, String>("username")?;
-    let salt = row.try_get::<_, String>("salt")?;
+    let username: String = row.try_get("username")?;
+    let algorithm: String = row.try_get("password_algorithm")?;
+    let salt: String = row.try_get("salt")?;
+    let stored_hash: String = row.try_get("passwordhash")?;
 
-    let hashed_provided_password = {
-        let mut hasher = Sha256::new();
-        hasher.update(username.as_bytes());
-        hasher.update(password.as_bytes());
-        hasher.update(salt.as_bytes());
-        format!("{:x}", hasher.finalize())
-    };
-
-    let hashed_existing_password: String = con
-        .query_one(
-            "select passwordhash from account where id = $1",
-            &[&user_id],
-        )
-        .await?
-        .try_get(0)?;
-
-    anyhow::Ok(hashed_provided_password == hashed_existing_password)
+    anyhow::Ok(verify_password(
+        &algorithm,
+        &password,
+        &username,
+        &salt,
+        &stored_hash,
+    ))
 }
 
 pub(crate) async fn change_username(
@@ -137,20 +203,13 @@ pub(crate) async fn change_username(
     >,
 ) -> Result<(), anyhow::Error> {
     let con = pool.get().await?;
-
-    let salt = uuid::Uuid::new_v4().as_simple().to_string();
-
-    let hashed_password = {
-        let mut hasher = Sha256::new();
-        hasher.update(new_username.as_bytes());
-        hasher.update(password.as_bytes());
-        hasher.update(salt.as_bytes());
-        format!("{:x}", hasher.finalize())
-    };
-
+    // Legacy SHA-256 hashes mix the username into the digest, so changing
+    // the username invalidates them. Re-hashing with Argon2id here covers
+    // legacy users and opportunistically migrates remaining entries.
+    let new = hash_password(&password)?;
     con.execute(
-        "UPDATE account set username = $1, passwordhash = $2, salt = $3 where id = $4",
-        &[&new_username, &hashed_password, &salt, &user_id],
+        "UPDATE account set username = $1, password_algorithm = $2, passwordhash = $3, salt = $4 where id = $5",
+        &[&new_username, &new.algorithm, &new.hash, &new.salt, &user_id],
     )
     .await?;
     anyhow::Ok(())
@@ -258,26 +317,44 @@ pub(crate) async fn login(
 ) -> Result<String, anyhow::Error> {
     let con = pool.get().await?;
 
-    let salt = con
-        .query_one("select salt from account where username = $1", &[&username])
-        .await?
-        .try_get::<_, String>(0)?;
-
-    let hashed_password = {
-        let mut hasher = Sha256::new();
-        hasher.update(username.as_bytes());
-        hasher.update(password.as_bytes());
-        hasher.update(salt.as_bytes());
-        format!("{:x}", hasher.finalize())
-    };
-
-    let token = con
-        .query_one(
-            "select token from account where username = $1 and passwordhash = $2",
-            &[&username, &hashed_password],
+    let Some(row) = con
+        .query_opt(
+            "select id, password_algorithm, passwordhash, salt, token from account where username = $1",
+            &[&username],
         )
         .await?
-        .try_get(0)?;
+    else {
+        return Err(anyhow::anyhow!("invalid credentials"));
+    };
+
+    let user_id: i64 = row.try_get("id")?;
+    let algorithm: String = row.try_get("password_algorithm")?;
+    let stored_hash: String = row.try_get("passwordhash")?;
+    let salt: String = row.try_get("salt")?;
+    let token: String = row.try_get("token")?;
+
+    if !verify_password(&algorithm, &password, &username, &salt, &stored_hash) {
+        return Err(anyhow::anyhow!("invalid credentials"));
+    }
+
+    // Lazy-migrate legacy SHA-256 hashes to Argon2id on successful login.
+    // Failures here don't block the login; we'll try again next time.
+    if algorithm == PASSWORD_ALGO_SHA256_LEGACY {
+        match hash_password(&password) {
+            Ok(new) => {
+                if let Err(e) = con
+                    .execute(
+                        "update account set password_algorithm = $1, passwordhash = $2, salt = $3 where id = $4",
+                        &[&new.algorithm, &new.hash, &new.salt, &user_id],
+                    )
+                    .await
+                {
+                    warn!("failed to migrate password hash for user {user_id}: {e}");
+                }
+            }
+            Err(e) => warn!("failed to compute argon2 hash for migration: {e}"),
+        }
+    }
 
     anyhow::Ok(token)
 }
@@ -293,22 +370,13 @@ pub(crate) async fn register(
 ) -> Result<String, anyhow::Error> {
     let con = pool.get().await?;
 
-    let salt = uuid::Uuid::new_v4().as_simple().to_string();
-
-    let hashed_password = {
-        let mut hasher = Sha256::new();
-        hasher.update(username.as_bytes());
-        hasher.update(password.as_bytes());
-        hasher.update(salt.as_bytes());
-        format!("{:x}", hasher.finalize())
-    };
-
+    let new = hash_password(&password)?;
     let token = uuid::Uuid::new_v4().as_simple().to_string();
 
     let rows_updated = con
         .execute(
-            "insert into account (username, passwordhash, salt, token) values ($1, $2, $3, $4)",
-            &[&username, &hashed_password, &salt, &token],
+            "insert into account (username, password_algorithm, passwordhash, salt, token) values ($1, $2, $3, $4, $5)",
+            &[&username, &new.algorithm, &new.hash, &new.salt, &token],
         )
         .await?;
 
