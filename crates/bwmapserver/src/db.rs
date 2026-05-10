@@ -159,26 +159,28 @@ pub(crate) async fn change_username(
 pub(crate) async fn set_tags(
     map_id: i64,
     map: std::collections::HashMap<String, String>,
-    user_id: Option<i64>,
+    user_id: i64,
     pool: web::Data<
         bb8_postgres::bb8::Pool<
             bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
         >,
     >,
-) -> Result<(), anyhow::Error> {
+) -> Result<Option<bool>, anyhow::Error> {
     let mut con = pool.get().await?;
     let tx = con.transaction().await?;
 
-    let map_uploader: i64 = tx
-        .query_one("select uploaded_by from map where map.id = $1", &[&map_id])
+    let Some(row) = tx
+        .query_opt("select uploaded_by from map where map.id = $1", &[&map_id])
         .await?
-        .try_get(0)?;
+    else {
+        return anyhow::Ok(None);
+    };
+    let map_uploader: i64 = row.try_get(0)?;
 
-    if let Some(id) = user_id {
-        if map_uploader != id && id != 4 {
-            return Ok(());
-        }
+    if map_uploader != user_id && user_id != 4 {
+        return anyhow::Ok(Some(false));
     }
+
     tx.execute("delete from tagmap where tagmap.map = $1", &[&map_id])
         .await?;
 
@@ -198,20 +200,33 @@ pub(crate) async fn set_tags(
         .await?;
     }
     tx.commit().await?;
-    anyhow::Ok(())
+    anyhow::Ok(Some(true))
 }
 
 pub(crate) async fn add_tags(
     map_id: i64,
     map: std::collections::HashMap<String, String>,
+    user_id: i64,
     pool: web::Data<
         bb8_postgres::bb8::Pool<
             bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
         >,
     >,
-) -> Result<(), anyhow::Error> {
+) -> Result<Option<bool>, anyhow::Error> {
     let mut con = pool.get().await?;
     let tx = con.transaction().await?;
+
+    let Some(row) = tx
+        .query_opt("select uploaded_by from map where map.id = $1", &[&map_id])
+        .await?
+    else {
+        return anyhow::Ok(None);
+    };
+    let map_uploader: i64 = row.try_get(0)?;
+
+    if map_uploader != user_id && user_id != 4 {
+        return anyhow::Ok(Some(false));
+    }
 
     for t in map {
         let tag_id = tx
@@ -229,7 +244,7 @@ pub(crate) async fn add_tags(
         .await?;
     }
     tx.commit().await?;
-    anyhow::Ok(())
+    anyhow::Ok(Some(true))
 }
 
 pub(crate) async fn login(

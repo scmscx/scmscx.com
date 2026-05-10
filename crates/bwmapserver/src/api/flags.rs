@@ -2,8 +2,22 @@ use crate::middleware::UserSession;
 use actix_web::{get, post, web, HttpMessage, HttpRequest, HttpResponse, Responder};
 use bb8_postgres::{bb8::Pool, tokio_postgres::NoTls, PostgresConnectionManager};
 use bwcommon::MyError;
-use bwcommon::{get_db_id_from_web_id, insert_extension, ApiSpecificInfoForLogging};
-use tracing::info;
+use bwcommon::{insert_extension, ApiSpecificInfoForLogging};
+
+/// Whitelist of flag column names that callers are allowed to read/write.
+/// Returning `&'static str` (the literal, not the caller's borrow) keeps the
+/// value safe to interpolate into SQL.
+fn validate_flag(flag: &str) -> Option<&'static str> {
+    Some(match flag {
+        "nsfw" => "nsfw",
+        "unfinished" => "unfinished",
+        "outdated" => "outdated",
+        "broken" => "broken",
+        "blackholed" => "blackholed",
+        "spoiler_unit_names" => "spoiler_unit_names",
+        _ => return None,
+    })
+}
 
 #[get("/api/flags/{map_id}/{flag}")]
 async fn get_flag(
@@ -15,26 +29,15 @@ async fn get_flag(
 
     let (map_id, flag) = path.into_inner();
 
-    let map_id = if map_id.chars().all(|x| x.is_ascii_digit()) && map_id.len() < 8 {
-        map_id.parse::<i64>()?
-    } else {
-        get_db_id_from_web_id(&map_id, crate::util::SEED_MAP_ID)?
+    let map_id = crate::util::parse_map_id(&map_id)?;
+
+    let Some(column) = validate_flag(&flag) else {
+        return Ok(HttpResponse::NotFound().finish());
     };
 
     let con = pool.get().await?;
-    info!("flag: {}", flag);
-
-    let statement = match flag.as_str() {
-        "nsfw" => "select nsfw from map where map.id = $1",
-        "unfinished" => "select unfinished from map where map.id = $1",
-        "outdated" => "select outdated from map where map.id = $1",
-        "broken" => "select broken from map where map.id = $1",
-        "blackholed" => "select blackholed from map where map.id = $1",
-        "spoiler_unit_names" => "select spoiler_unit_names from map where map.id = $1",
-        _ => return Ok(HttpResponse::NotFound().finish()),
-    };
-
-    let checked: bool = con.query_one(statement, &[&map_id]).await?.try_get(0)?;
+    let statement = format!("select {column} from map where map.id = $1");
+    let checked: bool = con.query_one(&statement, &[&map_id]).await?.try_get(0)?;
 
     let info = ApiSpecificInfoForLogging {
         user_id,
@@ -65,44 +68,44 @@ async fn set_flag(
 
     let (map_id, flag) = path.into_inner();
 
-    let map_id = if map_id.chars().all(|x| x.is_ascii_digit()) && map_id.len() < 8 {
-        map_id.parse::<i64>()?
-    } else {
-        get_db_id_from_web_id(&map_id, crate::util::SEED_MAP_ID)?
+    let map_id = crate::util::parse_map_id(&map_id)?;
+
+    let Some(column) = validate_flag(&flag) else {
+        return Ok(HttpResponse::NotFound().finish());
     };
 
-    let con = pool.get().await?;
+    let mut con = pool.get().await?;
     let checked = *info;
-    info!("flag: {}", flag);
 
-    let statement = match flag.as_str() {
-        "nsfw" => "update map set nsfw = $1 where map.id = $2 and (map.uploaded_by = $3 or $3 = 4)",
-        "unfinished" => {
-            "update map set unfinished = $1 where map.id = $2 and (map.uploaded_by = $3 or $3 = 4)"
-        }
-        "outdated" => {
-            "update map set outdated = $1 where map.id = $2 and (map.uploaded_by = $3 or $3 = 4)"
-        }
-        "broken" => {
-            "update map set broken = $1 where map.id = $2 and (map.uploaded_by = $3 or $3 = 4)"
-        }
-        "blackholed" => {
-            "update map set blackholed = $1 where map.id = $2 and (map.uploaded_by = $3 or $3 = 4)"
-        }
-        "spoiler_unit_names" => {
-            "update map set spoiler_unit_names = $1 where map.id = $2 and (map.uploaded_by = $3 or $3 = 4)"
-        }
-        _ => return Ok(HttpResponse::NotFound().finish()),
-    };
+    let statement = format!("update map set {column} = $1 where map.id = $2");
 
-    con.execute(statement, &[&checked, &map_id, &user_id])
-        .await?;
+    let tx = con.transaction().await?;
+
+    let owner: Option<i64> = tx
+        .query_opt(
+            "select uploaded_by from map where map.id = $1 for update",
+            &[&map_id],
+        )
+        .await?
+        .map(|r| r.try_get::<_, i64>(0))
+        .transpose()?;
 
     let info = ApiSpecificInfoForLogging {
         user_id: Some(user_id),
         map_id: Some(map_id),
         ..Default::default()
     };
+
+    let Some(owner) = owner else {
+        return Ok(insert_extension(HttpResponse::NotFound(), info).finish());
+    };
+
+    if owner != user_id && user_id != 4 {
+        return Ok(insert_extension(HttpResponse::Forbidden(), info).finish());
+    }
+
+    tx.execute(&statement, &[&checked, &map_id]).await?;
+    tx.commit().await?;
 
     Ok(insert_extension(HttpResponse::Ok(), info).finish())
 }

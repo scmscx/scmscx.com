@@ -1,6 +1,5 @@
 use actix_web::error::PayloadError;
 use actix_web::HttpResponse;
-use anyhow::Result;
 
 #[macro_export]
 macro_rules! ensure {
@@ -12,33 +11,6 @@ macro_rules! ensure {
 }
 
 use tracing::error;
-
-pub async fn check_auth4(
-    req: &actix_web::HttpRequest,
-    pool: bb8_postgres::bb8::Pool<
-        bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-    >,
-) -> Result<Option<i64>, anyhow::Error> {
-    if let Some(cookie_username) = req.cookie("username") {
-        if let Some(cookie_token) = req.cookie("token") {
-            let con = pool.get().await?;
-            let row = con
-                .query_one(
-                    "select id, token from account where username = $1",
-                    &[&cookie_username.value()],
-                )
-                .await?;
-
-            let db_idtoken = (row.get::<_, i64>(0), row.get::<_, String>(1));
-
-            if cookie_token.value() == db_idtoken.1.as_str() {
-                return Ok(Some(db_idtoken.0));
-            }
-        }
-    }
-
-    Ok(None)
-}
 
 #[derive(Debug)]
 pub struct MyError {

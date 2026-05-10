@@ -1,4 +1,5 @@
-use actix_web::{post, web, HttpRequest, HttpResponse};
+use crate::middleware::UserSession;
+use actix_web::{post, web, HttpMessage, HttpRequest, HttpResponse};
 
 #[derive(serde::Deserialize)]
 struct ChangePasswordPostData {
@@ -15,7 +16,7 @@ async fn handler2(
         >,
     >,
 ) -> Result<HttpResponse, bwcommon::MyError> {
-    let Some(user_id) = bwcommon::check_auth4(&req, (**pool).clone()).await? else {
+    let Some(user_id) = req.extensions().get::<UserSession>().map(|x| x.id) else {
         return Ok(HttpResponse::Unauthorized().body("Unauthorized. Try logging in first/again."));
     };
 
