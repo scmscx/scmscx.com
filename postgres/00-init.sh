@@ -233,7 +233,8 @@ psql -v ON_ERROR_STOP=1 --username "postgres" -d "bounding.net" <<-'EOSQL'
         token text,
         isfake bigint DEFAULT '0'::bigint,
         created bigint DEFAULT (date_part('epoch'::text, now()))::bigint NOT NULL,
-        default_playlist bigint
+        default_playlist bigint,
+        password_algorithm text DEFAULT 'sha256-legacy'::text NOT NULL
     );
 
 
