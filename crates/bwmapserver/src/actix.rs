@@ -1022,6 +1022,30 @@ pub(crate) async fn start() -> Result<()> {
 
     start_backblaze_pumper(reqwest_client.clone()).await?;
 
+    let login_governor = crate::ratelimit::per_ip_login_governor_config();
+    let register_governor = crate::ratelimit::per_ip_register_governor_config();
+    let username_limiter = web::Data::new(crate::ratelimit::UsernameLoginLimiter::new());
+
+    // DashMap state stores grow per distinct key with no built-in eviction.
+    // Periodically drop entries whose GCRA cell has fully refilled.
+    {
+        let ip_login = login_governor.limiter().clone();
+        let ip_register = register_governor.limiter().clone();
+        let username = username_limiter.clone();
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_mins(1));
+            tick.tick().await;
+            loop {
+                tick.tick().await;
+                ip_login.retain_recent();
+                ip_login.shrink_to_fit();
+                ip_register.retain_recent();
+                ip_register.shrink_to_fit();
+                username.retain_recent();
+            }
+        });
+    }
+
     let server = actix_web::HttpServer::new(move || {
         let svc = App::new()
             .app_data(web::Data::new(tx.clone()))
@@ -1032,6 +1056,7 @@ pub(crate) async fn start() -> Result<()> {
             .app_data(manifest.clone())
             .app_data(web::Data::new(awc::Client::default()))
             .app_data(web::Data::new(reqwest_client.clone()))
+            .app_data(username_limiter.clone())
             .wrap(middleware::Compress::default())
             .wrap(middleware::NormalizePath::trim())
             .wrap(crate::middleware::CacheHtmlTransformer)
@@ -1075,8 +1100,19 @@ pub(crate) async fn start() -> Result<()> {
             .service(crate::api::flags::set_flag)
             .service(crate::api::change_password::post_handler)
             .service(crate::api::change_username::post_handler)
-            .service(crate::api::login::post_handler)
-            .service(crate::api::register::post_handler)
+            // Empty scopes here are just envelopes to attach per-route
+            // middleware to `#[post]`-decorated handlers, which aren't
+            // Resources we can call `.wrap` on directly.
+            .service(
+                web::scope("")
+                    .wrap(actix_governor::Governor::new(&login_governor))
+                    .service(crate::api::login::post_handler),
+            )
+            .service(
+                web::scope("")
+                    .wrap(actix_governor::Governor::new(&register_governor))
+                    .service(crate::api::register::post_handler),
+            )
             .service(crate::api::logout::handler)
             .service(crate::api::sitemap::handler)
             .service(crate::api::sitemap::handlera)
