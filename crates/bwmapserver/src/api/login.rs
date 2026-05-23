@@ -1,16 +1,15 @@
 use crate::ratelimit::UsernameLoginLimiter;
 use crate::util::is_dev_mode;
-use actix_web::{cookie::Cookie, post, web, HttpResponse};
+use actix_web::{cookie::Cookie, web, HttpResponse};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
-struct LoginFormData {
+pub(crate) struct LoginFormData {
     username: String,
     password: String,
 }
 
-#[post("/api/login")]
-async fn post_handler(
+pub async fn post_handler(
     form: web::Json<LoginFormData>,
     pool: web::Data<
         bb8_postgres::bb8::Pool<
