@@ -1100,18 +1100,15 @@ pub(crate) async fn start() -> Result<()> {
             .service(crate::api::flags::set_flag)
             .service(crate::api::change_password::post_handler)
             .service(crate::api::change_username::post_handler)
-            // Empty scopes here are just envelopes to attach per-route
-            // middleware to `#[post]`-decorated handlers, which aren't
-            // Resources we can call `.wrap` on directly.
             .service(
-                web::scope("")
+                web::resource("/api/login")
                     .wrap(actix_governor::Governor::new(&login_governor))
-                    .service(crate::api::login::post_handler),
+                    .route(web::post().to(crate::api::login::post_handler)),
             )
             .service(
-                web::scope("")
+                web::resource("/api/register")
                     .wrap(actix_governor::Governor::new(&register_governor))
-                    .service(crate::api::register::post_handler),
+                    .route(web::post().to(crate::api::register::post_handler)),
             )
             .service(crate::api::logout::handler)
             .service(crate::api::sitemap::handler)

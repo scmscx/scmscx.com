@@ -1,10 +1,10 @@
 use actix_web::{
     cookie::{Cookie, SameSite},
-    post, web, HttpResponse,
+    web, HttpResponse,
 };
 
 #[derive(serde::Deserialize)]
-struct RegisterFormData {
+pub(crate) struct RegisterFormData {
     username: String,
     password: String,
     password_confirm: String,
@@ -77,8 +77,7 @@ async fn handler2(
     }
 }
 
-#[post("/api/register")]
-async fn post_handler(
+pub async fn post_handler(
     form: web::Json<RegisterFormData>,
     pool: web::Data<
         bb8_postgres::bb8::Pool<
