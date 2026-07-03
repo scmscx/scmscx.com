@@ -35,11 +35,6 @@ dist/assets: dist/vite
 
 	touch $@
 
-ci-runner-scmscx.com: $(shell find ci-runner | sed 's/ /\\ /g')
-	podman build -t "registry.zxcv.io/ci-runner-scmscx.com:$(GIT_VERSION)" -t registry.zxcv.io/ci-runner-scmscx.com:latest -f ci-runner/Dockerfile ci-runner
-push-ci-runner-scmscx.com: ci-runner-scmscx.com
-	podman push "registry.zxcv.io/ci-runner-scmscx.com:$(GIT_VERSION)"
-
 scmscx.com-image-debug: $(RUST_TARGET_DIR)/debug/scmscx-com dist/assets
 	podman build --build-arg PROFILE="debug" -t "registry.zxcv.io/scmscx.com:$(GIT_VERSION)-debug" -t registry.zxcv.io/scmscx.com:latest-debug -f Dockerfile .
 scmscx.com-image: $(RUST_TARGET_DIR)/release/scmscx-com dist/assets
@@ -87,4 +82,4 @@ deploy:
 	ssh -i~/.ssh/stan -C root@10.70.23.1 podman pull registry.zxcv.io/scmscx.com
 	ssh -i~/.ssh/stan -C root@10.70.23.1 systemctl restart scmscx.com
 
-.PHONY: .phony check build test fmt clippy ci run push dev deploy ci-runner-scmscx.com scmscx.com-image-debug scmscx.com-image bwrender-image-debug bwrender-image postgres-image
+.PHONY: .phony check build test fmt clippy ci run push dev deploy scmscx.com-image-debug scmscx.com-image bwrender-image-debug bwrender-image postgres-image

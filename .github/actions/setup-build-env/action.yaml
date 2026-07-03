@@ -2,9 +2,8 @@ name: Set up build environment
 description: >
   Provisions the C/C++ system libraries and the vcpkg toolchain that this
   repo's native crates (chkdraft-bindings, stormlib-bindings, uchardet-bindings,
-  compact_enc_det-bindings) need in order to build. These used to be baked into
-  the self-hosted ci-runner image; on a stock runner they must be installed
-  here. Exports VCPKG_ROOT for the rest of the job.
+  compact_enc_det-bindings) need in order to build. A stock runner does not have
+  these, so they are installed here. Exports VCPKG_ROOT for the rest of the job.
 
 runs:
   using: composite
