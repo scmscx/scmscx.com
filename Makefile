@@ -64,7 +64,7 @@ fmt: $(RUST_SOURCE)
 clippy: $(RUST_SOURCE)
 	cargo clippy --workspace --all-targets
 
-ci: check build test fmt clippy scmscx.com-image-debug
+ci: fmt clippy test scmscx.com-image-debug
 
 run: scmscx.com-image-debug bwrender-image-debug postgres-image
 	GIT_VERSION=$(GIT_VERSION) podman-compose down
