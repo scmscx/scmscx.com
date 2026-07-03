@@ -34,6 +34,9 @@ jobs:
           toolchain: ${{matrix.rust}}
           components: clippy, rustfmt
 
+      - name: Set up build environment
+        uses: ./.github/actions/setup-build-env
+
       - name: work around Cargo.lock filetime not being updated..?
         run: touch Cargo.lock
 
