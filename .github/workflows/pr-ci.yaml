@@ -41,7 +41,3 @@ jobs:
         run: touch Cargo.lock
 
       - run: make ci
-
-      - name: sccache stats
-        if: always()
-        run: sccache --show-stats || true
