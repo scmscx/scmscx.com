@@ -40,4 +40,7 @@ jobs:
       - name: work around Cargo.lock filetime not being updated..?
         run: touch Cargo.lock
 
-      - run: make ci
+      - run: make fmt
+      - run: make clippy
+      - run: make test
+      - run: make scmscx.com-image-debug
