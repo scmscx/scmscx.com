@@ -1,0 +1,33 @@
+name: sccache stats
+description: >
+  Summarize sccache cache performance for the current job: full stats into the
+  job summary, plus a one-line notice annotation with hit rate and error counts.
+  Replaces the post-job summary that mozilla-actions/sccache-action printed
+  (taiki-e/install-action only installs the binary).
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        # Reporting cache stats must never fail the job.
+        set +e
+
+        human=$(sccache --show-stats 2>/dev/null)
+        json=$(sccache --show-stats --stats-format=json 2>/dev/null)
+
+        # Full human-readable stats into the job summary (and the step log).
+        {
+          echo "### sccache stats"
+          echo '```'
+          printf '%s\n' "$human"
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        # Headline annotation: overall hit rate (from the human output) plus the
+        # read/write error counts. Write errors are omitted from the human
+        # output, so read them from the JSON. Parsed with sed — no jq/python
+        # dependency on the runner.
+        rate=$(printf '%s\n' "$human" | sed -nE 's/^Cache hits rate +([0-9.]+) *%.*/\1/p' | head -1)
+        read_err=$(printf '%s' "$json" | sed -nE 's/.*"cache_read_errors":([0-9]+).*/\1/p')
+        write_err=$(printf '%s' "$json" | sed -nE 's/.*"cache_write_errors":([0-9]+).*/\1/p')
+        echo "::notice title=sccache::${rate:-n/a}% hit rate — ${read_err:-?} read errors, ${write_err:-?} write errors"

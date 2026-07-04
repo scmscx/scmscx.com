@@ -56,23 +56,23 @@ runs:
         restore-keys: |
           cargo-${{ runner.os }}-
 
-    # Compiler caching. sccache caches individual rustc invocations keyed by a
-    # hash of the inputs, which is far more space-efficient than caching target/
-    # wholesale, so it fits GitHub's 10 GB per-repo cache budget. It does not
-    # cache build scripts or the C/C++ (cc/cmake/vcpkg) compiles, but those are
-    # already handled by the vcpkg binary cache above. The env vars are exported
-    # for the whole job (make ci / make push); the sccache server starts lazily
-    # on the first rustc call and reads them then. CARGO_INCREMENTAL must be off
-    # for sccache to be able to cache.
+    # Compiler caching. sccache caches individual rustc invocations, keyed by a
+    # hash of the inputs. It's backed by a self-hosted WebDAV store, which is
+    # unscoped (shared across PRs and main, unlike GitHub's ref-scoped Actions
+    # cache, so there are no cold starts) and local (low read latency, no
+    # 10GB/LRU/409 baggage). sccache does not cache build scripts or the C/C++
+    # (cc/cmake/vcpkg) compiles, but those are handled by the vcpkg binary cache
+    # above. The env vars are exported for the whole job; the sccache server
+    # starts lazily on the first rustc call and reads them then. CARGO_INCREMENTAL
+    # must be off for sccache to be able to cache.
     - name: Configure sccache
       shell: bash
       run: |
         echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-        echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+        echo "SCCACHE_WEBDAV_ENDPOINT=http://10.0.2.2:9000" >> "$GITHUB_ENV"
         echo "CARGO_INCREMENTAL=0" >> "$GITHUB_ENV"
 
-    # Installs the sccache binary and forwards the GitHub Actions cache
-    # credentials (which are otherwise not visible to `run:` steps) so the
-    # sccache GHA backend can reach the cache service.
     - name: Install sccache
-      uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+      uses: taiki-e/install-action@v2
+      with:
+        tool: sccache@0.16.0
