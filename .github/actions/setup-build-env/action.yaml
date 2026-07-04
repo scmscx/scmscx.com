@@ -23,13 +23,16 @@ runs:
           npm \
           podman uidmap fuse-overlayfs slirp4netns
 
-    - name: Cache vcpkg binary archives
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/vcpkg/archives
-        key: vcpkg-${{ runner.os }}-${{ hashFiles('crates/chkdraft-bindings/Chkdraft/src/map_gfx_utils/vcpkg.json', 'crates/chkdraft-bindings/Chkdraft/vcpkg-overlay-ports/**') }}
-        restore-keys: |
-          vcpkg-${{ runner.os }}-
+    # Cache vcpkg's compiled port binaries in the same self-hosted WebDAV store
+    # as sccache (unscoped + local, so no ref-scoped cold starts) via vcpkg's
+    # native http binary source. Objects are stored flat at the WebDAV root with
+    # a `vcpkg-` filename prefix: rclone's PUT needs an existing parent
+    # collection and the root always exists, whereas a `/vcpkg/` subdir would
+    # 409 until MKCOL'd. `{sha}` is vcpkg's per-package ABI hash.
+    - name: Configure vcpkg binary cache
+      shell: bash
+      run: |
+        echo 'VCPKG_BINARY_SOURCES=clear;http,http://10.0.2.2:9000/vcpkg-{sha},readwrite' >> "$GITHUB_ENV"
 
     - name: Set up vcpkg
       shell: bash
@@ -40,11 +43,10 @@ runs:
         "$HOME/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
         echo "VCPKG_ROOT=$HOME/vcpkg" >> "$GITHUB_ENV"
 
-    # Only the crate downloads are cached, not target/: a full `make ci` builds
-    # the workspace in several configs, so target/ would be many GB and would
-    # blow the 10 GB per-repo cache budget (evicting the more valuable vcpkg
-    # cache). Compiler output is cached at the rustc level by sccache below
-    # instead; this step just avoids re-downloading crates.
+    # Only the crate downloads are cached here (on the GitHub Actions cache);
+    # compiler output is cached at the rustc level by sccache and vcpkg's port
+    # binaries via the WebDAV store above, so this just avoids re-downloading
+    # crates. target/ is deliberately not cached (it would be many GB).
     - name: Cache cargo registry
       uses: actions/cache@v4
       with:
