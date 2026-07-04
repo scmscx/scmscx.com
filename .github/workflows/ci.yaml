@@ -46,3 +46,7 @@ jobs:
       - run: make test
       - run: make scmscx.com-image-debug
       - run: make push
+
+      - name: sccache stats
+        if: always()
+        uses: ./.github/actions/sccache-stats

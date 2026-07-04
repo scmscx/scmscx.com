@@ -44,3 +44,7 @@ jobs:
       - run: make clippy
       - run: make test
       - run: make scmscx.com-image-debug
+
+      - name: sccache stats
+        if: always()
+        uses: ./.github/actions/sccache-stats
