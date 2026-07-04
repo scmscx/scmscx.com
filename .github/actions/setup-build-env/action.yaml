@@ -43,7 +43,8 @@ runs:
     # Only the crate downloads are cached, not target/: a full `make ci` builds
     # the workspace in several configs, so target/ would be many GB and would
     # blow the 10 GB per-repo cache budget (evicting the more valuable vcpkg
-    # cache). The Rust workspace recompiles each run; crate downloads do not.
+    # cache). Compiler output is cached at the rustc level by sccache below
+    # instead; this step just avoids re-downloading crates.
     - name: Cache cargo registry
       uses: actions/cache@v4
       with:
@@ -54,3 +55,24 @@ runs:
         key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
         restore-keys: |
           cargo-${{ runner.os }}-
+
+    # Compiler caching. sccache caches individual rustc invocations keyed by a
+    # hash of the inputs, which is far more space-efficient than caching target/
+    # wholesale, so it fits GitHub's 10 GB per-repo cache budget. It does not
+    # cache build scripts or the C/C++ (cc/cmake/vcpkg) compiles, but those are
+    # already handled by the vcpkg binary cache above. The env vars are exported
+    # for the whole job (make ci / make push); the sccache server starts lazily
+    # on the first rustc call and reads them then. CARGO_INCREMENTAL must be off
+    # for sccache to be able to cache.
+    - name: Configure sccache
+      shell: bash
+      run: |
+        echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+        echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+        echo "CARGO_INCREMENTAL=0" >> "$GITHUB_ENV"
+
+    # Installs the sccache binary and forwards the GitHub Actions cache
+    # credentials (which are otherwise not visible to `run:` steps) so the
+    # sccache GHA backend can reach the cache service.
+    - name: Install sccache
+      uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10

@@ -37,7 +37,7 @@ pub async fn get_chk(chk_hash: &str) -> Result<Vec<u8>> {
         }
     }
 
-    let url = format!("https://scmscx.com/api/chk/{chk_hash}");
+    let url = format!("http://10.99.99.5:5000/api/chk/{chk_hash}");
     let bytes = reqwest::get(url).await.unwrap().bytes().await.unwrap();
 
     assert!(!bytes.is_empty());

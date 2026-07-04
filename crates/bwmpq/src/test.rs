@@ -1,7 +1,6 @@
 use crate::get_chk_from_mpq_in_memory;
 use anyhow::Result;
 use futures_util::{future::select_all, FutureExt};
-use reqwest::Version;
 use sha2::Digest;
 use std::{
     future::Future,
@@ -65,7 +64,6 @@ async fn download_test_artifacts<'a, T: AsRef<Path>, I: Iterator<Item = &'a str>
 
     let client = reqwest::ClientBuilder::new()
         .use_rustls_tls()
-        .https_only(true)
         .build()
         .unwrap();
 
@@ -83,15 +81,10 @@ async fn download_test_artifacts<'a, T: AsRef<Path>, I: Iterator<Item = &'a str>
                 }
             }
 
-            let url = format!("https://scmscx.com/api/maps/{id}");
+            let url = format!("http://10.99.99.5:5000/api/maps/{id}");
             println!("getting: {url}");
 
-            let response = client
-                .get(url)
-                .version(Version::HTTP_2)
-                .send()
-                .await
-                .unwrap();
+            let response = client.get(url).send().await.unwrap();
             let bytes = response.bytes().await.unwrap();
 
             assert!(!bytes.is_empty());
