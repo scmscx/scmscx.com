@@ -1,4 +1,4 @@
-use crate::api::bulkupload::insert_map;
+use crate::api::bulkupload::{insert_parsed_map, parse_map};
 use crate::middleware::UserSession;
 use actix_web::post;
 use actix_web::web;
@@ -94,6 +94,15 @@ async fn upload_map(
     bwcommon::ensure!(sha256hash == query.sha256);
     bwcommon::ensure!(total_file_size == query.length);
 
+    // Parse + validate the map up front so we reject garbage early
+    let parsed = parse_map(fake_filename.as_str())?;
+    if parsed.insert.is_none() {
+        return Ok(HttpResponse::Ok()
+            .content_type("application/json")
+            .body(serde_json::to_string(&json!(-1))?)
+            .customize());
+    }
+
     let pool = (**pool).clone();
 
     info!("playlist");
@@ -122,23 +131,9 @@ async fn upload_map(
     let mut new_tags = HashMap::new();
     new_tags.insert("autogen_uploaded".to_owned(), "v3".to_owned());
 
-    info!("insert map");
-    let (map_id, _chkblob, _chkblob_hash) = insert_map(
-        query.filename.as_str(),
-        fake_filename.as_str(),
-        sha256hash.as_str(),
-        total_file_size,
-        user_id,
-        playlist_id,
-        new_tags,
-        pool,
-        Some(query.last_modified / 1000),
-    )
-    .await?;
-    let info = ApiSpecificInfoForLogging {
-        map_id: Some(map_id),
-        ..Default::default()
-    };
+    // Stage the mapblob for delivery *before* inserting the map row, so the map
+    // only becomes visible to the renderer once its blob is durably queued for
+    // gsfs/backblaze.
 
     // backblaze
     {
@@ -159,6 +154,24 @@ async fn upload_map(
         tokio::fs::copy(&fake_filename, fake_filename2.as_str()).await?;
         tokio::fs::rename(fake_filename2, format!("./pending/gsfs/{sha256hash}")).await?;
     }
+
+    info!("insert map");
+    let map_id = insert_parsed_map(
+        parsed,
+        query.filename.as_str(),
+        sha256hash.as_str(),
+        total_file_size,
+        user_id,
+        playlist_id,
+        new_tags,
+        pool,
+        Some(query.last_modified / 1000),
+    )
+    .await?;
+    let info = ApiSpecificInfoForLogging {
+        map_id: Some(map_id),
+        ..Default::default()
+    };
 
     info!("removing temp file");
     tokio::fs::remove_file(&fake_filename).await?;
