@@ -710,11 +710,11 @@ async fn download_from_b2_and_upload_to_gsfs(
     };
 
     let mut file = tokio::fs::File::create(dest_path).await?;
-    let mut all_bytes = Vec::new();
+    let mut total_bytes: usize = 0;
 
     while let Some(chunk) = stream.next().await {
         let chunk = chunk?;
-        all_bytes.extend_from_slice(&chunk);
+        total_bytes += chunk.len();
         tokio::io::AsyncWriteExt::write_all(&mut file, &chunk).await?;
     }
 
@@ -724,15 +724,17 @@ async fn download_from_b2_and_upload_to_gsfs(
     debug!(
         chkblob_hash = %map.chkblob_hash,
         mapblob_hash = %map.mapblob_hash,
-        size = all_bytes.len(),
+        size = total_bytes,
         "Downloaded from B2, uploading to GSFS"
     );
 
-    if let Err(e) = common::gsfs::gsfs_put_mapblob(
+    // Stream the mapblob straight from disk rather than buffering it (maps can
+    // be hundreds of MB).
+    if let Err(e) = common::gsfs::gsfs_put_mapblob_file(
         client,
         &config.gsfsfe_endpoint,
         &map.mapblob_hash,
-        all_bytes,
+        dest_path.to_string(),
     )
     .await
     {
