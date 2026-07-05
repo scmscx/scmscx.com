@@ -21,8 +21,12 @@ pub(crate) struct MapInsert {
 
 /// Extract and validate a map's CHK from its MPQ. Returns an error if the file
 /// isn't a parseable map, so callers can reject garbage before staging it or
-/// touching the database.
-pub(crate) fn parse_map(mpq_path: &str) -> Result<ParsedMap> {
+/// touching the database. The CPU-bound work runs on a blocking thread.
+pub(crate) async fn parse_map(mpq_path: String) -> Result<ParsedMap> {
+    tokio::task::spawn_blocking(move || parse_map_blocking(&mpq_path)).await?
+}
+
+fn parse_map_blocking(mpq_path: &str) -> Result<ParsedMap> {
     let chk_blob = bwmpq::get_chk_from_mpq_filename(mpq_path)?;
     let parsed_chk = ParsedChk::from_bytes(chk_blob.as_slice());
 

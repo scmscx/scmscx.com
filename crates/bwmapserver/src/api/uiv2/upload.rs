@@ -95,7 +95,7 @@ async fn upload_map(
     bwcommon::ensure!(total_file_size == query.length);
 
     // Parse + validate the map up front so we reject garbage early
-    let parsed = parse_map(fake_filename.as_str())?;
+    let parsed = parse_map(fake_filename.clone()).await?;
     if parsed.insert.is_none() {
         return Ok(HttpResponse::Ok()
             .content_type("application/json")
