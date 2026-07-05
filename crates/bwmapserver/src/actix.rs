@@ -13,6 +13,7 @@ use bwcommon::{ApiSpecificInfoForLogging, MyError};
 
 use crate::api::uiv2::get_map_image;
 use crate::pumpers::start_backblaze_pumper;
+use crate::pumpers::start_gsfs_pumper;
 use crate::util::finalize_hash_of_hasher;
 use crate::util::is_dev_mode;
 use actix_files::Files;
@@ -1037,6 +1038,7 @@ pub(crate) async fn start() -> Result<()> {
     let reqwest_client = reqwest::Client::new();
 
     start_backblaze_pumper(reqwest_client.clone()).await?;
+    start_gsfs_pumper(reqwest_client.clone()).await?;
 
     let login_governor = crate::ratelimit::per_ip_login_governor_config();
     let register_governor = crate::ratelimit::per_ip_register_governor_config();
