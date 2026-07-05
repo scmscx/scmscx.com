@@ -1,4 +1,3 @@
-use actix_web::web;
 use argon2::Argon2;
 use base64::engine::general_purpose::STANDARD_NO_PAD;
 use base64::Engine as _;
@@ -146,11 +145,7 @@ pub(crate) async fn get_minimap(
 pub(crate) async fn change_password(
     user_id: i64,
     password: String,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
+    pool: crate::webutil::Pool,
 ) -> Result<(), anyhow::Error> {
     let con = pool.get().await?;
     let new = hash_password(&password)?;
@@ -165,11 +160,7 @@ pub(crate) async fn change_password(
 pub(crate) async fn check_password(
     user_id: i64,
     password: String,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
+    pool: crate::webutil::Pool,
 ) -> Result<bool, anyhow::Error> {
     let con = pool.get().await?;
     let row = con
@@ -196,11 +187,7 @@ pub(crate) async fn change_username(
     user_id: i64,
     new_username: String,
     password: String,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
+    pool: crate::webutil::Pool,
 ) -> Result<(), anyhow::Error> {
     let con = pool.get().await?;
     // Legacy SHA-256 hashes mix the username into the digest, so changing
@@ -219,11 +206,7 @@ pub(crate) async fn set_tags(
     map_id: i64,
     map: std::collections::HashMap<String, String>,
     user_id: i64,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
+    pool: crate::webutil::Pool,
 ) -> Result<Option<bool>, anyhow::Error> {
     let mut con = pool.get().await?;
     let tx = con.transaction().await?;
@@ -266,11 +249,7 @@ pub(crate) async fn add_tags(
     map_id: i64,
     map: std::collections::HashMap<String, String>,
     user_id: i64,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
+    pool: crate::webutil::Pool,
 ) -> Result<Option<bool>, anyhow::Error> {
     let mut con = pool.get().await?;
     let tx = con.transaction().await?;
@@ -309,11 +288,7 @@ pub(crate) async fn add_tags(
 pub(crate) async fn login(
     username: String,
     password: String,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
+    pool: crate::webutil::Pool,
 ) -> Result<String, anyhow::Error> {
     let con = pool.get().await?;
 
@@ -362,11 +337,7 @@ pub(crate) async fn login(
 pub(crate) async fn register(
     username: String,
     password: String,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
+    pool: crate::webutil::Pool,
 ) -> Result<String, anyhow::Error> {
     let con = pool.get().await?;
 

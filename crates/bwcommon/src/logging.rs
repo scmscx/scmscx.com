@@ -1,6 +1,5 @@
 use crate::common::MyError;
 
-use actix_web::HttpMessage;
 use reqwest::StatusCode;
 use serde::Serialize;
 use tokio::time::sleep;
@@ -127,14 +126,6 @@ pub fn do_mixpanel_stuff(
     Ok(tx.send(data)?)
 }
 
-pub fn get_header<'a>(req: &'a actix_web::HttpRequest, name: &str) -> &'a str {
-    if let Some(v) = req.headers().get(name) {
-        v.to_str().unwrap_or("")
-    } else {
-        ""
-    }
-}
-
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct ApiSpecificInfoForLogging {
     pub user_id: Option<i64>,
@@ -175,42 +166,6 @@ pub struct TrackingAnalytics {
     pub was_provided_by_request: bool,
 }
 
-pub fn get_request_logging_info(req: &actix_web::HttpRequest) -> ApiRequestLoggingInfo {
-    let ip = req
-        .connection_info()
-        .realip_remote_addr()
-        .map(std::string::ToString::to_string);
-
-    let query = req.uri().query().map(std::string::ToString::to_string);
-
-    let tac = req
-        .extensions()
-        .get::<TrackingAnalytics>()
-        .map(|tac| tac.tracking_analytics_id.clone());
-
-    ApiRequestLoggingInfo {
-        ip,
-        tac,
-        event: Some(req.match_pattern().map_or_else(
-            || req.path().to_owned(),
-            |x| {
-                if x.is_empty() {
-                    req.path().to_owned()
-                } else {
-                    x
-                }
-            },
-        )),
-        method: req.method().to_string(),
-        path: req.uri().path().to_string(),
-        query,
-        referer: get_header(req, "referer").to_string(),
-        accept_language: get_header(req, "accept-language").to_string(),
-        accept_encoding: get_header(req, "accept-encoding").to_string(),
-        user_agent: get_header(req, "user-agent").to_string(),
-    }
-}
-
 pub fn get_api_logging_info(
     req_info: ApiRequestLoggingInfo,
     properties: ApiSpecificInfoForLogging,
@@ -227,10 +182,52 @@ pub fn get_api_logging_info(
     }
 }
 
-pub fn insert_extension(
-    mut resp: actix_web::HttpResponseBuilder,
+// --- response logging helpers ------------------------------------------------
+
+/// axum equivalent of `insert_extension`: render `body` into a response and
+/// stash the per-request logging info in the response's extensions, where the
+/// postgres-logging middleware reads it back out.
+pub fn with_logging_info<T: axum::response::IntoResponse>(
     info: ApiSpecificInfoForLogging,
-) -> actix_web::HttpResponseBuilder {
+    body: T,
+) -> axum::response::Response {
+    let mut resp = axum::response::IntoResponse::into_response(body);
     resp.extensions_mut().insert(info);
     resp
+}
+
+fn header_str<'a>(headers: &'a http::HeaderMap, name: &str) -> &'a str {
+    headers
+        .get(name)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+}
+
+/// axum equivalent of `get_request_logging_info`. `ip` and `event` (the matched
+/// route pattern) are resolved by the caller since they aren't available on the
+/// bare request `Parts` (they come from a real-IP helper and `MatchedPath`).
+pub fn get_request_logging_info_from_parts(
+    parts: &http::request::Parts,
+    ip: Option<String>,
+    event: Option<String>,
+) -> ApiRequestLoggingInfo {
+    let headers = &parts.headers;
+
+    let tac = parts
+        .extensions
+        .get::<TrackingAnalytics>()
+        .map(|tac| tac.tracking_analytics_id.clone());
+
+    ApiRequestLoggingInfo {
+        ip,
+        tac,
+        event: event.or_else(|| Some(parts.uri.path().to_owned())),
+        method: parts.method.to_string(),
+        path: parts.uri.path().to_string(),
+        query: parts.uri.query().map(std::string::ToString::to_string),
+        referer: header_str(headers, "referer").to_string(),
+        accept_language: header_str(headers, "accept-language").to_string(),
+        accept_encoding: header_str(headers, "accept-encoding").to_string(),
+        user_agent: header_str(headers, "user-agent").to_string(),
+    }
 }

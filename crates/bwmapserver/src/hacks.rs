@@ -1,11 +1,11 @@
-use actix_web::get;
-use actix_web::web;
+use axum::extract::{Extension, Path};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use futures_util::FutureExt;
 
-use crate::middleware::UserSession;
+use crate::webutil::{MaybeUser, Pool};
 use log::info;
 
-use actix_web::HttpMessage;
 use anyhow::Result;
 
 // use sha2::Digest;
@@ -250,27 +250,19 @@ use anyhow::Result;
 //     Ok(actix_web::HttpResponse::Ok().finish())
 //}
 
-#[get("/api/denormalize/{map_id}")]
 pub(crate) async fn denormalize(
-    path: web::Path<(String,)>,
-    req: actix_web::HttpRequest,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl actix_web::Responder, bwcommon::MyError> {
-    let session = if let Some(session) = req.extensions().get::<UserSession>() {
-        session.clone()
-    } else {
-        return Ok(actix_web::HttpResponse::NotFound().finish());
+    user: MaybeUser,
+    Extension(pool): Extension<Pool>,
+    Path((map_id,)): Path<(String,)>,
+) -> Result<Response, bwcommon::MyError> {
+    let Some(session) = user.0 else {
+        return Ok(StatusCode::NOT_FOUND.into_response());
     };
 
     if session.id != 4 {
-        return Ok(actix_web::HttpResponse::NotFound().finish());
+        return Ok(StatusCode::NOT_FOUND.into_response());
     }
 
-    let (map_id,) = path.into_inner();
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let mut con = pool.get().await?;
@@ -280,26 +272,19 @@ pub(crate) async fn denormalize(
 
     tx.commit().await?;
 
-    Ok(actix_web::HttpResponse::Ok().finish())
+    Ok(StatusCode::OK.into_response())
 }
 
-#[get("/api/denormalize_all")]
 pub(crate) async fn denormalize_all(
-    req: actix_web::HttpRequest,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl actix_web::Responder, bwcommon::MyError> {
-    let session = if let Some(session) = req.extensions().get::<UserSession>() {
-        session.clone()
-    } else {
-        return Ok(actix_web::HttpResponse::NotFound().finish());
+    user: MaybeUser,
+    Extension(pool): Extension<Pool>,
+) -> Result<Response, bwcommon::MyError> {
+    let Some(session) = user.0 else {
+        return Ok(StatusCode::NOT_FOUND.into_response());
     };
 
     if session.id != 4 {
-        return Ok(actix_web::HttpResponse::NotFound().finish());
+        return Ok(StatusCode::NOT_FOUND.into_response());
     }
 
     let con = pool.get().await?;
@@ -326,7 +311,7 @@ pub(crate) async fn denormalize_all(
     )
     .await;
 
-    Ok(actix_web::HttpResponse::Ok().finish())
+    Ok(StatusCode::OK.into_response())
 }
 
 // #[get("/api/calculate_chkdenorm")]

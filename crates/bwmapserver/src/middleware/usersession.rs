@@ -1,19 +1,11 @@
-use std::{
-    future::{ready, Ready},
-    rc::Rc,
-};
+use axum::extract::Request;
+use axum::http::{header, HeaderValue, StatusCode};
+use axum::middleware::Next;
+use axum::response::Response;
+use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
+use tracing::info;
 
-use actix_web::body::EitherBody;
-use actix_web::{
-    cookie::Cookie,
-    dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
-    web::Data,
-    Error, HttpMessage, HttpResponse,
-};
-use bb8_postgres::{bb8::Pool, tokio_postgres::NoTls, PostgresConnectionManager};
-use futures_util::{future::LocalBoxFuture, FutureExt};
-use log::info;
-use tracing::{instrument, Instrument};
+use crate::webutil::Pool;
 
 #[derive(Clone, Debug)]
 pub struct UserSession {
@@ -22,126 +14,69 @@ pub struct UserSession {
     pub token: String,
 }
 
-pub struct UserSessionTransformer;
+/// Build a 301 response that logs the user out by clearing the auth cookies.
+fn log_out_user() -> Response {
+    let mut resp = Response::builder()
+        .status(StatusCode::MOVED_PERMANENTLY)
+        .header(header::LOCATION, "/")
+        .body(axum::body::Body::empty())
+        .unwrap();
 
-impl<S: 'static, B> Transform<S, ServiceRequest> for UserSessionTransformer
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<EitherBody<B>>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Response = ServiceResponse<EitherBody<B>>;
-    type Error = Error;
-    type InitError = ();
-    type Transform = UserSessionMiddleware<S>;
-    type Future = Ready<Result<Self::Transform, Self::InitError>>;
-
-    fn new_transform(&self, service: S) -> Self::Future {
-        ready(Ok(UserSessionMiddleware {
-            service: Rc::new(service),
-        }))
+    for name in ["username", "token"] {
+        let mut cookie = Cookie::build((name, ""))
+            .path("/")
+            .same_site(SameSite::Lax)
+            .secure(true)
+            .build();
+        cookie.make_removal();
+        resp.headers_mut().append(
+            header::SET_COOKIE,
+            HeaderValue::from_str(&cookie.to_string()).unwrap(),
+        );
     }
+
+    resp
 }
 
-pub struct UserSessionMiddleware<S> {
-    service: Rc<S>,
-}
+/// Validates the `username`/`token` cookie pair against the DB and, when valid,
+/// inserts a `UserSession` into the request extensions. An invalid/stale
+/// session short-circuits with a logout redirect.
+pub async fn user_session(pool: Pool, mut req: Request, next: Next) -> Response {
+    let jar = CookieJar::from_headers(req.headers());
 
-impl<S: 'static, B> Service<ServiceRequest> for UserSessionMiddleware<S>
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<EitherBody<B>>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Response = ServiceResponse<EitherBody<B>>;
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+    let (Some(cookie_username), Some(cookie_token)) = (jar.get("username"), jar.get("token"))
+    else {
+        return next.run(req).await;
+    };
 
-    forward_ready!(service);
+    let con = pool.get().await.unwrap();
+    let row = con
+        .query_opt(
+            "select id, token, username from account where username = $1",
+            &[&cookie_username.value()],
+        )
+        .await
+        .unwrap();
 
-    #[instrument(skip_all, name = "")]
-    fn call(&self, req: ServiceRequest) -> Self::Future {
-        let pool = req
-            .app_data::<Data<Pool<PostgresConnectionManager<NoTls>>>>()
-            .unwrap()
-            .clone();
+    let Some(row) = row else {
+        return log_out_user();
+    };
 
-        let s = self.service.clone();
+    let (id, token, username) = (
+        row.get::<_, i64>(0),
+        row.get::<_, String>(1),
+        row.get::<_, String>(2),
+    );
 
-        async move {
-            let log_out_user = || {
-                HttpResponse::MovedPermanently()
-                    .insert_header(("location", "/"))
-                    .cookie(
-                        Cookie::build("username", "")
-                            .path("/")
-                            .same_site(actix_web::cookie::SameSite::Lax)
-                            .secure(true)
-                            .expires(
-                                actix_web::cookie::time::OffsetDateTime::from_unix_timestamp(0)
-                                    .unwrap(),
-                            )
-                            .finish(),
-                    )
-                    .cookie(
-                        Cookie::build("token", "")
-                            .path("/")
-                            .same_site(actix_web::cookie::SameSite::Lax)
-                            .secure(true)
-                            .expires(
-                                actix_web::cookie::time::OffsetDateTime::from_unix_timestamp(0)
-                                    .unwrap(),
-                            )
-                            .finish(),
-                    )
-                    .finish()
-                    .map_into_right_body()
-            };
-
-            if let Some(cookie_username) = req.cookie("username") {
-                if let Some(cookie_token) = req.cookie("token") {
-                    let con = pool.get().await.unwrap();
-                    let row = con
-                        .query_opt(
-                            "select id, token, username from account where username = $1",
-                            &[&cookie_username.value()],
-                        )
-                        .await
-                        .unwrap();
-
-                    let Some(row) = row else {
-                        return Ok(req.into_response(log_out_user()));
-                    };
-
-                    let db_idtoken = (
-                        row.get::<_, i64>(0),
-                        row.get::<_, String>(1),
-                        row.get::<_, String>(2),
-                    );
-
-                    if cookie_token.value() == db_idtoken.1.as_str() {
-                        info!(
-                            "id: {}, username: {}, token: {}",
-                            db_idtoken.0, db_idtoken.2, db_idtoken.1
-                        );
-                        req.extensions_mut().insert(UserSession {
-                            id: db_idtoken.0,
-                            username: db_idtoken.2,
-                            token: db_idtoken.1,
-                        });
-
-                        s.call(req).await
-                    } else {
-                        Ok(req.into_response(log_out_user()))
-                    }
-                } else {
-                    Ok(req.into_response(log_out_user()))
-                }
-            } else {
-                Ok(s.call(req).await?)
-            }
-        }
-        .instrument(tracing::span::Span::current())
-        .boxed_local()
+    if cookie_token.value() == token.as_str() {
+        info!("id: {}, username: {}, token: {}", id, username, token);
+        req.extensions_mut().insert(UserSession {
+            id,
+            username,
+            token,
+        });
+        next.run(req).await
+    } else {
+        log_out_user()
     }
 }

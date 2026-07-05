@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 
-actix-web = "4.11.0"
 anyhow = "1.0.99"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["registry", "env-filter", "tracing-log"] }

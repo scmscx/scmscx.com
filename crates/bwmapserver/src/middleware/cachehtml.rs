@@ -1,82 +1,35 @@
-use std::future::{ready, Ready};
+use axum::extract::Request;
+use axum::http::header::{HeaderName, HeaderValue};
+use axum::middleware::Next;
+use axum::response::Response;
 
-use actix_web::{
-    dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
-    http::header::{HeaderName, HeaderValue},
-    Error,
-};
-use futures_util::{future::LocalBoxFuture, FutureExt};
+/// Adds a long immutable `Cache-Control` to static asset responses (js/wasm/
+/// webm/css), except for the dev-mode `css.css` / `lib.js` bundles.
+pub async fn cache_html(req: Request, next: Next) -> Response {
+    let path = req.uri().path().to_owned();
 
-pub struct CacheHtmlTransformer;
+    let mut res = next.run(req).await;
 
-impl<S, B> Transform<S, ServiceRequest> for CacheHtmlTransformer
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type InitError = ();
-    type Transform = CacheHtmlMiddleware<S>;
-    type Future = Ready<Result<Self::Transform, Self::InitError>>;
-
-    fn new_transform(&self, service: S) -> Self::Future {
-        ready(Ok(CacheHtmlMiddleware { service }))
-    }
-}
-
-pub struct CacheHtmlMiddleware<S> {
-    service: S,
-}
-
-impl<S, B> Service<ServiceRequest> for CacheHtmlMiddleware<S>
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
-
-    forward_ready!(service);
-
-    fn call(&self, req: ServiceRequest) -> Self::Future {
-        let fut = self.service.call(req);
-
-        async move {
-            let mut res = fut.await?;
-
-            let mut should_cache = false;
-
-            if let Some(content_type) = res
-                .response()
-                .headers()
-                .get(HeaderName::from_static("content-type"))
-            {
-                if let Ok(s) = content_type.to_str() {
-                    should_cache = s.contains("application/javascript")
-                        || s.contains("application/wasm")
-                        || s.contains("video/webm")
-                        || s.contains("text/css");
-                }
-            }
-
-            if res.request().path().contains("css.css") || res.request().path().contains("lib.js") {
-                should_cache = false;
-            }
-
-            if should_cache {
-                let headers = res.headers_mut();
-                headers.append(
-                    HeaderName::from_static("cache-control"),
-                    HeaderValue::from_static("public, max-age=31536000, immutable"),
-                );
-            }
-
-            Ok(res)
+    let mut should_cache = false;
+    if let Some(content_type) = res.headers().get(HeaderName::from_static("content-type")) {
+        if let Ok(s) = content_type.to_str() {
+            should_cache = s.contains("application/javascript")
+                || s.contains("application/wasm")
+                || s.contains("video/webm")
+                || s.contains("text/css");
         }
-        .boxed_local()
     }
+
+    if path.contains("css.css") || path.contains("lib.js") {
+        should_cache = false;
+    }
+
+    if should_cache {
+        res.headers_mut().append(
+            HeaderName::from_static("cache-control"),
+            HeaderValue::from_static("public, max-age=31536000, immutable"),
+        );
+    }
+
+    res
 }

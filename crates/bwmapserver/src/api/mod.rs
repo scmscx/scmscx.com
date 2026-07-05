@@ -2,6 +2,7 @@ pub mod bulkupload;
 pub mod change_password;
 pub mod change_username;
 pub mod chk;
+pub mod core;
 pub mod flags;
 pub mod login;
 pub mod logout;

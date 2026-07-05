@@ -8,25 +8,21 @@
 // order by random()
 // limit 1
 
-use crate::middleware::UserSession;
 use crate::search2::{search_cache, SearchParams};
-use actix_web::web::Path;
-use actix_web::{get, web, HttpMessage, HttpRequest, HttpResponse, Responder};
-use bwcommon::{insert_extension, ApiSpecificInfoForLogging};
+use crate::webutil::{MaybeUser, Pool};
+use axum::extract::{Extension, Path, Query};
+use axum::response::Response;
+use axum::Json;
+use bwcommon::{with_logging_info, ApiSpecificInfoForLogging};
 use rand::Rng;
 
 async fn random_core(
     query: &str,
-    req: HttpRequest,
-    query_params: web::Query<SearchParams>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
+    allow_nsfw: bool,
+    query_params: Query<SearchParams>,
+    pool: Pool,
 ) -> Result<String, bwcommon::MyError> {
-    let query_params = query_params.into_inner();
-    let allow_nsfw = req.extensions().get::<UserSession>().is_some();
+    let query_params = query_params.0;
 
     match query_params.sort.as_str() {
         "relevancy" | "scenario" | "lastmodifiedold" | "lastmodifiednew" | "timeuploadedold"
@@ -36,7 +32,7 @@ async fn random_core(
         }
     }
 
-    let maps = search_cache(query, allow_nsfw, &query_params, (**pool).clone()).await?;
+    let maps = search_cache(query, allow_nsfw, &query_params, pool.clone()).await?;
 
     if maps.is_empty() {
         return Err(anyhow::anyhow!("no maps found").into());
@@ -48,47 +44,35 @@ async fn random_core(
     Ok(maps[random_number].id.clone())
 }
 
-#[get("/api/uiv2/random/{query}")]
-async fn handler(
-    query: Path<String>,
-    req: HttpRequest,
-    query_params: web::Query<SearchParams>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, bwcommon::MyError> {
-    let query = query.into_inner();
+pub async fn handler(
+    Path(query): Path<String>,
+    user: MaybeUser,
+    query_params: Query<SearchParams>,
+    Extension(pool): Extension<Pool>,
+) -> Result<Response, bwcommon::MyError> {
+    let allow_nsfw = user.0.is_some();
 
-    let map_id = random_core(query.as_str(), req, query_params, pool).await?;
+    let map_id = random_core(query.as_str(), allow_nsfw, query_params, pool).await?;
 
     let info = ApiSpecificInfoForLogging {
         ..Default::default()
     };
 
-    Ok(insert_extension(HttpResponse::Ok(), info)
-        .body(serde_json::to_string(&map_id)?)
-        .customize())
+    Ok(with_logging_info(info, Json(map_id)))
 }
 
-#[get("/api/uiv2/random")]
-async fn handler_noquery(
-    req: HttpRequest,
-    query_params: web::Query<SearchParams>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, bwcommon::MyError> {
-    let map_id = random_core("", req, query_params, pool).await?;
+pub async fn handler_noquery(
+    user: MaybeUser,
+    query_params: Query<SearchParams>,
+    Extension(pool): Extension<Pool>,
+) -> Result<Response, bwcommon::MyError> {
+    let allow_nsfw = user.0.is_some();
+
+    let map_id = random_core("", allow_nsfw, query_params, pool).await?;
 
     let info = ApiSpecificInfoForLogging {
         ..Default::default()
     };
 
-    Ok(insert_extension(HttpResponse::Ok(), info)
-        .body(serde_json::to_string(&map_id)?)
-        .customize())
+    Ok(with_logging_info(info, Json(map_id)))
 }

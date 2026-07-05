@@ -1,27 +1,20 @@
-use crate::middleware::UserSession;
-use actix_web::get;
-use actix_web::web;
-use actix_web::HttpMessage;
-use actix_web::HttpRequest;
-use actix_web::HttpResponse;
-use actix_web::Responder;
-use bwcommon::insert_extension;
+use axum::extract::{Extension, Path};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+use bwcommon::with_logging_info;
 use bwcommon::ApiSpecificInfoForLogging;
 use bwmap::ParsedChk;
 use serde::Serialize;
 use serde_json::json;
 
-#[get("/api/uiv2/map_info/{map_id}")]
-async fn map_info(
-    req: HttpRequest,
-    path: web::Path<(String,)>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, bwcommon::MyError> {
-    let (map_id,) = path.into_inner();
+use crate::webutil::{MaybeUser, Pool};
+
+pub async fn map_info(
+    user: MaybeUser,
+    Path((map_id,)): Path<(String,)>,
+    Extension(pool): Extension<Pool>,
+) -> Result<Response, bwcommon::MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let (
@@ -94,14 +87,14 @@ async fn map_info(
         )
     };
 
-    let user_id = req.extensions().get::<UserSession>().map(|x| x.id);
+    let user_id = user.id();
 
     if nsfw && user_id.is_none() {
-        return Ok(HttpResponse::Forbidden().finish().customize());
+        return Ok(StatusCode::FORBIDDEN.into_response());
     }
 
     if blackholed && user_id != Some(uploaded_by) && user_id != Some(4) {
-        return Ok(HttpResponse::NotFound().finish().customize());
+        return Ok(StatusCode::NOT_FOUND.into_response());
     }
 
     let parsed_chk = ParsedChk::from_bytes(chkblob.as_slice());
@@ -395,51 +388,48 @@ async fn map_info(
         ..Default::default()
     };
 
-    Ok(insert_extension(HttpResponse::Ok(), info)
-        .content_type("application/json")
-        .body(
-            serde_json::to_string(&json!({
-                "scenario": scenario_name,
-                "scenario_description": scenario_description,
-                "player_owners": player_owners,
-                "player_side": player_side,
-                "forces": forces,
-                "internal_id": map_id,
-                "properties": {
-                    "ver": ver,
-                    "width": width,
-                    "height": height,
-                    "tileset": tileset,
-                    "sprites": sprites,
-                    "doodads": doodads,
-                    "triggers": triggers,
-                    "briefing_triggers": briefing_triggers,
-                    "locations": locations,
-                    "units": units,
-                    "unique_terrain_tiles": unique_terrain_tiles,
-                    "eups": eups,
-                    "get_death_euds": get_death_euds,
-                    "set_death_euds": set_death_euds,
-                    "trigger_list_reads": trigger_list_reads,
-                    "trigger_list_writes": trigger_list_writes,
-                },
-                "meta": {
-                    "chkhash": chkhash,
-                    "chk_size": chk_size,
-                    "mpq_hash": mpq_hash,
-                    "mpq_size": mpq_size,
-                    "uploaded_by": uploaded_by_username,
-                    "uploaded_time": uploaded_time,
-                    "last_viewed": last_viewed,
-                    "last_downloaded": last_downloaded,
-                    "views": views,
-                    "downloads": downloads,
-                },
-                "wavs": wavs,
-            }))
-            .unwrap(),
-        )
-        .customize())
+    Ok(with_logging_info(
+        info,
+        Json(json!({
+            "scenario": scenario_name,
+            "scenario_description": scenario_description,
+            "player_owners": player_owners,
+            "player_side": player_side,
+            "forces": forces,
+            "internal_id": map_id,
+            "properties": {
+                "ver": ver,
+                "width": width,
+                "height": height,
+                "tileset": tileset,
+                "sprites": sprites,
+                "doodads": doodads,
+                "triggers": triggers,
+                "briefing_triggers": briefing_triggers,
+                "locations": locations,
+                "units": units,
+                "unique_terrain_tiles": unique_terrain_tiles,
+                "eups": eups,
+                "get_death_euds": get_death_euds,
+                "set_death_euds": set_death_euds,
+                "trigger_list_reads": trigger_list_reads,
+                "trigger_list_writes": trigger_list_writes,
+            },
+            "meta": {
+                "chkhash": chkhash,
+                "chk_size": chk_size,
+                "mpq_hash": mpq_hash,
+                "mpq_size": mpq_size,
+                "uploaded_by": uploaded_by_username,
+                "uploaded_time": uploaded_time,
+                "last_viewed": last_viewed,
+                "last_downloaded": last_downloaded,
+                "views": views,
+                "downloads": downloads,
+            },
+            "wavs": wavs,
+        })),
+    ))
 }
 
 // #[post("/api/uiv2/map_info/{map_id}")]

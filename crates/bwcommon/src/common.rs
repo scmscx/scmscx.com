@@ -1,6 +1,3 @@
-use actix_web::error::PayloadError;
-use actix_web::HttpResponse;
-
 #[macro_export]
 macro_rules! ensure {
     ($cond:expr $(,)?) => {
@@ -28,14 +25,22 @@ impl std::fmt::Display for MyError {
     }
 }
 
-impl actix_web::error::ResponseError for MyError {
-    fn status_code(&self) -> actix_web::http::StatusCode {
-        actix_web::http::StatusCode::INTERNAL_SERVER_ERROR
-    }
+/// Marker stashed in a response's extensions when the response was produced by
+/// a handler returning `Err(MyError)`. The postgres-logging middleware reads it
+/// to fill the `error` column, matching actix's separate error path.
+#[derive(Clone, Debug)]
+pub struct LoggedError(pub String);
 
-    fn error_response(&self) -> HttpResponse {
+impl axum::response::IntoResponse for MyError {
+    fn into_response(self) -> axum::response::Response {
         error!("{self:?}");
-        HttpResponse::InternalServerError().body("Something went wrong :)".to_string())
+        let err_string = format!("{self:?}");
+        let mut resp = axum::response::IntoResponse::into_response((
+            http::StatusCode::INTERNAL_SERVER_ERROR,
+            "Something went wrong :)",
+        ));
+        resp.extensions_mut().insert(LoggedError(err_string));
+        resp
     }
 }
 
@@ -57,12 +62,6 @@ impl From<walkdir::Error> for MyError {
     }
 }
 
-impl From<PayloadError> for MyError {
-    fn from(err: PayloadError) -> MyError {
-        MyError { err: err.into() }
-    }
-}
-
 impl From<anyhow::Error> for MyError {
     fn from(err: anyhow::Error) -> MyError {
         MyError { err }
@@ -71,14 +70,6 @@ impl From<anyhow::Error> for MyError {
 
 impl From<&str> for MyError {
     fn from(err: &str) -> MyError {
-        MyError {
-            err: anyhow::Error::msg(err.to_string()),
-        }
-    }
-}
-
-impl From<actix_multipart::MultipartError> for MyError {
-    fn from(err: actix_multipart::MultipartError) -> MyError {
         MyError {
             err: anyhow::Error::msg(err.to_string()),
         }
@@ -157,22 +148,6 @@ impl From<handlebars::RenderError> for MyError {
 
 impl From<std::env::VarError> for MyError {
     fn from(err: std::env::VarError) -> MyError {
-        MyError { err: err.into() }
-    }
-}
-
-impl From<awc::error::SendRequestError> for MyError {
-    fn from(err: awc::error::SendRequestError) -> MyError {
-        MyError {
-            err: anyhow::anyhow!("there was an error: {}", err),
-        }
-    }
-}
-
-// Result<PooledConnection<SqliteConnectionManager>, Error>
-
-impl From<actix_web::error::BlockingError> for MyError {
-    fn from(err: actix_web::error::BlockingError) -> MyError {
         MyError { err: err.into() }
     }
 }

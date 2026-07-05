@@ -1,7 +1,14 @@
+use std::sync::Arc;
+
+use axum::extract::Extension;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+use serde::Deserialize;
+
 use crate::ratelimit::UsernameLoginLimiter;
 use crate::util::is_dev_mode;
-use actix_web::{cookie::Cookie, web, HttpResponse};
-use serde::Deserialize;
+use crate::webutil::{append_cookie, auth_cookie, Pool};
 
 #[derive(Deserialize)]
 pub(crate) struct LoginFormData {
@@ -10,22 +17,21 @@ pub(crate) struct LoginFormData {
 }
 
 pub async fn post_handler(
-    form: web::Json<LoginFormData>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-    username_limiter: web::Data<UsernameLoginLimiter>,
-) -> Result<HttpResponse, bwcommon::MyError> {
+    Extension(pool): Extension<Pool>,
+    Extension(username_limiter): Extension<Arc<UsernameLoginLimiter>>,
+    Json(form): Json<LoginFormData>,
+) -> Result<Response, bwcommon::MyError> {
     if form.username.is_empty() || form.username.len() > 100 {
-        return Ok(HttpResponse::Unauthorized()
-            .body("Either the username does not exist or the password is incorrect."));
+        return Ok((
+            StatusCode::UNAUTHORIZED,
+            "Either the username does not exist or the password is incorrect.",
+        )
+            .into_response());
     }
 
     // Username only appears in the JSON body, so this can't be enforced as middleware.
     if let Err(resp) = username_limiter.check(&form.username) {
-        return Ok(resp);
+        return Ok(*resp);
     }
 
     match crate::db::login(form.username.clone(), form.password.clone(), pool).await {
@@ -35,27 +41,19 @@ pub async fn post_handler(
                 ..Default::default()
             };
 
-            Ok(bwcommon::insert_extension(HttpResponse::Ok(), info)
-                .cookie(
-                    Cookie::build("token", token)
-                        .path("/")
-                        .same_site(actix_web::cookie::SameSite::Lax)
-                        .secure(!is_dev_mode())
-                        .permanent()
-                        .http_only(true)
-                        .finish(),
-                )
-                .cookie(
-                    Cookie::build("username", &form.username)
-                        .path("/")
-                        .same_site(actix_web::cookie::SameSite::Lax)
-                        .secure(!is_dev_mode())
-                        .permanent()
-                        .finish(),
-                )
-                .finish())
+            let secure = !is_dev_mode();
+            let mut resp = bwcommon::with_logging_info(info, StatusCode::OK);
+            append_cookie(&mut resp, auth_cookie("token", token, secure, true));
+            append_cookie(
+                &mut resp,
+                auth_cookie("username", form.username.clone(), secure, false),
+            );
+            Ok(resp)
         }
-        Err(_) => Ok(HttpResponse::Unauthorized()
-            .body("Either the username does not exist or the password is incorrect.")),
+        Err(_) => Ok((
+            StatusCode::UNAUTHORIZED,
+            "Either the username does not exist or the password is incorrect.",
+        )
+            .into_response()),
     }
 }

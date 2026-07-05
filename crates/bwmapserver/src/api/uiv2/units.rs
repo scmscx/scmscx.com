@@ -1,24 +1,18 @@
-use actix_web::get;
-use actix_web::web;
-use actix_web::HttpResponse;
-use actix_web::Responder;
-use bwcommon::insert_extension;
+use axum::extract::{Extension, Path};
+use axum::response::Response;
+use axum::Json;
+use bwcommon::with_logging_info;
 use bwcommon::ApiSpecificInfoForLogging;
 use bwcommon::MyError;
 use bwmap::ParsedChk;
 use serde_json::json;
 
-#[get("/api/uiv2/units/{map_id}")]
-async fn units(
-    // req: HttpRequest,
-    path: web::Path<(String,)>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, MyError> {
-    let (map_id,) = path.into_inner();
+use crate::webutil::Pool;
+
+pub async fn units(
+    Path((map_id,)): Path<(String,)>,
+    Extension(pool): Extension<Pool>,
+) -> Result<Response, MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let (chkblob, spoiler_unit_names) = {
@@ -85,8 +79,5 @@ async fn units(
         Vec::new()
     };
 
-    Ok(insert_extension(HttpResponse::Ok(), info)
-        .content_type("application/json")
-        .body(serde_json::to_string(&units).unwrap())
-        .customize())
+    Ok(with_logging_info(info, Json(units)))
 }

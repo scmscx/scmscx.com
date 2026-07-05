@@ -1,39 +1,52 @@
-use crate::middleware::UserSession;
-use actix_web::{post, web, HttpMessage, HttpRequest, HttpResponse};
+use axum::extract::Extension;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+use bwcommon::with_logging_info;
+
+use crate::webutil::{MaybeUser, Pool};
 
 #[derive(serde::Deserialize)]
-struct ChangePasswordPostData {
+pub(crate) struct ChangePasswordPostData {
     password: String,
     password_confirm: String,
 }
 
 async fn handler2(
-    req: HttpRequest,
-    form: web::Json<ChangePasswordPostData>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<HttpResponse, bwcommon::MyError> {
-    let Some(user_id) = req.extensions().get::<UserSession>().map(|x| x.id) else {
-        return Ok(HttpResponse::Unauthorized().body("Unauthorized. Try logging in first/again."));
+    user: MaybeUser,
+    form: ChangePasswordPostData,
+    pool: Pool,
+) -> Result<Response, bwcommon::MyError> {
+    let Some(user_id) = user.id() else {
+        return Ok((
+            StatusCode::UNAUTHORIZED,
+            "Unauthorized. Try logging in first/again.",
+        )
+            .into_response());
     };
 
     if form.password != form.password_confirm {
-        return Ok(HttpResponse::BadRequest().body("The two provided passwords must match"));
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            "The two provided passwords must match",
+        )
+            .into_response());
     }
 
     if form.password.is_empty() {
-        return Ok(
-            HttpResponse::BadRequest().body("The provided password must not be the empty string")
-        );
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            "The provided password must not be the empty string",
+        )
+            .into_response());
     }
 
     if form.password.len() > 100 {
-        return Ok(
-            HttpResponse::BadRequest().body("Why would you try to create a password that long")
-        );
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            "Why would you try to create a password that long",
+        )
+            .into_response());
     }
 
     crate::db::change_password(user_id, form.password.clone(), pool).await?;
@@ -43,23 +56,21 @@ async fn handler2(
         ..Default::default()
     };
 
-    Ok(bwcommon::insert_extension(HttpResponse::Ok(), info).body("Password changed successfully"))
+    Ok(with_logging_info(info, "Password changed successfully"))
 }
 
-#[post("/api/change-password")]
-async fn post_handler(
-    req: HttpRequest,
-    form: web::Json<ChangePasswordPostData>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<HttpResponse, bwcommon::MyError> {
+pub async fn post_handler(
+    user: MaybeUser,
+    Extension(pool): Extension<Pool>,
+    Json(form): Json<ChangePasswordPostData>,
+) -> Result<Response, bwcommon::MyError> {
     if std::env::var("SCMSCX_READONLY").unwrap_or_else(|_| "false".to_owned()) == "true" {
-        return Ok(HttpResponse::ServiceUnavailable()
-            .body("server is in maintenance mode, try again later.".to_owned()));
+        return Ok((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "server is in maintenance mode, try again later.".to_owned(),
+        )
+            .into_response());
     }
 
-    handler2(req, form, pool).await
+    handler2(user, form, pool).await
 }

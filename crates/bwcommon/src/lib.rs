@@ -4,13 +4,15 @@ mod denorm;
 mod id;
 mod logging;
 
+pub use common::LoggedError;
 pub use common::MyError;
 pub use logging::create_mixpanel_channel;
 pub use logging::do_mixpanel_stuff;
 pub use logging::get_api_logging_info;
-pub use logging::get_request_logging_info;
-pub use logging::insert_extension;
+pub use logging::get_request_logging_info_from_parts;
+pub use logging::with_logging_info;
 pub use logging::ApiLoggingInfo;
+pub use logging::ApiRequestLoggingInfo;
 pub use logging::ApiSpecificInfoForLogging;
 pub use logging::LangData;
 

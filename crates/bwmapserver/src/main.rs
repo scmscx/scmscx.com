@@ -1,4 +1,3 @@
-mod actix;
 mod api;
 mod db;
 mod hacks;
@@ -6,10 +5,13 @@ mod middleware;
 mod pumpers;
 mod ratelimit;
 mod search2;
+mod server;
+mod state;
 mod static_pages;
 mod tests;
 mod uiv2;
 mod util;
+mod webutil;
 
 use tracing_log::LogTracer;
 use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, EnvFilter, Layer};
@@ -75,7 +77,7 @@ async fn run() -> anyhow::Result<()> {
 
     //tracing_subscriber::fmt::init();
 
-    anyhow::Ok(actix::start().await?)
+    anyhow::Ok(server::start().await?)
 
     // let mut runner = actix_web::rt::System::new();
     // runner.block_on(async_main()).unwrap();

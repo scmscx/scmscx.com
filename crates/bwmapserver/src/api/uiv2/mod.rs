@@ -8,14 +8,12 @@ pub mod timestamps;
 pub mod units;
 pub mod upload;
 
-use crate::db;
-use crate::middleware::UserSession;
-use actix_web::post;
-use actix_web::HttpMessage;
-use actix_web::HttpRequest;
-use actix_web::Result;
-use actix_web::{get, web, HttpResponse, Responder};
-use bwcommon::insert_extension;
+use axum::body::Body;
+use axum::extract::{Extension, Path};
+use axum::http::{header, StatusCode};
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+use bwcommon::with_logging_info;
 use bwcommon::ApiSpecificInfoForLogging;
 use bwcommon::MyError;
 use common::gsfs::gsfs_get_map_image;
@@ -27,8 +25,11 @@ use tracing::error;
 use tracing::info;
 use tracing::instrument;
 
+use crate::db;
+use crate::webutil::{MaybeUser, Pool};
+
 #[derive(Debug, Serialize, Deserialize)]
-struct MapRow {
+pub(crate) struct MapRow {
     map_id: String,
     scenario_name: String,
     uploaded_time: i64,
@@ -39,7 +40,7 @@ struct MapRow {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ReplayRow {
+pub(crate) struct ReplayRow {
     replay_id: i64,
     scenario_name: String,
     uploaded_time: i64,
@@ -47,20 +48,15 @@ struct ReplayRow {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct FeaturedMap {
+pub(crate) struct FeaturedMap {
     map_id: String,
     scenario_name: String,
 }
 
-#[get("/api/uiv2/featured_maps")]
 #[instrument(skip_all, name = "/api/uiv2/featured_maps")]
-async fn featured_maps(
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, MyError> {
+pub async fn featured_maps(
+    Extension(pool): Extension<Pool>,
+) -> Result<Json<Vec<FeaturedMap>>, MyError> {
     let con = pool.get().await?;
 
     let ret: Vec<_> = con
@@ -81,21 +77,13 @@ async fn featured_maps(
         })
         .collect::<Result<_, anyhow::Error>>()?;
 
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .json(ret)
-        .customize())
+    Ok(Json(ret))
 }
 
-#[get("/api/uiv2/last_viewed_maps")]
 #[instrument(skip_all, name = "/api/uiv2/last_viewed_maps")]
-async fn last_viewed_maps(
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, MyError> {
+pub async fn last_viewed_maps(
+    Extension(pool): Extension<Pool>,
+) -> Result<Json<Vec<MapRow>>, MyError> {
     let con = pool.get().await?;
 
     let ret: Vec<_> = con.query(
@@ -112,21 +100,13 @@ async fn last_viewed_maps(
             last_downloaded: x.try_get(6)?,
         })).collect::<Result<_, anyhow::Error>>()?;
 
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .json(ret)
-        .customize())
+    Ok(Json(ret))
 }
 
-#[get("/api/uiv2/last_downloaded_maps")]
 #[instrument(skip_all, name = "/api/uiv2/last_downloaded_maps")]
-async fn last_downloaded_maps(
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, MyError> {
+pub async fn last_downloaded_maps(
+    Extension(pool): Extension<Pool>,
+) -> Result<Json<Vec<MapRow>>, MyError> {
     let con = pool.get().await?;
 
     let ret: Vec<_> = con.query(
@@ -143,21 +123,13 @@ async fn last_downloaded_maps(
             last_downloaded: x.try_get(6)?,
         })).collect::<Result<_, anyhow::Error>>()?;
 
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .json(ret)
-        .customize())
+    Ok(Json(ret))
 }
 
-#[get("/api/uiv2/last_uploaded_maps")]
 #[instrument(skip_all, name = "/api/uiv2/last_uploaded_maps")]
-async fn last_uploaded_maps(
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, MyError> {
+pub async fn last_uploaded_maps(
+    Extension(pool): Extension<Pool>,
+) -> Result<Json<Vec<MapRow>>, MyError> {
     let con = pool.get().await?;
 
     let ret: Vec<_> = con.query(
@@ -174,21 +146,13 @@ async fn last_uploaded_maps(
             last_downloaded: x.try_get(6)?,
         })).collect::<Result<_, anyhow::Error>>()?;
 
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .json(ret)
-        .customize())
+    Ok(Json(ret))
 }
 
-#[get("/api/uiv2/last_uploaded_replays")]
 #[instrument(skip_all, name = "/api/uiv2/last_uploaded_replays")]
-async fn last_uploaded_replays(
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, MyError> {
+pub async fn last_uploaded_replays(
+    Extension(pool): Extension<Pool>,
+) -> Result<Json<Vec<ReplayRow>>, MyError> {
     let con = pool.get().await?;
 
     let ret: Vec<_> = con.query(
@@ -203,21 +167,13 @@ async fn last_uploaded_replays(
                 map_id: bwcommon::get_web_id_from_db_id(x.try_get(3)?, crate::util::SEED_MAP_ID)?,
         })).collect::<Result<_, anyhow::Error>>()?;
 
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .json(ret)
-        .customize())
+    Ok(Json(ret))
 }
 
-#[get("/api/uiv2/most_viewed_maps")]
 #[instrument(skip_all, name = "/api/uiv2/most_viewed_maps")]
-async fn most_viewed_maps(
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, MyError> {
+pub async fn most_viewed_maps(
+    Extension(pool): Extension<Pool>,
+) -> Result<Json<Vec<MapRow>>, MyError> {
     let con = pool.get().await?;
 
     let ret: Vec<_> = con.query(
@@ -234,21 +190,13 @@ async fn most_viewed_maps(
             last_downloaded: x.try_get(6)?,
         })).collect::<Result<_, anyhow::Error>>()?;
 
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .json(ret)
-        .customize())
+    Ok(Json(ret))
 }
 
-#[get("/api/uiv2/most_downloaded_maps")]
 #[instrument(skip_all, name = "/api/uiv2/most_downloaded_maps")]
-async fn most_downloaded_maps(
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, MyError> {
+pub async fn most_downloaded_maps(
+    Extension(pool): Extension<Pool>,
+) -> Result<Json<Vec<MapRow>>, MyError> {
     let con = pool.get().await?;
 
     let ret: Vec<_> = con.query(
@@ -265,25 +213,15 @@ async fn most_downloaded_maps(
             last_downloaded: x.try_get(6)?,
         })).collect::<Result<_, anyhow::Error>>()?;
 
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .json(ret)
-        .customize())
+    Ok(Json(ret))
 }
 
-#[get("/api/uiv2/minimap/{map_id}")]
-async fn get_minimap(
-    req: HttpRequest,
-    path: web::Path<(String,)>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-    reqwest_client: web::Data<reqwest::Client>,
-) -> Result<impl Responder, bwcommon::MyError> {
-    let (map_id,) = path.into_inner();
-
+pub async fn get_minimap(
+    Extension(pool): Extension<Pool>,
+    Extension(reqwest_client): Extension<reqwest::Client>,
+    user: MaybeUser,
+    Path((map_id,)): Path<(String,)>,
+) -> Result<Response, MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let (chkblob_hash, uploaded_by, nsfw, blackholed) = {
@@ -311,14 +249,14 @@ async fn get_minimap(
         )
     };
 
-    let user_id = req.extensions().get::<UserSession>().map(|x| x.id);
+    let user_id = user.id();
 
     if nsfw && user_id.is_none() {
-        return Ok(HttpResponse::Forbidden().finish().customize());
+        return Ok(StatusCode::FORBIDDEN.into_response());
     }
 
     if blackholed && user_id != Some(uploaded_by) && user_id != Some(4) {
-        return Ok(HttpResponse::NotFound().finish().customize());
+        return Ok(StatusCode::NOT_FOUND.into_response());
     }
 
     let info = ApiSpecificInfoForLogging {
@@ -335,10 +273,13 @@ async fn get_minimap(
         .await
         {
             Ok(Ok(stream)) => {
-                return Ok(insert_extension(HttpResponse::Ok(), info)
-                    .content_type("application/octet-stream")
-                    .streaming(stream)
-                    .customize());
+                return Ok(with_logging_info(
+                    info,
+                    (
+                        [(header::CONTENT_TYPE, "application/octet-stream")],
+                        Body::from_stream(stream),
+                    ),
+                ));
             }
             Ok(Err(error)) => {
                 error!("Failed to get minimap from gsfs: {}", error);
@@ -349,13 +290,12 @@ async fn get_minimap(
         }
     }
 
-    let minimap = db::get_minimap(chkblob_hash.clone(), (**pool).clone())
-        .await?
-        .2;
+    let minimap = db::get_minimap(chkblob_hash.clone(), pool.clone()).await?.2;
 
     if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
         tokio::task::spawn({
             let minimap = minimap.clone();
+            let reqwest_client = reqwest_client.clone();
             async move {
                 match gsfs_put_minimap(&reqwest_client, &endpoint, chkblob_hash.as_str(), minimap)
                     .await
@@ -371,25 +311,18 @@ async fn get_minimap(
         });
     }
 
-    Ok(insert_extension(HttpResponse::Ok(), info)
-        .content_type("image/png")
-        .body(minimap)
-        .customize())
+    Ok(with_logging_info(
+        info,
+        ([(header::CONTENT_TYPE, "image/png")], minimap),
+    ))
 }
 
-#[get("/api/uiv2/img/{map_id}")]
-async fn get_map_image(
-    req: HttpRequest,
-    path: web::Path<(String,)>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-    reqwest_client: web::Data<reqwest::Client>,
-) -> Result<impl Responder, bwcommon::MyError> {
-    let (map_id,) = path.into_inner();
-
+pub async fn get_map_image(
+    Extension(pool): Extension<Pool>,
+    Extension(reqwest_client): Extension<reqwest::Client>,
+    user: MaybeUser,
+    Path((map_id,)): Path<(String,)>,
+) -> Result<Response, MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let (chkblob_hash, uploaded_by, nsfw, blackholed) = {
@@ -417,14 +350,14 @@ async fn get_map_image(
         )
     };
 
-    let user_id = req.extensions().get::<UserSession>().map(|x| x.id);
+    let user_id = user.id();
 
     if nsfw && user_id.is_none() {
-        return Ok(HttpResponse::Forbidden().finish().customize());
+        return Ok(StatusCode::FORBIDDEN.into_response());
     }
 
     if blackholed && user_id != Some(uploaded_by) && user_id != Some(4) {
-        return Ok(HttpResponse::NotFound().finish().customize());
+        return Ok(StatusCode::NOT_FOUND.into_response());
     }
 
     let info = ApiSpecificInfoForLogging {
@@ -441,10 +374,13 @@ async fn get_map_image(
         .await
         {
             Ok(Ok(stream)) => {
-                return Ok(insert_extension(HttpResponse::Ok(), info)
-                    .content_type("image/webp")
-                    .streaming(stream)
-                    .customize());
+                return Ok(with_logging_info(
+                    info,
+                    (
+                        [(header::CONTENT_TYPE, "image/webp")],
+                        Body::from_stream(stream),
+                    ),
+                ));
             }
             Ok(Err(error)) => {
                 error!("Failed to get mapimg from gsfs: {}", error);
@@ -455,21 +391,13 @@ async fn get_map_image(
         }
     }
 
-    Ok(insert_extension(HttpResponse::NotFound(), info)
-        .finish()
-        .customize())
+    Ok(with_logging_info(info, StatusCode::NOT_FOUND))
 }
 
-#[post("/api/uiv2/is_session_valid")]
-async fn is_session_valid(req: HttpRequest) -> Result<impl Responder, bwcommon::MyError> {
-    let is_session_valid = req.extensions().get::<UserSession>().is_some();
+pub async fn is_session_valid(user: MaybeUser) -> Result<Response, MyError> {
+    let is_session_valid = user.0.is_some();
 
-    let info = ApiSpecificInfoForLogging {
-        ..Default::default()
-    };
+    let info = ApiSpecificInfoForLogging::default();
 
-    Ok(insert_extension(HttpResponse::Ok(), info)
-        .content_type("application/json")
-        .body(serde_json::to_string(&json! {is_session_valid}).unwrap())
-        .customize())
+    Ok(with_logging_info(info, Json(json!(is_session_valid))))
 }

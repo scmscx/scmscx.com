@@ -1,7 +1,9 @@
-use actix_web::{
-    cookie::{Cookie, SameSite},
-    web, HttpResponse,
-};
+use axum::extract::Extension;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+
+use crate::webutil::{append_cookie, auth_cookie, Pool};
 
 #[derive(serde::Deserialize)]
 pub(crate) struct RegisterFormData {
@@ -10,40 +12,45 @@ pub(crate) struct RegisterFormData {
     password_confirm: String,
 }
 
-async fn handler2(
-    form: web::Json<RegisterFormData>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<HttpResponse, bwcommon::MyError> {
+async fn handler2(pool: Pool, form: RegisterFormData) -> Result<Response, bwcommon::MyError> {
     if form.username.is_empty() {
-        return Ok(
-            HttpResponse::BadRequest().body("The provided username must not be the empty string")
-        );
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            "The provided username must not be the empty string",
+        )
+            .into_response());
     }
 
     if form.username.len() > 100 {
-        return Ok(
-            HttpResponse::BadRequest().body("Why would you try to create a username that long")
-        );
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            "Why would you try to create a username that long",
+        )
+            .into_response());
     }
 
     if form.password != form.password_confirm {
-        return Ok(HttpResponse::BadRequest().body("The two provided passwords must match"));
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            "The two provided passwords must match",
+        )
+            .into_response());
     }
 
     if form.password.is_empty() {
-        return Ok(
-            HttpResponse::BadRequest().body("The provided password must not be the empty string")
-        );
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            "The provided password must not be the empty string",
+        )
+            .into_response());
     }
 
     if form.password.len() > 100 {
-        return Ok(
-            HttpResponse::BadRequest().body("Why would you try to create a password that long")
-        );
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            "Why would you try to create a password that long",
+        )
+            .into_response());
     }
 
     if let Ok(token) = crate::db::register(form.username.clone(), form.password.clone(), pool).await
@@ -53,42 +60,29 @@ async fn handler2(
             ..Default::default()
         };
 
-        Ok(bwcommon::insert_extension(HttpResponse::Ok(), info)
-            .cookie(
-                Cookie::build("token", token)
-                    .path("/")
-                    .same_site(SameSite::Lax)
-                    .secure(true)
-                    .permanent()
-                    .http_only(true)
-                    .finish(),
-            )
-            .cookie(
-                Cookie::build("username", &form.username)
-                    .path("/")
-                    .same_site(SameSite::Lax)
-                    .secure(true)
-                    .permanent()
-                    .finish(),
-            )
-            .finish())
+        let mut resp = bwcommon::with_logging_info(info, StatusCode::OK);
+        append_cookie(&mut resp, auth_cookie("token", token, true, true));
+        append_cookie(
+            &mut resp,
+            auth_cookie("username", form.username.clone(), true, false),
+        );
+        Ok(resp)
     } else {
-        Ok(HttpResponse::Unauthorized().body("Could not register account"))
+        Ok((StatusCode::UNAUTHORIZED, "Could not register account").into_response())
     }
 }
 
 pub async fn post_handler(
-    form: web::Json<RegisterFormData>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<HttpResponse, bwcommon::MyError> {
+    Extension(pool): Extension<Pool>,
+    Json(form): Json<RegisterFormData>,
+) -> Result<Response, bwcommon::MyError> {
     if std::env::var("SCMSCX_READONLY").unwrap_or_else(|_| "false".to_owned()) == "true" {
-        return Ok(HttpResponse::ServiceUnavailable()
-            .body("server is in maintenance mode, try again later.".to_owned()));
+        return Ok((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "server is in maintenance mode, try again later.",
+        )
+            .into_response());
     }
 
-    handler2(form, pool).await
+    handler2(pool, form).await
 }
