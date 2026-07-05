@@ -1002,6 +1002,22 @@ fn register_handlebars() -> Result<web::Data<Handlebars<'static>>> {
 // }
 
 pub(crate) async fn start() -> Result<()> {
+    // Fail loud on a Backblaze misconfiguration rather than silently not
+    // uploading maps. Backblaze must be turned off explicitly, never by accident.
+    if std::env::var("BACKBLAZE_DISABLED").as_deref() != Ok("true") {
+        for var in [
+            "BACKBLAZE_KEY_ID",
+            "BACKBLAZE_APPLICATION_KEY",
+            "BACKBLAZE_MAPBLOB_BUCKET",
+        ] {
+            std::env::var(var).map_err(|_| {
+                anyhow::anyhow!(
+                    "{var} not set (set BACKBLAZE_DISABLED=true to run without Backblaze)"
+                )
+            })?;
+        }
+    }
+
     let db_pool = setup_db().await?;
     // start_materialized_view_refresher(&db_pool)?; // This is not necessary anymore, nothing is using these stats and they are super expensive to calculate.
 
