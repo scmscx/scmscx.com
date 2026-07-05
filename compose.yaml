@@ -30,7 +30,7 @@ services:
       RENDER_SKIN: carbothd2
       # RENDER_SKIN: remasteredhd
       RENDER_BATCH_SIZE: 10
-      RENDER_POLL_INTERVAL_SECS: 30
+      RENDER_POLL_INTERVAL_SECS: 1
       RENDER_WEBP_QUALITY: 40
 
   scmscx:
