@@ -322,6 +322,17 @@ async fn download_worker(
         .await;
 
         let download_source = if let Err(e) = gsfs_result {
+            if config.backblaze_disabled {
+                error!(
+                    worker_id = worker_id,
+                    chkblob_hash = %map.chkblob_hash,
+                    mapblob_hash = %map.mapblob_hash,
+                    error = %e,
+                    "GSFS download failed and Backblaze is disabled; cannot fetch map"
+                );
+                continue;
+            }
+
             info!(
                 worker_id = worker_id,
                 chkblob_hash = %map.chkblob_hash,
@@ -650,12 +661,15 @@ async fn get_or_refresh_b2_auth(
         return Ok(auth.clone());
     }
     debug!("Authenticating with Backblaze B2");
-    let auth = b2_authorize_account(
-        client,
-        &config.backblaze_key_id,
-        &config.backblaze_application_key,
-    )
-    .await?;
+    let (Some(key_id), Some(application_key)) = (
+        config.backblaze_key_id.as_deref(),
+        config.backblaze_application_key.as_deref(),
+    ) else {
+        anyhow::bail!(
+            "Backblaze B2 fallback unavailable: BACKBLAZE_KEY_ID / BACKBLAZE_APPLICATION_KEY not set"
+        );
+    };
+    let auth = b2_authorize_account(client, key_id, application_key).await?;
     lock.auth = Some(auth.clone());
     Ok(auth)
 }

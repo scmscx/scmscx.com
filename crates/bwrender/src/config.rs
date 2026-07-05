@@ -15,9 +15,10 @@ pub struct Config {
     // GSFS
     pub gsfsfe_endpoint: String,
 
-    // Backblaze B2 (fallback)
-    pub backblaze_key_id: String,
-    pub backblaze_application_key: String,
+    // Backblaze B2 (fallback). Required unless `backblaze_disabled` is set.
+    pub backblaze_disabled: bool,
+    pub backblaze_key_id: Option<String>,
+    pub backblaze_application_key: Option<String>,
 
     // Rendering
     pub sc_data_path: String,
@@ -38,6 +39,22 @@ impl Config {
     pub fn from_env() -> Result<Self> {
         let db_user = env::var("DB_USER").context("DB_USER not set")?;
 
+        // Require Backblaze credentials unless Backblaze is explicitly disabled,
+        // so a misconfiguration fails loudly instead of silently not working.
+        let backblaze_disabled = env::var("BACKBLAZE_DISABLED").as_deref() == Ok("true");
+        let (backblaze_key_id, backblaze_application_key) = if backblaze_disabled {
+            (None, None)
+        } else {
+            (
+                Some(env::var("BACKBLAZE_KEY_ID").context(
+                    "BACKBLAZE_KEY_ID not set (set BACKBLAZE_DISABLED=true to run without Backblaze)",
+                )?),
+                Some(env::var("BACKBLAZE_APPLICATION_KEY").context(
+                    "BACKBLAZE_APPLICATION_KEY not set (set BACKBLAZE_DISABLED=true to run without Backblaze)",
+                )?),
+            )
+        };
+
         Ok(Config {
             db_host: env::var("DB_HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
             db_port: env::var("DB_PORT")
@@ -54,9 +71,9 @@ impl Config {
 
             gsfsfe_endpoint: env::var("GSFSFE_ENDPOINT").context("GSFSFE_ENDPOINT not set")?,
 
-            backblaze_key_id: env::var("BACKBLAZE_KEY_ID").context("BACKBLAZE_KEY_ID not set")?,
-            backblaze_application_key: env::var("BACKBLAZE_APPLICATION_KEY")
-                .context("BACKBLAZE_APPLICATION_KEY not set")?,
+            backblaze_disabled,
+            backblaze_key_id,
+            backblaze_application_key,
 
             sc_data_path: env::var("SC_DATA_PATH").context("SC_DATA_PATH not set")?,
             render_skin: parse_render_skin(

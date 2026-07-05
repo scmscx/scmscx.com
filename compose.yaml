@@ -25,6 +25,7 @@ services:
       DB_DATABASE: bounding.net
       DB_PASSWORD: anotverysecurepassword
       GSFSFE_ENDPOINT: "http://127.0.0.1:42069"
+      BACKBLAZE_DISABLED: "true"
       SC_DATA_PATH: /starcraft
       RENDER_SKIN: carbothd2
       # RENDER_SKIN: remasteredhd
