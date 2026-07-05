@@ -5,6 +5,7 @@ mod render;
 
 use anyhow::Result;
 use backblaze::api::{b2_authorize_account, b2_download_file_by_name, B2AuthorizeAccount, B2Error};
+use common::{register_counter, register_gauge, register_histogram};
 use futures_util::StreamExt;
 use render::RenderResult;
 use std::sync::Arc;
@@ -149,6 +150,10 @@ async fn main() -> Result<()> {
         ),
     )?;
 
+    // Telemetry: install the panic hook, bring up the Prometheus scrape server
+    // (PROMETHEUS_ENDPOINT, required), and start the runtime/process reporter.
+    common::telemetry::init(env!("CARGO_PKG_VERSION")).await;
+
     info!("Starting bwrender service");
 
     info!(
@@ -209,6 +214,32 @@ async fn main() -> Result<()> {
         encode_rx: encode_rx.clone(),
         upload_rx: upload_rx.clone(),
     });
+
+    // Telemetry: publish inter-stage queue depths continuously so backpressure is
+    // visible even when no map is completing.
+    {
+        let queue_refs = queue_refs.clone();
+        tokio::spawn(async move {
+            loop {
+                let q = queue_refs.snapshot();
+                for (queue, depth) in [
+                    ("download", q.download),
+                    ("render", q.render),
+                    ("encode", q.encode),
+                    ("upload", q.upload),
+                ] {
+                    register_gauge!(
+                        "scmscx",
+                        render_queue_depth,
+                        "Number of jobs waiting in a render pipeline queue, by queue",
+                        queue = queue
+                    )
+                    .set(depth as i64);
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            }
+        });
+    }
 
     // Spawn download workers
     info!(
@@ -301,8 +332,24 @@ async fn main() -> Result<()> {
         }
 
         let maps = match db::get_unrendered_maps(&pool).await {
-            Ok(maps) => maps,
+            Ok(maps) => {
+                register_counter!(
+                    "scmscx",
+                    render_db_fetch_total,
+                    "Database polls for unrendered maps, by result",
+                    result = "ok"
+                )
+                .inc();
+                maps
+            }
             Err(e) => {
+                register_counter!(
+                    "scmscx",
+                    render_db_fetch_total,
+                    "Database polls for unrendered maps, by result",
+                    result = "error"
+                )
+                .inc();
                 error!(error = ?e, "Failed to fetch unrendered maps from DB");
                 tokio::time::sleep(std::time::Duration::from_secs(
                     config.render_poll_interval_secs,
@@ -382,6 +429,14 @@ async fn download_worker(
 
         let download_source = if let Err(e) = gsfs_result {
             if config.backblaze_disabled {
+                register_counter!(
+                    "scmscx",
+                    render_stage_total,
+                    "Render pipeline stage outcomes, by stage and result",
+                    stage = "download",
+                    result = "error"
+                )
+                .inc();
                 error!(
                     worker_id = worker_id,
                     chkblob_hash = %map.chkblob_hash,
@@ -403,6 +458,14 @@ async fn download_worker(
             if let Err(e) =
                 download_from_b2_and_upload_to_gsfs(config, client, b2_auth, &map, &temp_path).await
             {
+                register_counter!(
+                    "scmscx",
+                    render_stage_total,
+                    "Render pipeline stage outcomes, by stage and result",
+                    stage = "download",
+                    result = "error"
+                )
+                .inc();
                 error!(
                     worker_id = worker_id,
                     chkblob_hash = %map.chkblob_hash,
@@ -465,6 +528,38 @@ async fn download_worker(
         let download_ms = start.elapsed().as_millis();
         let map_size = tokio::fs::metadata(&temp_path).await.map_or(0, |m| m.len());
 
+        register_counter!(
+            "scmscx",
+            render_stage_total,
+            "Render pipeline stage outcomes, by stage and result",
+            stage = "download",
+            result = "success"
+        )
+        .inc();
+        register_histogram!(
+            "scmscx",
+            render_stage_duration_seconds,
+            "Time spent in a render pipeline stage, in seconds, by stage",
+            common::telemetry::latency_buckets(),
+            stage = "download"
+        )
+        .observe(download_ms as f64 / 1000.0);
+        register_counter!(
+            "scmscx",
+            render_download_source_total,
+            "Source that served each downloaded map blob",
+            source = download_source
+        )
+        .inc();
+        register_histogram!(
+            "scmscx",
+            render_payload_bytes,
+            "Render pipeline payload sizes in bytes, by kind",
+            common::telemetry::size_buckets(),
+            kind = "map"
+        )
+        .observe(map_size as f64);
+
         if tx
             .send(RenderJob {
                 temp_path,
@@ -517,8 +612,34 @@ async fn render_worker(
         }
 
         let render_result = match render_result {
-            Ok(result) => result,
+            Ok(result) => {
+                register_counter!(
+                    "scmscx",
+                    render_stage_total,
+                    "Render pipeline stage outcomes, by stage and result",
+                    stage = "render",
+                    result = "success"
+                )
+                .inc();
+                register_histogram!(
+                    "scmscx",
+                    render_stage_duration_seconds,
+                    "Time spent in a render pipeline stage, in seconds, by stage",
+                    common::telemetry::latency_buckets(),
+                    stage = "render"
+                )
+                .observe(render_ms as f64 / 1000.0);
+                result
+            }
             Err(e) => {
+                register_counter!(
+                    "scmscx",
+                    render_stage_total,
+                    "Render pipeline stage outcomes, by stage and result",
+                    stage = "render",
+                    result = "error"
+                )
+                .inc();
                 error!(
                     chkblob_hash = %job.chkblob_hash,
                     mapblob_hash = %job.mapblob_hash,
@@ -588,16 +709,57 @@ async fn encode_worker(
         let (webp_data, minimap_png) = match encode_result {
             Ok(Ok(data)) => data,
             Ok(Err(e)) => {
+                register_counter!(
+                    "scmscx",
+                    render_stage_total,
+                    "Render pipeline stage outcomes, by stage and result",
+                    stage = "encode",
+                    result = "error"
+                )
+                .inc();
                 error!(worker_id = worker_id, chkblob_hash = %chkblob_hash, error = %e, "Encoding failed");
                 continue;
             }
             Err(e) => {
+                register_counter!(
+                    "scmscx",
+                    render_stage_total,
+                    "Render pipeline stage outcomes, by stage and result",
+                    stage = "encode",
+                    result = "error"
+                )
+                .inc();
                 error!(worker_id = worker_id, chkblob_hash = %chkblob_hash, error = %e, "Encoding task panicked");
                 continue;
             }
         };
 
         let encode_ms = start.elapsed().as_millis();
+
+        register_counter!(
+            "scmscx",
+            render_stage_total,
+            "Render pipeline stage outcomes, by stage and result",
+            stage = "encode",
+            result = "success"
+        )
+        .inc();
+        register_histogram!(
+            "scmscx",
+            render_stage_duration_seconds,
+            "Time spent in a render pipeline stage, in seconds, by stage",
+            common::telemetry::latency_buckets(),
+            stage = "encode"
+        )
+        .observe(encode_ms as f64 / 1000.0);
+        register_histogram!(
+            "scmscx",
+            render_payload_bytes,
+            "Render pipeline payload sizes in bytes, by kind",
+            common::telemetry::size_buckets(),
+            kind = "webp"
+        )
+        .observe(webp_data.len() as f64);
 
         if tx
             .send(UploadJob {
@@ -649,6 +811,14 @@ async fn upload_worker(
         )
         .await
         {
+            register_counter!(
+                "scmscx",
+                render_stage_total,
+                "Render pipeline stage outcomes, by stage and result",
+                stage = "upload",
+                result = "error"
+            )
+            .inc();
             error!(
                 worker_id = worker_id,
                 chkblob_hash = %job.chkblob_hash,
@@ -666,6 +836,14 @@ async fn upload_worker(
         )
         .await
         {
+            register_counter!(
+                "scmscx",
+                render_stage_total,
+                "Render pipeline stage outcomes, by stage and result",
+                stage = "upload",
+                result = "error"
+            )
+            .inc();
             error!(
                 worker_id = worker_id,
                 chkblob_hash = %job.chkblob_hash,
@@ -678,6 +856,14 @@ async fn upload_worker(
         let upload_ms = start.elapsed().as_millis();
 
         if let Err(e) = db::mark_rendered(pool, &job.chkblob_hash).await {
+            register_counter!(
+                "scmscx",
+                render_stage_total,
+                "Render pipeline stage outcomes, by stage and result",
+                stage = "upload",
+                result = "error"
+            )
+            .inc();
             error!(
                 worker_id = worker_id,
                 chkblob_hash = %job.chkblob_hash,
@@ -686,6 +872,29 @@ async fn upload_worker(
             );
             continue;
         }
+
+        register_counter!(
+            "scmscx",
+            render_stage_total,
+            "Render pipeline stage outcomes, by stage and result",
+            stage = "upload",
+            result = "success"
+        )
+        .inc();
+        register_histogram!(
+            "scmscx",
+            render_stage_duration_seconds,
+            "Time spent in a render pipeline stage, in seconds, by stage",
+            common::telemetry::latency_buckets(),
+            stage = "upload"
+        )
+        .observe(upload_ms as f64 / 1000.0);
+        register_counter!(
+            "scmscx",
+            render_maps_completed_total,
+            "Maps fully rendered, uploaded and marked rendered in the database"
+        )
+        .inc();
 
         let queues = queue_refs.snapshot();
 

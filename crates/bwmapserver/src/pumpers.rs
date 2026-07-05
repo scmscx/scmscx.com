@@ -2,8 +2,21 @@ use anyhow::Result;
 use async_stream::stream;
 use backblaze::api::{b2_authorize_account, b2_get_upload_url, b2_upload_file};
 use bytes::BytesMut;
+use common::{register_counter, register_gauge, register_histogram};
 use tokio::io::AsyncReadExt;
 use tracing::{error, info, warn};
+
+/// Best-effort count of files in a pumper's pending directory, for the
+/// `scmscx_pumper_pending_files` gauge.
+async fn count_pending(dir: &str) -> i64 {
+    let mut count = 0i64;
+    if let Ok(mut entries) = tokio::fs::read_dir(dir).await {
+        while let Ok(Some(_)) = entries.next_entry().await {
+            count += 1;
+        }
+    }
+    count
+}
 
 pub async fn start_gsfs_pumper(client: reqwest::Client) -> Result<()> {
     info!("starting gsfs pumper");
@@ -20,6 +33,14 @@ pub async fn start_gsfs_pumper(client: reqwest::Client) -> Result<()> {
     tokio::task::spawn(async move {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+            register_gauge!(
+                "scmscx",
+                pumper_pending_files,
+                "Files currently waiting in a pumper's pending directory",
+                pumper = "gsfs"
+            )
+            .set(count_pending("./pending/gsfs").await);
 
             let mut entries = match tokio::fs::read_dir("./pending/gsfs").await {
                 Ok(v) => v,
@@ -46,8 +67,25 @@ pub async fn start_gsfs_pumper(client: reqwest::Client) -> Result<()> {
                 )
                 .await
                 {
-                    Ok(()) => {}
+                    Ok(()) => {
+                        register_counter!(
+                            "scmscx",
+                            pumper_uploads_total,
+                            "Background pumper upload attempts, by pumper and result",
+                            pumper = "gsfs",
+                            result = "success"
+                        )
+                        .inc();
+                    }
                     Err(e) => {
+                        register_counter!(
+                            "scmscx",
+                            pumper_uploads_total,
+                            "Background pumper upload attempts, by pumper and result",
+                            pumper = "gsfs",
+                            result = "error"
+                        )
+                        .inc();
                         error!("failed to upload mapblob to gsfs: {e}");
                         continue;
                     }
@@ -119,6 +157,14 @@ pub async fn start_backblaze_pumper(client: reqwest::Client) -> Result<()> {
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
+                register_gauge!(
+                    "scmscx",
+                    pumper_pending_files,
+                    "Files currently waiting in a pumper's pending directory",
+                    pumper = "backblaze"
+                )
+                .set(count_pending("./pending/backblaze").await);
+
                 let mut entries = match tokio::fs::read_dir("./pending/backblaze").await {
                     Ok(v) => v,
                     Err(e) => {
@@ -183,8 +229,33 @@ pub async fn start_backblaze_pumper(client: reqwest::Client) -> Result<()> {
                     )
                     .await
                     {
-                        Ok(()) => {}
+                        Ok(()) => {
+                            register_counter!(
+                                "scmscx",
+                                pumper_uploads_total,
+                                "Background pumper upload attempts, by pumper and result",
+                                pumper = "backblaze",
+                                result = "success"
+                            )
+                            .inc();
+                            register_histogram!(
+                                "scmscx",
+                                pumper_upload_bytes,
+                                "Payload sizes uploaded by a pumper, in bytes",
+                                common::telemetry::size_buckets(),
+                                pumper = "backblaze"
+                            )
+                            .observe(metadata.len() as f64);
+                        }
                         Err(e) => {
+                            register_counter!(
+                                "scmscx",
+                                pumper_uploads_total,
+                                "Background pumper upload attempts, by pumper and result",
+                                pumper = "backblaze",
+                                result = "error"
+                            )
+                            .inc();
                             error!("failed to b2_upload_file: {e}");
                             continue 'full_retry;
                         }

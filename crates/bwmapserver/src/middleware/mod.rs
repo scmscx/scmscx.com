@@ -1,9 +1,12 @@
 mod cachehtml;
 mod language;
+mod metrics;
 mod postgreslogging;
 mod traceid;
 mod trackinganalytics;
 mod usersession;
+
+pub use metrics::MetricsTransformer;
 
 pub use traceid::TraceID;
 

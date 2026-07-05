@@ -20,6 +20,10 @@ tokio = { version = "1.47.1", features = ["rt-multi-thread", "full"] }
 # Database
 bb8-postgres = "0.9.0"
 
+# Telemetry: the register_*! macros expand to code that names `prometheus_client`
+# directly, so it must be a direct dependency here (not just via `common`).
+prometheus-client = "0.24"
+
 # HTTP client
 reqwest = { version = "0.12.24", default-features = false, features = ["rustls-tls"] }
 

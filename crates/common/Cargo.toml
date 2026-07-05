@@ -21,5 +21,10 @@ bb8-postgres = "0.9.0"
 tokio = { version = "1.47.1", features = ["full"] }
 serde = "1.0.219"
 
+# Telemetry / Prometheus
+prometheus-client = "0.24"
+axum = "0.8"
+lazy_static = "1.5"
+
 [lints]
 workspace = true

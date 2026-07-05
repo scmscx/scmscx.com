@@ -26,6 +26,7 @@ services:
       DB_PASSWORD: anotverysecurepassword
       GSFSFE_ENDPOINT: "http://127.0.0.1:42069"
       BACKBLAZE_DISABLED: "true"
+      PROMETHEUS_ENDPOINT: "0.0.0.0:9102"
       SC_DATA_PATH: /starcraft
       RENDER_SKIN: carbothd2
       # RENDER_SKIN: remasteredhd
@@ -48,6 +49,7 @@ services:
       DB_USER: bounding.net
       DB_DATABASE: bounding.net
       DB_PASSWORD: anotverysecurepassword
+      PROMETHEUS_ENDPOINT: "0.0.0.0:9101"
       BACKBLAZE_DISABLED: "true"
       MIXPANEL_DISABLED: "true"
       GSFSFE_ENDPOINT: "http://127.0.0.1:42069"
