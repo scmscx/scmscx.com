@@ -7,22 +7,22 @@ use std::fmt::Debug;
 use std::time::Duration;
 use tracing::error;
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) async fn insert_map(
-    filename: &str,
-    mpq_path: &str,
-    mpq_blob_hash: &str,
-    mpq_blob_len: usize,
-    user_id: i64,
-    playlist_id: i64,
-    add_tags: std::collections::HashMap<String, String>,
-    pool: bb8_postgres::bb8::Pool<
-        bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-    >,
-    modified_time: Option<i64>,
-) -> Result<(i64, Vec<u8>, String), anyhow::Error> {
-    let filename = filename.to_string();
+/// A parsed + validated map, ready to be staged for delivery and inserted.
+pub(crate) struct ParsedMap {
+    chk_blob: Vec<u8>,
+    chk_blob_hash: String,
+    pub(crate) insert: Option<MapInsert>,
+}
 
+pub(crate) struct MapInsert {
+    scenario_name: String,
+    chk_blob_compressed: Vec<u8>,
+}
+
+/// Extract and validate a map's CHK from its MPQ. Returns an error if the file
+/// isn't a parseable map, so callers can reject garbage before staging it or
+/// touching the database.
+pub(crate) fn parse_map(mpq_path: &str) -> Result<ParsedMap> {
     let chk_blob = bwmpq::get_chk_from_mpq_filename(mpq_path)?;
     let parsed_chk = ParsedChk::from_bytes(chk_blob.as_slice());
 
@@ -51,7 +51,11 @@ pub(crate) async fn insert_map(
         | "ebeffd8f677b345289667d2700c92c6d69795bd1c1c3aa52d8287a542a72ad7b"
         | "6c81a80495be17f3fbbb06569973a167f1caf20daa777ae4db51990bc8a8df43"
         | "e8839041d71d6588e67303d4ec156a421c611e155cd61afef3a6a48cec635137" => {
-            return Ok((-1, chk_blob, chk_blob_hash));
+            return Ok(ParsedMap {
+                chk_blob,
+                chk_blob_hash,
+                insert: None,
+            });
         }
         _ => {}
     }
@@ -65,6 +69,40 @@ pub(crate) async fn insert_map(
 
     // compress chk
     let chk_blob_compressed = zstd::bulk::compress(chk_blob.as_slice(), 15)?;
+
+    Ok(ParsedMap {
+        chk_blob,
+        chk_blob_hash,
+        insert: Some(MapInsert {
+            scenario_name,
+            chk_blob_compressed,
+        }),
+    })
+}
+
+/// Insert a parsed map (and its chkblob, filenames, tags, and playlist mapping)
+/// into the database, returning the new map id.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn insert_parsed_map(
+    parsed: ParsedMap,
+    filename: &str,
+    mpq_blob_hash: &str,
+    mpq_blob_len: usize,
+    user_id: i64,
+    playlist_id: i64,
+    add_tags: std::collections::HashMap<String, String>,
+    pool: bb8_postgres::bb8::Pool<
+        bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
+    >,
+    modified_time: Option<i64>,
+) -> Result<i64, anyhow::Error> {
+    let insert = parsed.insert.expect("should never happen");
+
+    let filename = filename.to_string();
+    let chk_blob = parsed.chk_blob;
+    let chk_blob_hash = parsed.chk_blob_hash;
+    let scenario_name = insert.scenario_name;
+    let chk_blob_compressed = insert.chk_blob_compressed;
 
     // get now time:
     let time_since_epoch = std::time::SystemTime::now()
@@ -169,7 +207,7 @@ pub(crate) async fn insert_map(
 
     let map_id = retry_n_times(7, f).await?;
 
-    anyhow::Ok((map_id, chk_blob, chk_blob_hash))
+    anyhow::Ok(map_id)
 }
 
 fn sanitize_sc_scenario_string(s: &str) -> String {
