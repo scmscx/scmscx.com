@@ -3,6 +3,9 @@ resolver = "2"
 members = ["crates/*"]
 default-members = ["crates/*"]
 
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }
+
 [workspace.lints.clippy]
 # Start with all lints allowed, then selectively enable groups
 all = { level = "allow", priority = -2 }

@@ -98,7 +98,7 @@ pub fn get_or_register_histogram(
 }
 
 /// Record on a counter, e.g.
-/// `register_counter!("scmscx", http_requests_total, "help", method = m, status = s).inc();`
+/// `register_counter!("scmscx", http_requests, "help", method = m, status = s).inc();`
 #[macro_export]
 macro_rules! register_counter {
     ($prefix:literal, $id:ident, $help:literal $(, $key:ident = $val:expr)* $(,)?) => {{
@@ -238,23 +238,29 @@ pub fn encode_metrics() -> String {
 /// the delegated hook, and a label-less counter needs no per-panic map lookup.
 pub fn install_panic_hook() {
     let previous = std::panic::take_hook();
-    let panics = register_counter!(
-        "scmscx",
-        panics_total,
-        "Total panics observed by the panic hook."
-    );
+    let panics = register_counter!("scmscx", panics, "Total panics observed by the panic hook.");
     std::panic::set_hook(Box::new(move |info| {
         panics.inc();
         previous(info);
     }));
 }
 
+/// Interval between runtime-metric samples.
+const RUNTIME_SAMPLE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// Spawn a background task that periodically publishes process-level and tokio
 /// runtime gauges. Must be called from within a tokio runtime.
 ///
-/// Uses only tokio's *stable* runtime metrics so it works without the
-/// `tokio_unstable` cfg. Also publishes `scmscx_build_info` (always 1, carrying
-/// the crate version) and process uptime.
+/// With `--cfg tokio_unstable` (set in `.cargo/config.toml`) this reports the
+/// full `tokio-metrics` `RuntimeMonitor` interval stats — worker busy time, task
+/// polls, work-stealing, queue depths, blocking-pool state, etc. Without the cfg
+/// it degrades to the small stable subset from `Handle::metrics()`.
+///
+/// Note: it monitors *the runtime it is spawned on*. In `bwrender` that is the
+/// whole pipeline; in the actix web server that is the main/background runtime
+/// (pumpers, reporters, scrape server) — actix serves requests on its own
+/// per-worker runtimes, whose latency is already captured by the HTTP middleware
+/// histogram.
 pub fn spawn_runtime_metrics_reporter(version: &'static str) {
     let start = std::time::Instant::now();
     let handle = tokio::runtime::Handle::current();
@@ -276,31 +282,26 @@ pub fn spawn_runtime_metrics_reporter(version: &'static str) {
         .set(now.as_secs() as i64);
     }
 
+    // Expose tokio's task poll-time distribution as a native Prometheus histogram.
+    // It is a custom collector rather than a sampled gauge so the buckets are read
+    // straight from the runtime at scrape time (see `PollTimeCollector`).
+    #[cfg(tokio_unstable)]
+    REGISTRY
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .register_collector(Box::new(PollTimeCollector {
+            handle: handle.clone(),
+        }));
+
     tokio::spawn(async move {
+        // The interval iterator is stateful (each `next()` yields the delta since
+        // the previous sample), so it lives across loop iterations.
+        #[cfg(tokio_unstable)]
+        let monitor = tokio_metrics::RuntimeMonitor::new(&handle);
+        #[cfg(tokio_unstable)]
+        let mut intervals = monitor.intervals();
+
         loop {
-            let m = handle.metrics();
-
-            register_gauge!(
-                "scmscx",
-                tokio_workers,
-                "Number of tokio runtime worker threads"
-            )
-            .set(m.num_workers() as i64);
-
-            register_gauge!(
-                "scmscx",
-                tokio_alive_tasks,
-                "Number of currently alive tokio tasks"
-            )
-            .set(m.num_alive_tasks() as i64);
-
-            register_gauge!(
-                "scmscx",
-                tokio_global_queue_depth,
-                "Number of tasks in the tokio global run queue"
-            )
-            .set(m.global_queue_depth() as i64);
-
             register_gauge!(
                 "scmscx",
                 process_uptime_seconds,
@@ -308,9 +309,265 @@ pub fn spawn_runtime_metrics_reporter(version: &'static str) {
             )
             .set(start.elapsed().as_secs() as i64);
 
-            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            #[cfg(tokio_unstable)]
+            if let Some(interval) = intervals.next() {
+                record_runtime_interval(&interval);
+            }
+
+            #[cfg(not(tokio_unstable))]
+            {
+                let m = handle.metrics();
+                register_gauge!(
+                    "scmscx",
+                    tokio_workers,
+                    "Number of tokio runtime worker threads"
+                )
+                .set(m.num_workers() as i64);
+                register_gauge!(
+                    "scmscx",
+                    tokio_alive_tasks,
+                    "Number of currently alive tokio tasks"
+                )
+                .set(m.num_alive_tasks() as i64);
+                register_gauge!(
+                    "scmscx",
+                    tokio_global_queue_depth,
+                    "Number of tasks in the tokio global run queue"
+                )
+                .set(m.global_queue_depth() as i64);
+            }
+
+            tokio::time::sleep(RUNTIME_SAMPLE_INTERVAL).await;
         }
     });
+}
+
+/// Publish one `tokio-metrics` runtime interval. Per-interval totals are recorded
+/// as counters (incremented by the interval's delta so they accumulate) and
+/// point-in-time samples as gauges.
+#[cfg(tokio_unstable)]
+fn record_runtime_interval(iv: &tokio_metrics::RuntimeMetrics) {
+    fn micros(d: std::time::Duration) -> u64 {
+        d.as_micros().min(u128::from(u64::MAX)) as u64
+    }
+
+    // Accumulating totals (interval deltas).
+    register_counter!("scmscx", tokio_park, "Total worker park (idle) events")
+        .inc_by(iv.total_park_count);
+    register_counter!(
+        "scmscx",
+        tokio_busy_duration_micros,
+        "Total time worker threads were busy, in microseconds"
+    )
+    .inc_by(micros(iv.total_busy_duration));
+    register_counter!("scmscx", tokio_polls, "Total number of task polls")
+        .inc_by(iv.total_polls_count);
+    register_counter!("scmscx", tokio_noop, "Total no-op park wakeups").inc_by(iv.total_noop_count);
+    register_counter!(
+        "scmscx",
+        tokio_steal_count,
+        "Total tasks stolen between workers"
+    )
+    .inc_by(iv.total_steal_count);
+    register_counter!(
+        "scmscx",
+        tokio_steal_operations,
+        "Total work-stealing operations"
+    )
+    .inc_by(iv.total_steal_operations);
+    register_counter!(
+        "scmscx",
+        tokio_local_schedule,
+        "Total tasks scheduled onto a worker's local queue"
+    )
+    .inc_by(iv.total_local_schedule_count);
+    register_counter!(
+        "scmscx",
+        tokio_remote_schedule,
+        "Total tasks scheduled from outside the runtime"
+    )
+    .inc_by(iv.num_remote_schedules);
+    register_counter!(
+        "scmscx",
+        tokio_overflow,
+        "Total times a local queue overflowed into the global queue"
+    )
+    .inc_by(iv.total_overflow_count);
+    register_counter!(
+        "scmscx",
+        tokio_budget_forced_yield,
+        "Total tasks forced to yield because they exhausted their coop budget"
+    )
+    .inc_by(iv.budget_forced_yield_count);
+    register_counter!(
+        "scmscx",
+        tokio_io_driver_ready,
+        "Total readiness events processed by the IO driver"
+    )
+    .inc_by(iv.io_driver_ready_count);
+
+    // Point-in-time samples.
+    register_gauge!(
+        "scmscx",
+        tokio_workers,
+        "Number of tokio runtime worker threads"
+    )
+    .set(iv.workers_count as i64);
+    register_gauge!(
+        "scmscx",
+        tokio_global_queue_depth,
+        "Number of tasks in the tokio global run queue"
+    )
+    .set(iv.global_queue_depth as i64);
+    register_gauge!(
+        "scmscx",
+        tokio_local_queue_depth,
+        "Total tasks sitting in per-worker local run queues"
+    )
+    .set(iv.total_local_queue_depth as i64);
+    register_gauge!(
+        "scmscx",
+        tokio_blocking_queue_depth,
+        "Tasks queued waiting for a blocking (spawn_blocking) thread"
+    )
+    .set(iv.blocking_queue_depth as i64);
+    register_gauge!(
+        "scmscx",
+        tokio_live_tasks,
+        "Number of alive tasks on the runtime"
+    )
+    .set(iv.live_tasks_count as i64);
+    register_gauge!(
+        "scmscx",
+        tokio_blocking_threads,
+        "Number of threads in the blocking pool"
+    )
+    .set(iv.blocking_threads_count as i64);
+    register_gauge!(
+        "scmscx",
+        tokio_idle_blocking_threads,
+        "Number of idle threads in the blocking pool"
+    )
+    .set(iv.idle_blocking_threads_count as i64);
+    register_gauge!(
+        "scmscx",
+        tokio_interval_elapsed_micros,
+        "Wall-clock duration covered by this metrics interval, in microseconds"
+    )
+    .set(micros(iv.elapsed) as i64);
+
+    // Mean task poll duration. Populated only when the runtime was built with the
+    // poll-time histogram enabled (see the binaries' runtime builders); zero
+    // otherwise. This is the headline "are tasks blocking the executor?" signal.
+    register_gauge!(
+        "scmscx",
+        tokio_mean_poll_duration_micros,
+        "Mean task poll duration across the runtime, in microseconds"
+    )
+    .set(micros(iv.mean_poll_duration) as i64);
+    register_gauge!(
+        "scmscx",
+        tokio_mean_poll_duration_worker_min_micros,
+        "Smallest per-worker mean poll duration, in microseconds"
+    )
+    .set(micros(iv.mean_poll_duration_worker_min) as i64);
+    register_gauge!(
+        "scmscx",
+        tokio_mean_poll_duration_worker_max_micros,
+        "Largest per-worker mean poll duration, in microseconds"
+    )
+    .set(micros(iv.mean_poll_duration_worker_max) as i64);
+}
+
+/// Custom collector that exports tokio's per-worker task poll-time histogram as a
+/// native Prometheus histogram (`scmscx_tokio_poll_time_seconds`) at scrape time.
+///
+/// tokio keeps cumulative per-bucket poll counts (since runtime start) per worker;
+/// we sum them across workers and hand prometheus-client the per-bucket counts,
+/// which it accumulates into the `le` series. This yields real
+/// `histogram_quantile()`-able p50/p99 poll latencies — the signal a *mean* hides.
+///
+/// `_sum` is approximate: tokio does not expose the exact sum of poll durations,
+/// so it is estimated from each bucket's lower bound. Quantiles (bucket-based) are
+/// exact; only the derived average is an estimate.
+#[cfg(tokio_unstable)]
+#[derive(Debug)]
+struct PollTimeCollector {
+    handle: tokio::runtime::Handle,
+}
+
+#[cfg(tokio_unstable)]
+impl prometheus_client::collector::Collector for PollTimeCollector {
+    fn encode(
+        &self,
+        mut encoder: prometheus_client::encoding::DescriptorEncoder,
+    ) -> Result<(), std::fmt::Error> {
+        let m = self.handle.metrics();
+        if !m.poll_time_histogram_enabled() {
+            return Ok(());
+        }
+
+        let num_buckets = m.poll_time_histogram_num_buckets();
+        let num_workers = m.num_workers();
+
+        let mut buckets: Vec<(f64, u64)> = Vec::with_capacity(num_buckets);
+        let mut total: u64 = 0;
+        let mut sum_seconds: f64 = 0.0;
+        for b in 0..num_buckets {
+            let count: u64 = (0..num_workers)
+                .map(|w| m.poll_time_histogram_bucket_count(w, b))
+                .sum();
+            let range = m.poll_time_histogram_bucket_range(b);
+            // The final bucket is the open-ended overflow; `f64::MAX` is the
+            // encoder's sentinel for the `le="+Inf"` label.
+            let upper = if b == num_buckets - 1 {
+                f64::MAX
+            } else {
+                range.end.as_secs_f64()
+            };
+            buckets.push((upper, count));
+            total += count;
+            sum_seconds += count as f64 * range.start.as_secs_f64();
+        }
+
+        let mut metric_encoder = encoder.encode_descriptor(
+            "scmscx_tokio_poll_time_seconds",
+            "Distribution of tokio task poll durations, in seconds",
+            None,
+            prometheus_client::metrics::MetricType::Histogram,
+        )?;
+        metric_encoder.encode_histogram::<Labels>(sum_seconds, total, &buckets, None)?;
+        Ok(())
+    }
+}
+
+/// Build the tokio runtime the binary should run on. Equivalent to
+/// `#[tokio::main]` (multi-threaded, all drivers enabled) plus, under
+/// `--cfg tokio_unstable`, the poll-time histogram, which is what populates the
+/// `scmscx_tokio_mean_poll_duration_*` metrics. Call `.block_on(async { … })` on
+/// the returned runtime.
+pub fn build_runtime() -> std::io::Result<tokio::runtime::Runtime> {
+    let mut builder = tokio::runtime::Builder::new_multi_thread();
+    builder.enable_all();
+    #[cfg(tokio_unstable)]
+    {
+        // Log-scale poll-time histogram spanning ~1µs–10s. A rare
+        // several-hundred-ms blocking poll then lands in its own bucket; the
+        // default (linear, low-µs) config buckets everything above ~1ms together
+        // and would hide exactly the stalls we care about. `precision_exact(1)`
+        // gives two sub-buckets per octave (~46 buckets over the range) — enough
+        // resolution for quantiles without excessive series cardinality.
+        let histogram = tokio::runtime::LogHistogram::builder()
+            .min_value(std::time::Duration::from_micros(1))
+            .max_value(std::time::Duration::from_secs(10))
+            .precision_exact(1)
+            .build();
+        builder.metrics_poll_time_histogram_configuration(
+            tokio::runtime::HistogramConfiguration::log(histogram),
+        );
+        builder.enable_metrics_poll_time_histogram();
+    }
+    builder.build()
 }
 
 /// One-call telemetry bootstrap for a binary. Installs the panic hook, starts

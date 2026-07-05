@@ -104,7 +104,7 @@ where
 
             register_counter!(
                 "scmscx",
-                http_requests_total,
+                http_requests,
                 "Total HTTP requests handled, by method, route pattern and status",
                 method = method,
                 route = route,

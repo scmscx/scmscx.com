@@ -14,8 +14,13 @@ mod util;
 use tracing_log::LogTracer;
 use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, EnvFilter, Layer};
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
+    // Build the runtime explicitly (rather than `#[tokio::main]`) so the tokio
+    // poll-time histogram can be enabled — see `common::telemetry::build_runtime`.
+    common::telemetry::build_runtime()?.block_on(run())
+}
+
+async fn run() -> anyhow::Result<()> {
     LogTracer::init().expect("Failed to set logger");
 
     // let mut builder = opentelemetry_sdk::trace::TracerProvider::builder();

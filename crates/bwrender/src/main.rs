@@ -135,8 +135,13 @@ impl QueueRefs {
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
+    // Build the runtime explicitly (rather than `#[tokio::main]`) so the tokio
+    // poll-time histogram can be enabled — see `common::telemetry::build_runtime`.
+    common::telemetry::build_runtime()?.block_on(run())
+}
+
+async fn run() -> Result<()> {
     // Initialize logging
     LogTracer::init().expect("Failed to set logger");
     tracing::subscriber::set_global_default(
@@ -335,7 +340,7 @@ async fn main() -> Result<()> {
             Ok(maps) => {
                 register_counter!(
                     "scmscx",
-                    render_db_fetch_total,
+                    render_db_fetch,
                     "Database polls for unrendered maps, by result",
                     result = "ok"
                 )
@@ -345,7 +350,7 @@ async fn main() -> Result<()> {
             Err(e) => {
                 register_counter!(
                     "scmscx",
-                    render_db_fetch_total,
+                    render_db_fetch,
                     "Database polls for unrendered maps, by result",
                     result = "error"
                 )
@@ -431,7 +436,7 @@ async fn download_worker(
             if config.backblaze_disabled {
                 register_counter!(
                     "scmscx",
-                    render_stage_total,
+                    render_stage,
                     "Render pipeline stage outcomes, by stage and result",
                     stage = "download",
                     result = "error"
@@ -460,7 +465,7 @@ async fn download_worker(
             {
                 register_counter!(
                     "scmscx",
-                    render_stage_total,
+                    render_stage,
                     "Render pipeline stage outcomes, by stage and result",
                     stage = "download",
                     result = "error"
@@ -530,7 +535,7 @@ async fn download_worker(
 
         register_counter!(
             "scmscx",
-            render_stage_total,
+            render_stage,
             "Render pipeline stage outcomes, by stage and result",
             stage = "download",
             result = "success"
@@ -546,7 +551,7 @@ async fn download_worker(
         .observe(download_ms as f64 / 1000.0);
         register_counter!(
             "scmscx",
-            render_download_source_total,
+            render_download_source,
             "Source that served each downloaded map blob",
             source = download_source
         )
@@ -615,7 +620,7 @@ async fn render_worker(
             Ok(result) => {
                 register_counter!(
                     "scmscx",
-                    render_stage_total,
+                    render_stage,
                     "Render pipeline stage outcomes, by stage and result",
                     stage = "render",
                     result = "success"
@@ -634,7 +639,7 @@ async fn render_worker(
             Err(e) => {
                 register_counter!(
                     "scmscx",
-                    render_stage_total,
+                    render_stage,
                     "Render pipeline stage outcomes, by stage and result",
                     stage = "render",
                     result = "error"
@@ -711,7 +716,7 @@ async fn encode_worker(
             Ok(Err(e)) => {
                 register_counter!(
                     "scmscx",
-                    render_stage_total,
+                    render_stage,
                     "Render pipeline stage outcomes, by stage and result",
                     stage = "encode",
                     result = "error"
@@ -723,7 +728,7 @@ async fn encode_worker(
             Err(e) => {
                 register_counter!(
                     "scmscx",
-                    render_stage_total,
+                    render_stage,
                     "Render pipeline stage outcomes, by stage and result",
                     stage = "encode",
                     result = "error"
@@ -738,7 +743,7 @@ async fn encode_worker(
 
         register_counter!(
             "scmscx",
-            render_stage_total,
+            render_stage,
             "Render pipeline stage outcomes, by stage and result",
             stage = "encode",
             result = "success"
@@ -813,7 +818,7 @@ async fn upload_worker(
         {
             register_counter!(
                 "scmscx",
-                render_stage_total,
+                render_stage,
                 "Render pipeline stage outcomes, by stage and result",
                 stage = "upload",
                 result = "error"
@@ -838,7 +843,7 @@ async fn upload_worker(
         {
             register_counter!(
                 "scmscx",
-                render_stage_total,
+                render_stage,
                 "Render pipeline stage outcomes, by stage and result",
                 stage = "upload",
                 result = "error"
@@ -858,7 +863,7 @@ async fn upload_worker(
         if let Err(e) = db::mark_rendered(pool, &job.chkblob_hash).await {
             register_counter!(
                 "scmscx",
-                render_stage_total,
+                render_stage,
                 "Render pipeline stage outcomes, by stage and result",
                 stage = "upload",
                 result = "error"
@@ -875,7 +880,7 @@ async fn upload_worker(
 
         register_counter!(
             "scmscx",
-            render_stage_total,
+            render_stage,
             "Render pipeline stage outcomes, by stage and result",
             stage = "upload",
             result = "success"
@@ -891,7 +896,7 @@ async fn upload_worker(
         .observe(upload_ms as f64 / 1000.0);
         register_counter!(
             "scmscx",
-            render_maps_completed_total,
+            render_maps_completed,
             "Maps fully rendered, uploaded and marked rendered in the database"
         )
         .inc();
