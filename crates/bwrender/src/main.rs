@@ -31,6 +31,34 @@ impl B2Auth {
     }
 }
 
+/// Set of map ids currently somewhere in the pipeline, used by the DB fetcher to
+/// avoid re-dispatching a map it has already handed off. Guarded by a std Mutex
+/// (not tokio's) so `InFlightGuard::drop` can release synchronously.
+type InFlightSet = Arc<std::sync::Mutex<std::collections::HashSet<i64>>>;
+
+/// RAII token that rides along with a job through every pipeline stage. When the
+/// job leaves the pipeline for any reason — completed, failed, or dropped on a
+/// closed channel — this drops and releases the map id, so a map that lost the
+/// upload/GSFS race is retried on the very next poll rather than after a timeout.
+struct InFlightGuard {
+    map_id: i64,
+    set: InFlightSet,
+}
+
+impl Drop for InFlightGuard {
+    fn drop(&mut self) {
+        if let Ok(mut set) = self.set.lock() {
+            set.remove(&self.map_id);
+        }
+    }
+}
+
+/// Item on the download queue: the map to fetch plus its in-flight guard.
+struct DownloadJob {
+    map: UnrenderedMap,
+    guard: InFlightGuard,
+}
+
 /// Timing data accumulated as a job moves through the pipeline.
 struct PipelineTimings {
     download_ms: u128,
@@ -49,6 +77,7 @@ struct RenderJob {
     download_ms: u128,
     download_source: &'static str,
     map_size: u64,
+    guard: InFlightGuard,
 }
 
 /// Job passed from the render thread to encode workers.
@@ -61,6 +90,7 @@ struct EncodeJob {
     download_source: &'static str,
     render_ms: u128,
     map_size: u64,
+    guard: InFlightGuard,
 }
 
 /// Job passed from encode workers to upload workers.
@@ -71,6 +101,10 @@ struct UploadJob {
     chkblob_hash: String,
     mapblob_hash: String,
     timings: PipelineTimings,
+    // Held only for its Drop side effect: releases the map id once this job is
+    // fully processed. Never read, hence the allow.
+    #[allow(dead_code)]
+    guard: InFlightGuard,
 }
 
 /// Snapshot of all queue lengths for logging.
@@ -83,7 +117,7 @@ struct QueueLengths {
 
 /// Shared references to all queue receivers/senders for snapshotting queue lengths.
 struct QueueRefs {
-    download_rx: async_channel::Receiver<UnrenderedMap>,
+    download_rx: async_channel::Receiver<DownloadJob>,
     render_rx: async_channel::Receiver<RenderJob>,
     encode_rx: async_channel::Receiver<EncodeJob>,
     upload_rx: async_channel::Receiver<UploadJob>,
@@ -157,7 +191,7 @@ async fn main() -> Result<()> {
     info!(temp_dir = %config.temp_dir, "Temp directory ready");
 
     // Stage 1: DB fetcher -> download_tx (unbounded)
-    let (download_tx, download_rx) = async_channel::unbounded::<UnrenderedMap>();
+    let (download_tx, download_rx) = async_channel::unbounded::<DownloadJob>();
 
     // Stage 2: download workers -> render_tx
     let (render_tx, render_rx) = async_channel::bounded::<RenderJob>(render_channel_bound);
@@ -246,7 +280,18 @@ async fn main() -> Result<()> {
     }
     drop(upload_rx);
 
-    // DB fetcher loop: refill download queue when empty
+    // DB fetcher loop: refill download queue when empty.
+    //
+    // A map isn't marked rendered until the very last pipeline stage, so while it
+    // is being downloaded/rendered/encoded/uploaded it still shows up as
+    // unrendered. The download queue drains in milliseconds, so without tracking
+    // dispatched maps we would re-queue (and re-render) the same map on every
+    // poll until it finished. Each dispatched map carries an InFlightGuard that
+    // removes its id from `in_flight` the instant its pipeline attempt ends
+    // (success or failure), so a map still rendering is never re-dispatched while
+    // a map that lost the upload/GSFS race is retried on the next poll.
+    let in_flight: InFlightSet = Arc::new(std::sync::Mutex::new(std::collections::HashSet::new()));
+
     info!("Starting DB fetcher loop");
     loop {
         // Wait until the download queue is drained before refilling
@@ -267,6 +312,14 @@ async fn main() -> Result<()> {
             }
         };
 
+        // Skip maps already dispatched and still working through the pipeline.
+        let maps: Vec<_> = {
+            let in_flight = in_flight.lock().unwrap();
+            maps.into_iter()
+                .filter(|map| !in_flight.contains(&map.map_id))
+                .collect()
+        };
+
         if maps.is_empty() {
             info!(
                 poll_interval_secs = config.render_poll_interval_secs,
@@ -276,6 +329,7 @@ async fn main() -> Result<()> {
                 config.render_poll_interval_secs,
             ))
             .await;
+
             continue;
         }
 
@@ -285,8 +339,13 @@ async fn main() -> Result<()> {
         );
 
         for map in maps {
+            in_flight.lock().unwrap().insert(map.map_id);
+            let guard = InFlightGuard {
+                map_id: map.map_id,
+                set: in_flight.clone(),
+            };
             download_tx
-                .send(map)
+                .send(DownloadJob { map, guard })
                 .await
                 .map_err(|_| anyhow::anyhow!("Download channel closed"))?;
         }
@@ -296,7 +355,7 @@ async fn main() -> Result<()> {
 /// Download worker: fetches map files from GSFS/B2 and sends them to the render queue.
 async fn download_worker(
     worker_id: usize,
-    rx: async_channel::Receiver<UnrenderedMap>,
+    rx: async_channel::Receiver<DownloadJob>,
     tx: async_channel::Sender<RenderJob>,
     config: &Config,
     client: &reqwest::Client,
@@ -304,7 +363,7 @@ async fn download_worker(
 ) {
     info!(worker_id = worker_id, "Download worker started");
 
-    while let Ok(map) = rx.recv().await {
+    while let Ok(DownloadJob { map, guard }) = rx.recv().await {
         let start = std::time::Instant::now();
 
         let temp_path = format!(
@@ -415,6 +474,7 @@ async fn download_worker(
                 download_ms,
                 download_source,
                 map_size,
+                guard,
             })
             .await
             .is_err()
@@ -479,6 +539,7 @@ async fn render_worker(
                 download_source: job.download_source,
                 render_ms,
                 map_size: job.map_size,
+                guard: job.guard,
             })
             .await
             .is_err()
@@ -552,6 +613,7 @@ async fn encode_worker(
                     encode_ms,
                     map_size: job.map_size,
                 },
+                guard: job.guard,
             })
             .await
             .is_err()
