@@ -166,15 +166,6 @@ pub async fn gsfs_put_map_image(
     gsfs_put_bytes(client, endpoint, &format!("/img/{chkblob_hash}.webp"), data).await
 }
 
-pub async fn gsfs_put_mapblob(
-    client: &Client,
-    endpoint: &str,
-    mapblob_hash: &str,
-    data: Vec<u8>,
-) -> Result<()> {
-    gsfs_put_bytes(client, endpoint, &format!("/mapblob/{mapblob_hash}"), data).await
-}
-
 pub async fn gsfs_put_mapblob_file(
     client: &Client,
     endpoint: &str,
