@@ -70,7 +70,7 @@ pub async fn start_gsfs_pumper(client: reqwest::Client) -> Result<()> {
                     Ok(()) => {
                         register_counter!(
                             "scmscx",
-                            pumper_uploads_total,
+                            pumper_uploads,
                             "Background pumper upload attempts, by pumper and result",
                             pumper = "gsfs",
                             result = "success"
@@ -80,7 +80,7 @@ pub async fn start_gsfs_pumper(client: reqwest::Client) -> Result<()> {
                     Err(e) => {
                         register_counter!(
                             "scmscx",
-                            pumper_uploads_total,
+                            pumper_uploads,
                             "Background pumper upload attempts, by pumper and result",
                             pumper = "gsfs",
                             result = "error"
@@ -232,7 +232,7 @@ pub async fn start_backblaze_pumper(client: reqwest::Client) -> Result<()> {
                         Ok(()) => {
                             register_counter!(
                                 "scmscx",
-                                pumper_uploads_total,
+                                pumper_uploads,
                                 "Background pumper upload attempts, by pumper and result",
                                 pumper = "backblaze",
                                 result = "success"
@@ -250,7 +250,7 @@ pub async fn start_backblaze_pumper(client: reqwest::Client) -> Result<()> {
                         Err(e) => {
                             register_counter!(
                                 "scmscx",
-                                pumper_uploads_total,
+                                pumper_uploads,
                                 "Background pumper upload attempts, by pumper and result",
                                 pumper = "backblaze",
                                 result = "error"

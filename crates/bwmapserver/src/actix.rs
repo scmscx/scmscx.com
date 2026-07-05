@@ -74,7 +74,7 @@ pub async fn get_auth(
         .await;
         register_counter!(
             "scmscx",
-            backblaze_auth_total,
+            backblaze_auth,
             "Backblaze B2 authorize-account calls, by result",
             result = if auth.is_ok() { "ok" } else { "error" }
         )
@@ -138,7 +138,7 @@ async fn get_map(
             Ok(mut stream) => {
                 register_counter!(
                     "scmscx",
-                    map_download_total,
+                    map_download,
                     "Map blob download attempts, by source that served the blob",
                     source = "gsfs"
                 )
@@ -150,7 +150,7 @@ async fn get_map(
                         let mut hasher = sha2::Sha256::new();
                         let bytes_total = register_counter!(
                             "scmscx",
-                            map_download_bytes_total,
+                            map_download_bytes,
                             "Total bytes streamed to clients for map downloads, by source",
                             source = "gsfs"
                         );
@@ -193,7 +193,7 @@ async fn get_map(
             Ok(mut stream) => {
                 register_counter!(
                     "scmscx",
-                    map_download_total,
+                    map_download,
                     "Map blob download attempts, by source that served the blob",
                     source = "backblaze"
                 )
@@ -213,7 +213,7 @@ async fn get_map(
                         let mut hasher = sha2::Sha256::new();
                         let bytes_total = register_counter!(
                             "scmscx",
-                            map_download_bytes_total,
+                            map_download_bytes,
                             "Total bytes streamed to clients for map downloads, by source",
                             source = "backblaze"
                         );
@@ -244,7 +244,7 @@ async fn get_map(
 
     register_counter!(
         "scmscx",
-        map_download_total,
+        map_download,
         "Map blob download attempts, by source that served the blob",
         source = "failed"
     )

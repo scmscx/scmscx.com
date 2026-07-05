@@ -25,6 +25,8 @@ serde = "1.0.219"
 prometheus-client = "0.24"
 axum = "0.8"
 lazy_static = "1.5"
+# tokio runtime metrics; only used under `#[cfg(tokio_unstable)]`.
+tokio-metrics = "0.4"
 
 [lints]
 workspace = true
