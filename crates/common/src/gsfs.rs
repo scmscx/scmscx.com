@@ -175,6 +175,15 @@ pub async fn gsfs_put_mapblob(
     gsfs_put_bytes(client, endpoint, &format!("/mapblob/{mapblob_hash}"), data).await
 }
 
+pub async fn gsfs_put_mapblob_file(
+    client: &Client,
+    endpoint: &str,
+    mapblob_hash: &str,
+    path: impl AsRef<Path> + 'static,
+) -> Result<()> {
+    gsfs_put_file(client, endpoint, path, format!("/mapblob/{mapblob_hash}")).await
+}
+
 pub async fn gsfs_put_chkblob(
     client: &Client,
     endpoint: &str,

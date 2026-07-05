@@ -60,6 +60,7 @@ async fn upload_map(
 
     tokio::fs::create_dir_all("./pending/tmp").await?;
     tokio::fs::create_dir_all("./pending/backblaze").await?;
+    tokio::fs::create_dir_all("./pending/gsfs").await?;
     let fake_filename = format!("./pending/tmp/{}.scx", uuid::Uuid::new_v4().as_simple());
 
     let mut sha256hasher = Sha256::new();
@@ -149,6 +150,14 @@ async fn upload_map(
             format!("./pending/backblaze/{sha1hash}-{sha256hash}"),
         )
         .await?;
+    }
+
+    // gsfs
+    {
+        info!("copying mpq for gsfs");
+        let fake_filename2 = format!("./pending/tmp/{}", uuid::Uuid::new_v4().as_simple());
+        tokio::fs::copy(&fake_filename, fake_filename2.as_str()).await?;
+        tokio::fs::rename(fake_filename2, format!("./pending/gsfs/{sha256hash}")).await?;
     }
 
     info!("removing temp file");

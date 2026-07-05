@@ -5,6 +5,71 @@ use bytes::BytesMut;
 use tokio::io::AsyncReadExt;
 use tracing::{error, info, warn};
 
+pub async fn start_gsfs_pumper(client: reqwest::Client) -> Result<()> {
+    info!("starting gsfs pumper");
+
+    tokio::fs::create_dir_all("./pending/gsfs").await?;
+
+    let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") else {
+        warn!(
+            "GSFSFE_ENDPOINT not set, gsfs pumper DISABLED, maps will NOT be uploaded to gsfs!!!"
+        );
+        return Ok(());
+    };
+
+    tokio::task::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+            let mut entries = match tokio::fs::read_dir("./pending/gsfs").await {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("could not readdir ./pending/gsfs: {e:?}");
+                    continue;
+                }
+            };
+
+            while let Ok(Some(entry)) = entries.next_entry().await {
+                // Files are named by their sha256 (the mapblob_hash).
+                let Ok(mapblob_hash) = entry.file_name().into_string() else {
+                    error!("could not stringify filename: {:?}", entry.file_name());
+                    continue;
+                };
+
+                info!("attempting to upload mapblob to gsfs: {mapblob_hash}");
+
+                match common::gsfs::gsfs_put_mapblob_file(
+                    &client,
+                    &endpoint,
+                    &mapblob_hash,
+                    entry.path(),
+                )
+                .await
+                {
+                    Ok(()) => {}
+                    Err(e) => {
+                        error!("failed to upload mapblob to gsfs: {e}");
+                        continue;
+                    }
+                }
+
+                // Only remove the file once it has been uploaded successfully.
+                match tokio::fs::remove_file(entry.path()).await {
+                    Ok(()) => {}
+                    Err(e) => {
+                        error!("failed to remove file: {e}");
+                        continue;
+                    }
+                }
+
+                info!("Successfully uploaded mapblob to gsfs: {mapblob_hash}");
+            }
+        }
+    });
+
+    Ok(())
+}
+
 pub async fn start_backblaze_pumper(client: reqwest::Client) -> Result<()> {
     info!("starting backblaze pumper");
 
