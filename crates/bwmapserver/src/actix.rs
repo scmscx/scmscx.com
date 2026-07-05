@@ -10,6 +10,7 @@ use crate::hacks;
 
 use bwcommon::insert_extension;
 use bwcommon::{ApiSpecificInfoForLogging, MyError};
+use common::{register_counter, register_gauge};
 
 use crate::api::uiv2::get_map_image;
 use crate::pumpers::start_backblaze_pumper;
@@ -65,14 +66,20 @@ pub async fn get_auth(
     }
 
     if lock.auth.is_none() || reacquire {
-        lock.auth = Some(
-            b2_authorize_account(
-                client,
-                &std::env::var("BACKBLAZE_KEY_ID").unwrap(),
-                &std::env::var("BACKBLAZE_APPLICATION_KEY").unwrap(),
-            )
-            .await?,
-        );
+        let auth = b2_authorize_account(
+            client,
+            &std::env::var("BACKBLAZE_KEY_ID").unwrap(),
+            &std::env::var("BACKBLAZE_APPLICATION_KEY").unwrap(),
+        )
+        .await;
+        register_counter!(
+            "scmscx",
+            backblaze_auth_total,
+            "Backblaze B2 authorize-account calls, by result",
+            result = if auth.is_ok() { "ok" } else { "error" }
+        )
+        .inc();
+        lock.auth = Some(auth?);
 
         lock.version = lock.version.checked_add(1).unwrap();
     }
@@ -129,14 +136,28 @@ async fn get_map(
     if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
         match gsfs_get_mapblob(&reqwest_client, &endpoint, &mapblob_hash).await {
             Ok(mut stream) => {
+                register_counter!(
+                    "scmscx",
+                    map_download_total,
+                    "Map blob download attempts, by source that served the blob",
+                    source = "gsfs"
+                )
+                .inc();
                 return Ok(insert_extension(HttpResponse::Ok(), info)
                     .content_type("application/octet-stream")
                     .streaming(async_stream::stream! {
                         use sha2::Digest;
                         let mut hasher = sha2::Sha256::new();
+                        let bytes_total = register_counter!(
+                            "scmscx",
+                            map_download_bytes_total,
+                            "Total bytes streamed to clients for map downloads, by source",
+                            source = "gsfs"
+                        );
 
                         while let Some(chunk) = stream.next().await {
                             let chunk = chunk?;
+                            bytes_total.inc_by(chunk.len() as u64);
                             hasher.update(&chunk);
                             yield Result::<_, anyhow::Error>::Ok(chunk);
                         }
@@ -170,6 +191,13 @@ async fn get_map(
                 bad_version = Some(version);
             }
             Ok(mut stream) => {
+                register_counter!(
+                    "scmscx",
+                    map_download_total,
+                    "Map blob download attempts, by source that served the blob",
+                    source = "backblaze"
+                )
+                .inc();
                 tokio::fs::create_dir_all("./pending/downloading").await?;
 
                 let temp_filename = format!(
@@ -183,9 +211,16 @@ async fn get_map(
                     .streaming(async_stream::stream! {
                         use sha2::Digest;
                         let mut hasher = sha2::Sha256::new();
+                        let bytes_total = register_counter!(
+                            "scmscx",
+                            map_download_bytes_total,
+                            "Total bytes streamed to clients for map downloads, by source",
+                            source = "backblaze"
+                        );
 
                         while let Some(chunk) = stream.next().await {
                             let chunk = chunk?;
+                            bytes_total.inc_by(chunk.len() as u64);
                             if let Ok(temp) = &mut temp_file {
                                 if let Err(e) = temp.write_all(&chunk).await {
                                     error!("Failed to write to temp file: {e}, temp_filename: {temp_filename}");
@@ -207,6 +242,13 @@ async fn get_map(
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     }
 
+    register_counter!(
+        "scmscx",
+        map_download_total,
+        "Map blob download attempts, by source that served the blob",
+        source = "failed"
+    )
+    .inc();
     Ok(insert_extension(HttpResponse::InternalServerError(), info).finish())
 }
 
@@ -1003,6 +1045,10 @@ fn register_handlebars() -> Result<web::Data<Handlebars<'static>>> {
 // }
 
 pub(crate) async fn start() -> Result<()> {
+    // Telemetry: install the panic hook, bring up the Prometheus scrape server
+    // (PROMETHEUS_ENDPOINT, required), and start the runtime/process reporter.
+    common::telemetry::init(env!("CARGO_PKG_VERSION")).await;
+
     // Fail loud on a Backblaze misconfiguration rather than silently not
     // uploading maps. Backblaze must be turned off explicitly, never by accident.
     if std::env::var("BACKBLAZE_DISABLED").as_deref() != Ok("true") {
@@ -1021,6 +1067,31 @@ pub(crate) async fn start() -> Result<()> {
 
     let db_pool = setup_db().await?;
     // start_materialized_view_refresher(&db_pool)?; // This is not necessary anymore, nothing is using these stats and they are super expensive to calculate.
+
+    // Telemetry: start the background reporter for the DB pool gauges. The panic
+    // hook, scrape server, and runtime reporter were already brought up by
+    // `common::telemetry::init` at the top of `start`.
+    {
+        let pool = db_pool.clone();
+        tokio::spawn(async move {
+            loop {
+                let state = pool.state();
+                for (label, value) in [
+                    ("total", state.connections),
+                    ("idle", state.idle_connections),
+                ] {
+                    register_gauge!(
+                        "scmscx",
+                        db_pool_connections,
+                        "bb8 database pool connection count, by state",
+                        state = label
+                    )
+                    .set(i64::from(value));
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            }
+        });
+    }
 
     let handlebars = register_handlebars()?;
 
@@ -1077,6 +1148,7 @@ pub(crate) async fn start() -> Result<()> {
             .app_data(username_limiter.clone())
             .wrap(middleware::Compress::default())
             .wrap(middleware::NormalizePath::trim())
+            .wrap(crate::middleware::MetricsTransformer)
             .wrap(crate::middleware::CacheHtmlTransformer)
             .wrap(crate::middleware::PostgresLoggingTransformer)
             .wrap(crate::middleware::UserSessionTransformer)
