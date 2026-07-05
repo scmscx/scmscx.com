@@ -1,6 +1,3 @@
-use actix_web::error::PayloadError;
-use actix_web::HttpResponse;
-
 #[macro_export]
 macro_rules! ensure {
     ($cond:expr $(,)?) => {
@@ -28,14 +25,22 @@ impl std::fmt::Display for MyError {
     }
 }
 
-impl actix_web::error::ResponseError for MyError {
-    fn status_code(&self) -> actix_web::http::StatusCode {
-        actix_web::http::StatusCode::INTERNAL_SERVER_ERROR
-    }
+/// Marker stashed in a response's extensions when the response was produced by
+/// a handler returning `Err(MyError)`. The postgres-logging middleware reads it
+/// to fill the `error` column, matching actix's separate error path.
+#[derive(Clone, Debug)]
+pub struct LoggedError(pub String);
 
-    fn error_response(&self) -> HttpResponse {
+impl axum::response::IntoResponse for MyError {
+    fn into_response(self) -> axum::response::Response {
         error!("{self:?}");
-        HttpResponse::InternalServerError().body("Something went wrong :)".to_string())
+        let err_string = format!("{self:?}");
+        let mut resp = axum::response::IntoResponse::into_response((
+            http::StatusCode::INTERNAL_SERVER_ERROR,
+            "Something went wrong :)",
+        ));
+        resp.extensions_mut().insert(LoggedError(err_string));
+        resp
     }
 }
 
@@ -57,12 +62,6 @@ impl From<walkdir::Error> for MyError {
     }
 }
 
-impl From<PayloadError> for MyError {
-    fn from(err: PayloadError) -> MyError {
-        MyError { err: err.into() }
-    }
-}
-
 impl From<anyhow::Error> for MyError {
     fn from(err: anyhow::Error) -> MyError {
         MyError { err }
@@ -71,14 +70,6 @@ impl From<anyhow::Error> for MyError {
 
 impl From<&str> for MyError {
     fn from(err: &str) -> MyError {
-        MyError {
-            err: anyhow::Error::msg(err.to_string()),
-        }
-    }
-}
-
-impl From<actix_multipart::MultipartError> for MyError {
-    fn from(err: actix_multipart::MultipartError) -> MyError {
         MyError {
             err: anyhow::Error::msg(err.to_string()),
         }
@@ -161,27 +152,11 @@ impl From<std::env::VarError> for MyError {
     }
 }
 
-impl From<awc::error::SendRequestError> for MyError {
-    fn from(err: awc::error::SendRequestError) -> MyError {
-        MyError {
-            err: anyhow::anyhow!("there was an error: {}", err),
-        }
-    }
-}
-
-// Result<PooledConnection<SqliteConnectionManager>, Error>
-
-impl From<actix_web::error::BlockingError> for MyError {
-    fn from(err: actix_web::error::BlockingError) -> MyError {
-        MyError { err: err.into() }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::error::ResponseError;
-    use actix_web::http::StatusCode;
+    use axum::response::IntoResponse;
+    use http::StatusCode;
 
     #[test]
     fn my_error_from_str_and_display() {
@@ -198,19 +173,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn response_error_is_500_with_generic_body() {
-        let e: MyError = "secret detail leaked here".into();
+    async fn into_response_is_500_with_generic_body() {
+        let resp = MyError::from("secret detail leaked here").into_response();
 
-        assert_eq!(e.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
-
-        let resp = e.error_response();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
 
         // The public body must NOT leak the internal error string.
-        let bytes = actix_web::body::to_bytes(resp.into_body()).await.unwrap();
+        let (parts, body) = resp.into_parts();
+        let bytes = axum::body::to_bytes(body, usize::MAX).await.unwrap();
         let text = String::from_utf8(bytes.to_vec()).unwrap();
         assert_eq!(text, "Something went wrong :)");
         assert!(!text.contains("secret detail leaked here"));
+
+        // ...but the internal detail is stashed in the LoggedError extension so
+        // the postgres-logging middleware can record it.
+        let logged = parts
+            .extensions
+            .get::<LoggedError>()
+            .expect("LoggedError extension must be present on error responses");
+        assert!(logged.0.contains("secret detail leaked here"));
     }
 
     #[test]

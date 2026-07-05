@@ -1,19 +1,11 @@
-use std::{
-    future::{ready, Ready},
-    rc::Rc,
-};
+use axum::extract::Request;
+use axum::http::{header, HeaderValue, StatusCode};
+use axum::middleware::Next;
+use axum::response::Response;
+use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
+use tracing::info;
 
-use actix_web::body::EitherBody;
-use actix_web::{
-    cookie::Cookie,
-    dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
-    web::Data,
-    Error, HttpMessage, HttpResponse,
-};
-use bb8_postgres::{bb8::Pool, tokio_postgres::NoTls, PostgresConnectionManager};
-use futures_util::{future::LocalBoxFuture, FutureExt};
-use log::info;
-use tracing::{instrument, Instrument};
+use crate::webutil::Pool;
 
 #[derive(Clone, Debug)]
 pub struct UserSession {
@@ -22,205 +14,187 @@ pub struct UserSession {
     pub token: String,
 }
 
-pub struct UserSessionTransformer;
+/// Build a 301 response that logs the user out by clearing the auth cookies.
+fn log_out_user() -> Response {
+    let mut resp = Response::builder()
+        .status(StatusCode::MOVED_PERMANENTLY)
+        .header(header::LOCATION, "/")
+        .body(axum::body::Body::empty())
+        .unwrap();
 
-impl<S: 'static, B> Transform<S, ServiceRequest> for UserSessionTransformer
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<EitherBody<B>>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Response = ServiceResponse<EitherBody<B>>;
-    type Error = Error;
-    type InitError = ();
-    type Transform = UserSessionMiddleware<S>;
-    type Future = Ready<Result<Self::Transform, Self::InitError>>;
-
-    fn new_transform(&self, service: S) -> Self::Future {
-        ready(Ok(UserSessionMiddleware {
-            service: Rc::new(service),
-        }))
+    for name in ["username", "token"] {
+        let mut cookie = Cookie::build((name, ""))
+            .path("/")
+            .same_site(SameSite::Lax)
+            .secure(true)
+            .build();
+        cookie.make_removal();
+        resp.headers_mut().append(
+            header::SET_COOKIE,
+            HeaderValue::from_str(&cookie.to_string()).unwrap(),
+        );
     }
+
+    resp
 }
 
-pub struct UserSessionMiddleware<S> {
-    service: Rc<S>,
-}
+/// Validates the `username`/`token` cookie pair against the DB and, when valid,
+/// inserts a `UserSession` into the request extensions. An invalid/stale
+/// session short-circuits with a logout redirect.
+pub async fn user_session(pool: Pool, mut req: Request, next: Next) -> Response {
+    let jar = CookieJar::from_headers(req.headers());
 
-impl<S: 'static, B> Service<ServiceRequest> for UserSessionMiddleware<S>
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<EitherBody<B>>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Response = ServiceResponse<EitherBody<B>>;
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+    // No username cookie → not logged in, proceed untouched.
+    let Some(cookie_username) = jar.get("username") else {
+        return next.run(req).await;
+    };
 
-    forward_ready!(service);
+    // A username cookie without a matching token is a stale/invalid session and
+    // is logged out (matching the pre-axum actix behavior — this branch is a pure
+    // refactor and must not change it).
+    let Some(cookie_token) = jar.get("token") else {
+        return log_out_user();
+    };
 
-    #[instrument(skip_all, name = "")]
-    fn call(&self, req: ServiceRequest) -> Self::Future {
-        let pool = req
-            .app_data::<Data<Pool<PostgresConnectionManager<NoTls>>>>()
-            .unwrap()
-            .clone();
+    let con = pool.get().await.unwrap();
+    let row = con
+        .query_opt(
+            "select id, token, username from account where username = $1",
+            &[&cookie_username.value()],
+        )
+        .await
+        .unwrap();
 
-        let s = self.service.clone();
+    let Some(row) = row else {
+        return log_out_user();
+    };
 
-        async move {
-            let log_out_user = || {
-                HttpResponse::MovedPermanently()
-                    .insert_header(("location", "/"))
-                    .cookie(
-                        Cookie::build("username", "")
-                            .path("/")
-                            .same_site(actix_web::cookie::SameSite::Lax)
-                            .secure(true)
-                            .expires(
-                                actix_web::cookie::time::OffsetDateTime::from_unix_timestamp(0)
-                                    .unwrap(),
-                            )
-                            .finish(),
-                    )
-                    .cookie(
-                        Cookie::build("token", "")
-                            .path("/")
-                            .same_site(actix_web::cookie::SameSite::Lax)
-                            .secure(true)
-                            .expires(
-                                actix_web::cookie::time::OffsetDateTime::from_unix_timestamp(0)
-                                    .unwrap(),
-                            )
-                            .finish(),
-                    )
-                    .finish()
-                    .map_into_right_body()
-            };
+    let (id, token, username) = (
+        row.get::<_, i64>(0),
+        row.get::<_, String>(1),
+        row.get::<_, String>(2),
+    );
 
-            if let Some(cookie_username) = req.cookie("username") {
-                if let Some(cookie_token) = req.cookie("token") {
-                    let con = pool.get().await.unwrap();
-                    let row = con
-                        .query_opt(
-                            "select id, token, username from account where username = $1",
-                            &[&cookie_username.value()],
-                        )
-                        .await
-                        .unwrap();
-
-                    let Some(row) = row else {
-                        return Ok(req.into_response(log_out_user()));
-                    };
-
-                    let db_idtoken = (
-                        row.get::<_, i64>(0),
-                        row.get::<_, String>(1),
-                        row.get::<_, String>(2),
-                    );
-
-                    if cookie_token.value() == db_idtoken.1.as_str() {
-                        info!(
-                            "id: {}, username: {}, token: {}",
-                            db_idtoken.0, db_idtoken.2, db_idtoken.1
-                        );
-                        req.extensions_mut().insert(UserSession {
-                            id: db_idtoken.0,
-                            username: db_idtoken.2,
-                            token: db_idtoken.1,
-                        });
-
-                        s.call(req).await
-                    } else {
-                        Ok(req.into_response(log_out_user()))
-                    }
-                } else {
-                    Ok(req.into_response(log_out_user()))
-                }
-            } else {
-                Ok(s.call(req).await?)
-            }
-        }
-        .instrument(tracing::span::Span::current())
-        .boxed_local()
+    if cookie_token.value() == token.as_str() {
+        info!("id: {}, username: {}, token: {}", id, username, token);
+        req.extensions_mut().insert(UserSession {
+            id,
+            username,
+            token,
+        });
+        next.run(req).await
+    } else {
+        log_out_user()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::http::header::{LOCATION, SET_COOKIE};
-    use actix_web::http::StatusCode;
-    use actix_web::{test, web, App, HttpRequest};
+    use axum::body::Body;
+    use axum::routing::get;
+    use axum::{Extension, Router};
+    use tower::ServiceExt;
 
     /// A pool that never connects (port 1). Only the branches that don't touch
     /// the DB are exercised here; anything that calls `pool.get()` would fail.
-    fn dead_pool() -> Pool<PostgresConnectionManager<NoTls>> {
-        let manager = PostgresConnectionManager::new(
+    fn dead_pool() -> Pool {
+        let manager = bb8_postgres::PostgresConnectionManager::new(
             "host=127.0.0.1 port=1 user=x dbname=x".parse().unwrap(),
-            NoTls,
+            bb8_postgres::tokio_postgres::NoTls,
         );
-        Pool::builder().build_unchecked(manager)
+        bb8_postgres::bb8::Pool::builder().build_unchecked(manager)
     }
 
-    async fn echo(req: HttpRequest) -> HttpResponse {
-        let has_user = req.extensions().get::<UserSession>().is_some();
-        HttpResponse::Ok().body(if has_user { "user" } else { "anon" })
-    }
-
-    async fn drive(
-        req: test::TestRequest,
-    ) -> ServiceResponse<EitherBody<actix_web::body::BoxBody>> {
-        // UserSessionTransformer requires the service it wraps to already yield an
-        // `EitherBody` (so it can short-circuit with a logout response). In the
-        // real app another layer provides that; here a tiny inner `wrap_fn` maps
-        // the handler's BoxBody into the left `EitherBody` variant.
-        // The first `.wrap()` is innermost: the body-mapper wraps routing and
-        // converts BoxBody → EitherBody, then UserSessionTransformer wraps that.
-        let app = test::init_service(
-            App::new()
-                .app_data(Data::new(dead_pool()))
-                .wrap_fn(|req, srv| {
-                    let fut = srv.call(req);
-                    async move {
-                        fut.await
-                            .map(ServiceResponse::map_into_left_body::<actix_web::body::BoxBody>)
-                    }
-                })
-                .wrap(UserSessionTransformer)
-                .default_service(web::to(echo)),
-        )
-        .await;
-        test::call_service(&app, req.to_request()).await
-    }
-
-    #[actix_web::test]
-    async fn passes_through_when_no_auth_cookies() {
-        // No username cookie → the middleware returns early (before ever touching
-        // the pool), so the dead pool is never queried.
-        let resp = drive(test::TestRequest::get()).await;
-        assert_eq!(resp.status(), StatusCode::OK);
-        let body = test::read_body(resp).await;
-        assert_eq!(&body[..], b"anon");
-    }
-
-    #[actix_web::test]
-    async fn username_without_token_logs_out_and_clears_cookies() {
-        // A `username` cookie without a `token` is a stale session → 301 logout
-        // that clears both cookies. This DB-free branch also exercises the
-        // logout-cookie clearing, and the axum rewrite asserts the identical
-        // behavior — the refactor must preserve it.
-        let resp = drive(
-            test::TestRequest::get().cookie(actix_web::cookie::Cookie::new("username", "neo")),
-        )
-        .await;
-
+    #[test]
+    fn log_out_user_clears_auth_cookies_and_redirects() {
+        let resp = log_out_user();
         assert_eq!(resp.status(), StatusCode::MOVED_PERMANENTLY);
-        assert_eq!(resp.headers().get(LOCATION).unwrap(), "/");
+        assert_eq!(resp.headers().get(header::LOCATION).unwrap(), "/");
 
         let cookies: Vec<String> = resp
             .headers()
-            .get_all(SET_COOKIE)
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .map(|v| v.to_str().unwrap().to_string())
+            .collect();
+        assert_eq!(cookies.len(), 2);
+        // Both auth cookies are cleared (Max-Age=0).
+        for name in ["username", "token"] {
+            assert!(
+                cookies
+                    .iter()
+                    .any(|c| c.starts_with(&format!("{name}=")) && c.contains("Max-Age=0")),
+                "expected a cleared {name} cookie, got {cookies:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn passes_through_when_no_auth_cookies() {
+        // Without username+token cookies the middleware returns early, before
+        // ever touching the pool, so the dead pool is never queried.
+        async fn echo(user: Option<Extension<UserSession>>) -> &'static str {
+            if user.is_some() {
+                "user"
+            } else {
+                "anon"
+            }
+        }
+
+        let pool = dead_pool();
+        let app = Router::new()
+            .route("/", get(echo))
+            .layer(axum::middleware::from_fn(move |req, next| {
+                user_session(pool.clone(), req, next)
+            }));
+
+        let res = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(&body[..], b"anon");
+    }
+
+    #[tokio::test]
+    async fn username_without_token_logs_out_and_clears_cookies() {
+        // A `username` cookie without a `token` is a stale session → 301 logout
+        // that clears both cookies. This is DB-free (it returns before the pool
+        // is touched) and matches the actix behavior — parity is the whole point.
+        let pool = dead_pool();
+        let app =
+            Router::new()
+                .route("/", get(|| async { "ok" }))
+                .layer(axum::middleware::from_fn(move |req, next| {
+                    user_session(pool.clone(), req, next)
+                }));
+        let res = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/")
+                    .header("cookie", "username=neo")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(res.status(), StatusCode::MOVED_PERMANENTLY);
+        assert_eq!(res.headers().get(header::LOCATION).unwrap(), "/");
+
+        let cookies: Vec<String> = res
+            .headers()
+            .get_all(header::SET_COOKIE)
+            .iter()
             .map(|v| v.to_str().unwrap().to_string())
             .collect();
         assert_eq!(cookies.len(), 2);
@@ -228,7 +202,7 @@ mod tests {
             assert!(
                 cookies
                     .iter()
-                    .any(|c| c.starts_with(&format!("{name}=")) && c.contains("Expires=")),
+                    .any(|c| c.starts_with(&format!("{name}=")) && c.contains("Max-Age=0")),
                 "expected a cleared {name} cookie, got {cookies:?}"
             );
         }

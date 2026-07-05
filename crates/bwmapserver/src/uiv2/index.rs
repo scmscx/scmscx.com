@@ -1,194 +1,132 @@
-use crate::actix::ManifestChunk;
-use crate::middleware::UserSession;
+use axum::extract::{Extension, Path, Query};
+use axum::http::{header, StatusCode};
+use axum::response::{IntoResponse, Redirect, Response};
+use bwcommon::MyError;
+use bwmap::ParsedChk;
+use tracing::error;
+use tracing::instrument;
+
+use crate::actix::{Handlebars, Manifest};
 use crate::search2;
 use crate::search2::SearchParams;
 use crate::util::is_dev_mode;
 use crate::util::sanitize_sc_string;
-use actix_web::web::Data;
-use actix_web::web::Query;
-use actix_web::HttpMessage;
-use actix_web::Result;
-use actix_web::{get, web, HttpRequest, HttpResponse, Responder};
-use bwcommon::MyError;
-use bwmap::ParsedChk;
-use std::collections::HashMap;
-use tracing::error;
-use tracing::instrument;
+use crate::webutil::{MaybeUser, Pool};
 
-// fn convert_path_to_map_id(s: &str) -> anyhow::Result<i64> {
-//     if s.chars().all(|x| x.is_ascii_digit()) && s.len() < 8 {
-//         Ok(s.parse::<i64>()?)
-//     } else {
-//         Ok(bwcommon::get_db_id_from_web_id(
-//             s,
-//             crate::util::SEED_MAP_ID,
-//         )?)
-//     }
-// }
-
-#[get("/site.webmanifest")]
-#[instrument(skip_all, name = "/site.webmanifest")]
-pub async fn webmanifest(
-    manifest: Data<HashMap<String, ManifestChunk>>,
-) -> Result<impl Responder, MyError> {
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .body(
-            serde_json::json!({
-                "name": "scmscx.com",
-                "short_name": "scmscx.com",
-                "description": "scmscx.com",
-                "theme_color": "#111111",
-                "background_color":"#111111",
-                "display":"standalone",
-                "icons": [
-                    {
-                        "src": manifest.get("app/assets/pwa-64x64.png").unwrap().file,
-                        "sizes": "64x64",
-                        "type": "image/png",
-                    },
-                    {
-                        "src": manifest.get("app/assets/pwa-192x192.png").unwrap().file,
-                        "sizes": "192x192",
-                        "type": "image/png",
-                    },
-                    {
-                        "src": manifest.get("app/assets/pwa-512x512.png").unwrap().file,
-                        "sizes": "512x512",
-                        "type": "image/png",
-                    },
-                    {
-                        "src": manifest.get("app/assets/maskable-icon-512x512.png").unwrap().file,
-                        "sizes": "512x512",
-                        "type": "image/png",
-                        "purpose": "maskable",
-                    }
-                ]
-            })
-            .to_string(),
-        )
-        .customize()
-        .append_header(("cache-control", "no-cache")))
+fn html(body: String) -> Response {
+    ([(header::CONTENT_TYPE, "text/html")], body).into_response()
 }
 
-#[get("/")]
+#[instrument(skip_all, name = "/site.webmanifest")]
+pub async fn webmanifest(Extension(manifest): Extension<Manifest>) -> Result<Response, MyError> {
+    let body = serde_json::json!({
+        "name": "scmscx.com",
+        "short_name": "scmscx.com",
+        "description": "scmscx.com",
+        "theme_color": "#111111",
+        "background_color":"#111111",
+        "display":"standalone",
+        "icons": [
+            {
+                "src": manifest.get("app/assets/pwa-64x64.png").unwrap().file,
+                "sizes": "64x64",
+                "type": "image/png",
+            },
+            {
+                "src": manifest.get("app/assets/pwa-192x192.png").unwrap().file,
+                "sizes": "192x192",
+                "type": "image/png",
+            },
+            {
+                "src": manifest.get("app/assets/pwa-512x512.png").unwrap().file,
+                "sizes": "512x512",
+                "type": "image/png",
+            },
+            {
+                "src": manifest.get("app/assets/maskable-icon-512x512.png").unwrap().file,
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "maskable",
+            }
+        ]
+    })
+    .to_string();
+
+    Ok((
+        [
+            (header::CONTENT_TYPE, "application/json"),
+            (header::CACHE_CONTROL, "no-cache"),
+        ],
+        body,
+    )
+        .into_response())
+}
+
 #[instrument(skip_all, name = "/")]
 pub async fn index(
-    hb: web::Data<handlebars::Handlebars<'_>>,
-    manifest: Data<HashMap<String, ManifestChunk>>,
-) -> Result<impl Responder, MyError> {
-    Ok(HttpResponse::Ok()
-        .content_type("text/html")
-        .body(hb.render(
-            "uiv2-index",
-            &serde_json::json!({
-                "favicon_ico": manifest.get("app/assets/favicon.ico").unwrap().file,
-                "favicon_svg": manifest.get("app/assets/favicon.svg").unwrap().file,
-                "apple-touch-icon_png": manifest.get("app/assets/apple-touch-icon-180x180.png").unwrap().file,
+    Extension(hb): Extension<Handlebars>,
+    Extension(manifest): Extension<Manifest>,
+) -> Result<Response, MyError> {
+    Ok(html(hb.render(
+        "uiv2-index",
+        &serde_json::json!({
+            "favicon_ico": manifest.get("app/assets/favicon.ico").unwrap().file,
+            "favicon_svg": manifest.get("app/assets/favicon.svg").unwrap().file,
+            "apple-touch-icon_png": manifest.get("app/assets/apple-touch-icon-180x180.png").unwrap().file,
 
-                "jsFile": manifest.get("app/index.tsx").unwrap().file,
-                "css": manifest.get("app/index.tsx").unwrap().css,
-                "dev": is_dev_mode()
-            }),
-        )?)
-        .customize())
+            "jsFile": manifest.get("app/index.tsx").unwrap().file,
+            "css": manifest.get("app/index.tsx").unwrap().css,
+            "dev": is_dev_mode()
+        }),
+    )?))
 }
 
-#[get("/moderation")]
 #[instrument(skip_all, name = "/moderation")]
 pub async fn moderation(
-    hb: web::Data<handlebars::Handlebars<'_>>,
-    manifest: Data<HashMap<String, ManifestChunk>>,
-) -> Result<impl Responder, MyError> {
-    Ok(HttpResponse::Ok()
-        .content_type("text/html")
-        .body(hb.render(
-            "uiv2-moderation",
-            &serde_json::json!({
-                "favicon_ico": manifest.get("app/assets/favicon.ico").unwrap().file,
-                "favicon_svg": manifest.get("app/assets/favicon.svg").unwrap().file,
-                "apple-touch-icon_png": manifest.get("app/assets/apple-touch-icon-180x180.png").unwrap().file,
+    Extension(hb): Extension<Handlebars>,
+    Extension(manifest): Extension<Manifest>,
+) -> Result<Response, MyError> {
+    Ok(html(hb.render(
+        "uiv2-moderation",
+        &serde_json::json!({
+            "favicon_ico": manifest.get("app/assets/favicon.ico").unwrap().file,
+            "favicon_svg": manifest.get("app/assets/favicon.svg").unwrap().file,
+            "apple-touch-icon_png": manifest.get("app/assets/apple-touch-icon-180x180.png").unwrap().file,
 
-                "jsFile": manifest.get("app/index.tsx").unwrap().file,
-                "css": manifest.get("app/index.tsx").unwrap().css,
-                "dev": is_dev_mode()
-            }),
-        )?)
-        .customize())
+            "jsFile": manifest.get("app/index.tsx").unwrap().file,
+            "css": manifest.get("app/index.tsx").unwrap().css,
+            "dev": is_dev_mode()
+        }),
+    )?))
 }
 
-#[get("/search")]
 pub async fn search_no_query(
-    search_params: Query<SearchParams>,
-    req: HttpRequest,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-    hb: web::Data<handlebars::Handlebars<'_>>,
-    manifest: Data<HashMap<String, ManifestChunk>>,
-) -> Result<impl Responder, MyError> {
-    search_handler(
-        String::new(),
-        &search_params.into_inner(),
-        req,
-        pool,
-        hb,
-        manifest,
-    )
-    .await
+    Query(search_params): Query<SearchParams>,
+    Extension(pool): Extension<Pool>,
+    Extension(hb): Extension<Handlebars>,
+    Extension(manifest): Extension<Manifest>,
+) -> Result<Response, MyError> {
+    search_handler(String::new(), &search_params, pool, hb, manifest).await
 }
 
-#[get("/search/{query}")]
 pub async fn search_query(
-    req: HttpRequest,
-    search_params: Query<SearchParams>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-    hb: web::Data<handlebars::Handlebars<'_>>,
-    manifest: Data<HashMap<String, ManifestChunk>>,
-    query: web::Path<String>,
-) -> Result<impl Responder, MyError> {
-    search_handler(
-        query.into_inner(),
-        &search_params.into_inner(),
-        req,
-        pool,
-        hb,
-        manifest,
-    )
-    .await
+    Query(search_params): Query<SearchParams>,
+    Extension(pool): Extension<Pool>,
+    Extension(hb): Extension<Handlebars>,
+    Extension(manifest): Extension<Manifest>,
+    Path(query): Path<String>,
+) -> Result<Response, MyError> {
+    search_handler(query, &search_params, pool, hb, manifest).await
 }
 
 #[instrument(skip_all, name = "/search")]
 pub async fn search_handler(
     query: String,
     search_params: &SearchParams,
-    _req: HttpRequest,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-    hb: web::Data<handlebars::Handlebars<'_>>,
-    manifest: Data<HashMap<String, ManifestChunk>>,
-) -> Result<impl Responder, MyError> {
-    // let lang = req
-    //     .extensions()
-    //     .get::<bwcommon::LangData>()
-    //     .unwrap_or(&bwcommon::LangData::English)
-    //     .to_owned();
-
-    // let user_username = req
-    //     .extensions()
-    //     .get::<UserSession>()
-    //     .map(|x| (x.username.clone(), true))
-    //     .unwrap_or_default();
-
+    pool: Pool,
+    hb: Handlebars,
+    manifest: Manifest,
+) -> Result<Response, MyError> {
     let page_title = if query.is_empty() {
         "Search StarCraft: Brood War Maps".to_owned()
     } else {
@@ -199,61 +137,44 @@ pub async fn search_handler(
         format!("{num_results} maps found for: {query}")
     };
 
-    Ok(HttpResponse::Ok()
-        .content_type("text/html")
-        .body(hb.render(
-            "uiv2-search",
-            &serde_json::json!({
-                "page_title": page_title,
+    Ok(html(hb.render(
+        "uiv2-search",
+        &serde_json::json!({
+            "page_title": page_title,
 
-                "favicon_ico": manifest.get("app/assets/favicon.ico").unwrap().file,
-                "favicon_svg": manifest.get("app/assets/favicon.svg").unwrap().file,
-                "apple-touch-icon_png": manifest.get("app/assets/apple-touch-icon-180x180.png").unwrap().file,
+            "favicon_ico": manifest.get("app/assets/favicon.ico").unwrap().file,
+            "favicon_svg": manifest.get("app/assets/favicon.svg").unwrap().file,
+            "apple-touch-icon_png": manifest.get("app/assets/apple-touch-icon-180x180.png").unwrap().file,
 
-                "jsFile": manifest.get("app/index.tsx").unwrap().file,
-                "css": manifest.get("app/index.tsx").unwrap().css,
-                "dev": is_dev_mode()
-            }),
-        )?)
-        .customize())
+            "jsFile": manifest.get("app/index.tsx").unwrap().file,
+            "css": manifest.get("app/index.tsx").unwrap().css,
+            "dev": is_dev_mode()
+        }),
+    )?))
 }
 
-#[get("/map/{map_id}")]
 #[instrument(skip_all, name = "/map")]
 pub async fn map(
-    req: HttpRequest,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-    hb: web::Data<handlebars::Handlebars<'_>>,
-    manifest: Data<HashMap<String, ManifestChunk>>,
-    path: web::Path<String>,
-) -> Result<impl Responder, MyError> {
-    let user_id = req.extensions().get::<UserSession>().map(|x| x.id);
+    user: MaybeUser,
+    Extension(pool): Extension<Pool>,
+    Extension(hb): Extension<Handlebars>,
+    Extension(manifest): Extension<Manifest>,
+    Path(map_id): Path<String>,
+) -> Result<Response, MyError> {
+    let user_id = user.id();
 
-    let map_id = path.into_inner();
     let map_id = if map_id.chars().all(char::is_numeric) && map_id.len() < 8 {
-        return Ok(HttpResponse::PermanentRedirect()
-            .append_header((
-                "Location",
-                format!(
-                    "/map/{}",
-                    bwcommon::get_web_id_from_db_id(
-                        map_id.parse::<i64>()?,
-                        crate::util::SEED_MAP_ID
-                    )?
-                ),
-            ))
-            .finish()
-            .customize());
+        return Ok(Redirect::permanent(&format!(
+            "/map/{}",
+            bwcommon::get_web_id_from_db_id(map_id.parse::<i64>()?, crate::util::SEED_MAP_ID)?
+        ))
+        .into_response());
     } else if let Ok(id) =
         bwcommon::get_db_id_from_web_id(map_id.as_str(), crate::util::SEED_MAP_ID)
     {
         id
     } else {
-        return Ok(HttpResponse::NotFound().finish().customize());
+        return Ok(StatusCode::NOT_FOUND.into_response());
     };
 
     let (chkblob, uploaded_by, nsfw, blackholed) = {
@@ -278,12 +199,12 @@ pub async fn map(
             .await?;
 
         if rows.is_empty() {
-            return Ok(HttpResponse::NotFound().finish().customize());
+            return Ok(StatusCode::NOT_FOUND.into_response());
         }
 
         if rows.len() != 1 {
             error!("There's more than 1 row for map_id: {map_id}, rows: {rows:?}");
-            return Ok(HttpResponse::InternalServerError().finish().customize());
+            return Ok(StatusCode::INTERNAL_SERVER_ERROR.into_response());
         }
 
         let length = rows[0].try_get::<_, i64>("length")? as usize;
@@ -330,125 +251,103 @@ pub async fn map(
     };
 
     if nsfw && user_id.is_none() {
-        return Ok(HttpResponse::Forbidden().finish().customize());
+        return Ok(StatusCode::FORBIDDEN.into_response());
     }
 
     if blackholed && user_id != Some(uploaded_by) && user_id != Some(4) {
-        return Ok(HttpResponse::NotFound().finish().customize());
+        return Ok(StatusCode::NOT_FOUND.into_response());
     }
 
-    Ok(HttpResponse::Ok()
-        .content_type("text/html")
-        .body(hb.render(
-            "uiv2-map",
-            &serde_json::json!({
-                "sanitized_scenario_name": scenario,
-                "sanitized_scenario_description": description,
-                "map_id": bwcommon::get_web_id_from_db_id(map_id, crate::util::SEED_MAP_ID)?,
+    Ok(html(hb.render(
+        "uiv2-map",
+        &serde_json::json!({
+            "sanitized_scenario_name": scenario,
+            "sanitized_scenario_description": description,
+            "map_id": bwcommon::get_web_id_from_db_id(map_id, crate::util::SEED_MAP_ID)?,
 
-                "favicon_ico": manifest.get("app/assets/favicon.ico").unwrap().file,
-                "favicon_svg": manifest.get("app/assets/favicon.svg").unwrap().file,
-                "apple-touch-icon_png": manifest.get("app/assets/apple-touch-icon-180x180.png").unwrap().file,
+            "favicon_ico": manifest.get("app/assets/favicon.ico").unwrap().file,
+            "favicon_svg": manifest.get("app/assets/favicon.svg").unwrap().file,
+            "apple-touch-icon_png": manifest.get("app/assets/apple-touch-icon-180x180.png").unwrap().file,
 
-                "jsFile": manifest.get("app/index.tsx").unwrap().file,
-                "css": manifest.get("app/index.tsx").unwrap().css,
-                "dev": is_dev_mode()
-            }),
-        )?)
-        .customize())
+            "jsFile": manifest.get("app/index.tsx").unwrap().file,
+            "css": manifest.get("app/index.tsx").unwrap().css,
+            "dev": is_dev_mode()
+        }),
+    )?))
 }
 
-#[get("/about")]
 #[instrument(skip_all, name = "/about")]
 pub async fn about(
-    hb: web::Data<handlebars::Handlebars<'_>>,
-    manifest: Data<HashMap<String, ManifestChunk>>,
-) -> Result<impl Responder, MyError> {
-    Ok(HttpResponse::Ok()
-        .content_type("text/html")
-        .body(hb.render(
-            "uiv2-about",
-            &serde_json::json!({
-                "favicon_ico": manifest.get("app/assets/favicon.ico").unwrap().file,
-                "favicon_svg": manifest.get("app/assets/favicon.svg").unwrap().file,
-                "apple-touch-icon_png": manifest.get("app/assets/apple-touch-icon-180x180.png").unwrap().file,
+    Extension(hb): Extension<Handlebars>,
+    Extension(manifest): Extension<Manifest>,
+) -> Result<Response, MyError> {
+    Ok(html(hb.render(
+        "uiv2-about",
+        &serde_json::json!({
+            "favicon_ico": manifest.get("app/assets/favicon.ico").unwrap().file,
+            "favicon_svg": manifest.get("app/assets/favicon.svg").unwrap().file,
+            "apple-touch-icon_png": manifest.get("app/assets/apple-touch-icon-180x180.png").unwrap().file,
 
-                "jsFile": manifest.get("app/index.tsx").unwrap().file,
-                "css": manifest.get("app/index.tsx").unwrap().css,
-                "dev": is_dev_mode()
-            }),
-        )?)
-        .customize())
+            "jsFile": manifest.get("app/index.tsx").unwrap().file,
+            "css": manifest.get("app/index.tsx").unwrap().css,
+            "dev": is_dev_mode()
+        }),
+    )?))
 }
 
-#[get("/user/{username}")]
 #[instrument(skip_all, name = "/user")]
 pub async fn user(
-    hb: web::Data<handlebars::Handlebars<'_>>,
-    manifest: Data<HashMap<String, ManifestChunk>>,
-) -> Result<impl Responder, MyError> {
-    Ok(HttpResponse::Ok()
-        .content_type("text/html")
-        .body(hb.render(
-            "uiv2-user",
-            &serde_json::json!({
+    Extension(hb): Extension<Handlebars>,
+    Extension(manifest): Extension<Manifest>,
+) -> Result<Response, MyError> {
+    Ok(html(hb.render(
+        "uiv2-user",
+        &serde_json::json!({
+            "favicon_ico": manifest.get("app/assets/favicon.ico").unwrap().file,
+            "favicon_svg": manifest.get("app/assets/favicon.svg").unwrap().file,
+            "apple-touch-icon_png": manifest.get("app/assets/apple-touch-icon-180x180.png").unwrap().file,
 
-                "favicon_ico": manifest.get("app/assets/favicon.ico").unwrap().file,
-                "favicon_svg": manifest.get("app/assets/favicon.svg").unwrap().file,
-                "apple-touch-icon_png": manifest.get("app/assets/apple-touch-icon-180x180.png").unwrap().file,
-
-                "jsFile": manifest.get("app/index.tsx").unwrap().file,
-                "css": manifest.get("app/index.tsx").unwrap().css,
-                "dev": is_dev_mode()
-            }),
-        )?)
-        .customize())
+            "jsFile": manifest.get("app/index.tsx").unwrap().file,
+            "css": manifest.get("app/index.tsx").unwrap().css,
+            "dev": is_dev_mode()
+        }),
+    )?))
 }
 
-#[get("/upload")]
 #[instrument(skip_all, name = "/upload")]
 pub async fn upload(
-    hb: web::Data<handlebars::Handlebars<'_>>,
-    manifest: Data<HashMap<String, ManifestChunk>>,
-) -> Result<impl Responder, MyError> {
-    Ok(HttpResponse::Ok()
-        .content_type("text/html")
-        .body(hb.render(
-            "uiv2-upload",
-            &serde_json::json!({
+    Extension(hb): Extension<Handlebars>,
+    Extension(manifest): Extension<Manifest>,
+) -> Result<Response, MyError> {
+    Ok(html(hb.render(
+        "uiv2-upload",
+        &serde_json::json!({
+            "favicon_ico": manifest.get("app/assets/favicon.ico").unwrap().file,
+            "favicon_svg": manifest.get("app/assets/favicon.svg").unwrap().file,
+            "apple-touch-icon_png": manifest.get("app/assets/apple-touch-icon-180x180.png").unwrap().file,
 
-                "favicon_ico": manifest.get("app/assets/favicon.ico").unwrap().file,
-                "favicon_svg": manifest.get("app/assets/favicon.svg").unwrap().file,
-                "apple-touch-icon_png": manifest.get("app/assets/apple-touch-icon-180x180.png").unwrap().file,
-
-                "jsFile": manifest.get("app/index.tsx").unwrap().file,
-                "css": manifest.get("app/index.tsx").unwrap().css,
-                "dev": is_dev_mode()
-            }),
-        )?)
-        .customize())
+            "jsFile": manifest.get("app/index.tsx").unwrap().file,
+            "css": manifest.get("app/index.tsx").unwrap().css,
+            "dev": is_dev_mode()
+        }),
+    )?))
 }
 
-#[get("/login")]
 #[instrument(skip_all, name = "/login")]
 pub async fn login(
-    hb: web::Data<handlebars::Handlebars<'_>>,
-    manifest: Data<HashMap<String, ManifestChunk>>,
-) -> Result<impl Responder, MyError> {
-    Ok(HttpResponse::Ok()
-        .content_type("text/html")
-        .body(hb.render(
-            "uiv2-login",
-            &serde_json::json!({
+    Extension(hb): Extension<Handlebars>,
+    Extension(manifest): Extension<Manifest>,
+) -> Result<Response, MyError> {
+    Ok(html(hb.render(
+        "uiv2-login",
+        &serde_json::json!({
+            "favicon_ico": manifest.get("app/assets/favicon.ico").unwrap().file,
+            "favicon_svg": manifest.get("app/assets/favicon.svg").unwrap().file,
+            "apple-touch-icon_png": manifest.get("app/assets/apple-touch-icon-180x180.png").unwrap().file,
 
-                "favicon_ico": manifest.get("app/assets/favicon.ico").unwrap().file,
-                "favicon_svg": manifest.get("app/assets/favicon.svg").unwrap().file,
-                "apple-touch-icon_png": manifest.get("app/assets/apple-touch-icon-180x180.png").unwrap().file,
-
-                "jsFile": manifest.get("app/index.tsx").unwrap().file,
-                "css": manifest.get("app/index.tsx").unwrap().css,
-                "dev": is_dev_mode()
-            }),
-        )?)
-        .customize())
+            "jsFile": manifest.get("app/index.tsx").unwrap().file,
+            "css": manifest.get("app/index.tsx").unwrap().css,
+            "dev": is_dev_mode()
+        }),
+    )?))
 }

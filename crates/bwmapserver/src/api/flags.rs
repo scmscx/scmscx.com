@@ -1,8 +1,12 @@
-use crate::middleware::UserSession;
-use actix_web::{get, post, web, HttpMessage, HttpRequest, HttpResponse, Responder};
-use bb8_postgres::{bb8::Pool, tokio_postgres::NoTls, PostgresConnectionManager};
+use axum::extract::{Extension, Path};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+use bwcommon::with_logging_info;
+use bwcommon::ApiSpecificInfoForLogging;
 use bwcommon::MyError;
-use bwcommon::{insert_extension, ApiSpecificInfoForLogging};
+
+use crate::webutil::{MaybeUser, Pool};
 
 /// Whitelist of flag column names that callers are allowed to read/write.
 /// Returning `&'static str` (the literal, not the caller's borrow) keeps the
@@ -19,20 +23,17 @@ fn validate_flag(flag: &str) -> Option<&'static str> {
     })
 }
 
-#[get("/api/flags/{map_id}/{flag}")]
-async fn get_flag(
-    req: HttpRequest,
-    path: web::Path<(String, String)>,
-    pool: web::Data<Pool<PostgresConnectionManager<NoTls>>>,
-) -> Result<impl Responder, MyError> {
-    let user_id = req.extensions().get::<UserSession>().map(|x| x.id);
-
-    let (map_id, flag) = path.into_inner();
+pub async fn get_flag(
+    user: MaybeUser,
+    Path((map_id, flag)): Path<(String, String)>,
+    Extension(pool): Extension<Pool>,
+) -> Result<Response, MyError> {
+    let user_id = user.id();
 
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let Some(column) = validate_flag(&flag) else {
-        return Ok(HttpResponse::NotFound().finish());
+        return Ok(StatusCode::NOT_FOUND.into_response());
     };
 
     let con = pool.get().await?;
@@ -45,37 +46,35 @@ async fn get_flag(
         ..Default::default()
     };
 
-    Ok(insert_extension(HttpResponse::Ok(), info)
-        .content_type("application/json")
-        .body(serde_json::to_string(&checked)?))
+    Ok(with_logging_info(info, Json(checked)))
 }
 
-#[post("/api/flags/{map_id}/{flag}")]
-async fn set_flag(
-    req: HttpRequest,
-    path: web::Path<(String, String)>,
-    info: web::Json<bool>,
-    pool: web::Data<Pool<PostgresConnectionManager<NoTls>>>,
-) -> Result<impl Responder, MyError> {
+pub async fn set_flag(
+    user: MaybeUser,
+    Path((map_id, flag)): Path<(String, String)>,
+    Extension(pool): Extension<Pool>,
+    Json(info): Json<bool>,
+) -> Result<Response, MyError> {
     if std::env::var("SCMSCX_READONLY").unwrap_or_else(|_| "false".to_owned()) == "true" {
-        return Ok(HttpResponse::ServiceUnavailable()
-            .body("server is in maintenance mode, try again later.".to_owned()));
+        return Ok((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "server is in maintenance mode, try again later.".to_owned(),
+        )
+            .into_response());
     }
 
-    let Some(user_id) = req.extensions().get::<UserSession>().map(|x| x.id) else {
-        return Ok(HttpResponse::Unauthorized().finish());
+    let Some(user_id) = user.id() else {
+        return Ok(StatusCode::UNAUTHORIZED.into_response());
     };
-
-    let (map_id, flag) = path.into_inner();
 
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let Some(column) = validate_flag(&flag) else {
-        return Ok(HttpResponse::NotFound().finish());
+        return Ok(StatusCode::NOT_FOUND.into_response());
     };
 
     let mut con = pool.get().await?;
-    let checked = *info;
+    let checked = info;
 
     let statement = format!("update map set {column} = $1 where map.id = $2");
 
@@ -97,15 +96,15 @@ async fn set_flag(
     };
 
     let Some(owner) = owner else {
-        return Ok(insert_extension(HttpResponse::NotFound(), info).finish());
+        return Ok(with_logging_info(info, StatusCode::NOT_FOUND));
     };
 
     if owner != user_id && user_id != 4 {
-        return Ok(insert_extension(HttpResponse::Forbidden(), info).finish());
+        return Ok(with_logging_info(info, StatusCode::FORBIDDEN));
     }
 
     tx.execute(&statement, &[&checked, &map_id]).await?;
     tx.commit().await?;
 
-    Ok(insert_extension(HttpResponse::Ok(), info).finish())
+    Ok(with_logging_info(info, StatusCode::OK))
 }

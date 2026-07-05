@@ -33,7 +33,6 @@ sha2 = "0.10.9"
 sha1 = "0.10.6"
 argon2 = "0.5.3"
 governor = "0.10.4"
-actix-governor = "0.10.0"
 # tempfile = "*"
 # url = "*"
 encoding_rs = "0.8.35"
@@ -47,15 +46,21 @@ image = { version = "0.25.6", default-features = false, features = ["png"] }
 # nude = ""
 regex = "1.11.2"
 anyhow = "1.0.99"
-actix-web = { version = "4.11.0", features = ["rustls"] }
-actix-proxy = "0.2.0"
-awc = "3.7.0"
-# actix-http = "*"
-# actix-session = ""
-actix-files = "0.6.7"
-# actix-service = "*"
-# actix-rt = "*"
-actix-multipart = "0.7.2"
+# axum stack
+axum = { version = "0.8.9", features = ["macros"] }
+axum-extra = { version = "0.12.6", features = ["cookie"] }
+tower = "0.5.3"
+tower-http = { version = "0.7.0", features = [
+    "fs",
+    "compression-br",
+    "compression-gzip",
+    "compression-deflate",
+    "normalize-path",
+    "trace",
+] }
+tower_governor = { version = "0.8.0", default-features = false, features = ["axum"] }
+http = "1"
+http-body-util = "0.1"
 #env_logger = "*"
 #mime = "*"
 # time = "0.2.27"

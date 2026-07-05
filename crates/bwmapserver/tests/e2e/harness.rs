@@ -316,6 +316,26 @@ impl Harness {
         let _ = conn_task.await;
         value
     }
+
+    /// Run one or more statements against this test's database (as the superuser).
+    /// Like [`Harness::db_text`], a fixture affordance rather than a test oracle:
+    /// it seeds state that no HTTP endpoint can create — a curated `featuredmaps`
+    /// row, a `replay`, a `last_downloaded` timestamp — so the read-only landing
+    /// endpoints have something to return. The SQL is test-authored (never user
+    /// input), so formatting our own ids into it is safe.
+    pub async fn db_execute(&self, sql: &str) {
+        let pg = pg_env();
+        let (client, connection) =
+            tokio_postgres::connect(&pg.admin_conn(&self.db), tokio_postgres::NoTls)
+                .await
+                .expect("connect to per-test db");
+        let conn_task = tokio::spawn(async move {
+            let _ = connection.await;
+        });
+        client.batch_execute(sql).await.expect("db_execute");
+        drop(client);
+        let _ = conn_task.await;
+    }
 }
 
 /// `CREATE DATABASE <name> TEMPLATE bounding.net` — a fast isolated clone of the

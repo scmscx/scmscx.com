@@ -1,47 +1,55 @@
-use crate::middleware::UserSession;
-use actix_web::{cookie::Cookie, post, web, HttpMessage, HttpRequest, HttpResponse};
+use axum::extract::Extension;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+
+use crate::webutil::{append_cookie, auth_cookie, MaybeUser, Pool};
 
 #[derive(serde::Deserialize)]
-struct ChangeUsernamePostData {
+pub(crate) struct ChangeUsernamePostData {
     username: String,
     username_confirm: String,
     password: String,
 }
 
 async fn handler2(
-    req: HttpRequest,
-    form: web::Json<ChangeUsernamePostData>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<HttpResponse, bwcommon::MyError> {
-    let Some(user_id) = req.extensions().get::<UserSession>().map(|x| x.id) else {
-        return Ok(HttpResponse::Unauthorized().body("Unauthorized. Try logging in first/again."));
+    user: MaybeUser,
+    pool: Pool,
+    form: ChangeUsernamePostData,
+) -> Result<Response, bwcommon::MyError> {
+    let Some(user_id) = user.id() else {
+        return Ok((
+            StatusCode::UNAUTHORIZED,
+            "Unauthorized. Try logging in first/again.",
+        )
+            .into_response());
     };
 
     if form.username.is_empty() {
-        return Ok(
-            HttpResponse::BadRequest().body("The provided username must not be the empty string")
-        );
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            "The provided username must not be the empty string",
+        )
+            .into_response());
     }
 
     if form.username.len() > 100 {
-        return Ok(
-            HttpResponse::BadRequest().body("Why would you try to create a username that long")
-        );
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            "Why would you try to create a username that long",
+        )
+            .into_response());
     }
 
     if form.username != form.username_confirm {
-        return Ok(HttpResponse::BadRequest().body("The provided usernames must match"));
+        return Ok((StatusCode::BAD_REQUEST, "The provided usernames must match").into_response());
     }
 
     let is_password_correct =
         crate::db::check_password(user_id, form.password.clone(), pool.clone()).await?;
 
     if !is_password_correct {
-        return Ok(HttpResponse::BadRequest().body("Provided password is incorrect."));
+        return Ok((StatusCode::BAD_REQUEST, "Provided password is incorrect.").into_response());
     }
 
     crate::db::change_username(user_id, form.username.clone(), form.password.clone(), pool).await?;
@@ -51,32 +59,26 @@ async fn handler2(
         ..Default::default()
     };
 
-    Ok(bwcommon::insert_extension(HttpResponse::Ok(), info)
-        .cookie(
-            Cookie::build("username", &form.username)
-                .path("/")
-                .same_site(actix_web::cookie::SameSite::Lax)
-                .secure(true)
-                .permanent()
-                .finish(),
-        )
-        .body("Username changed successfully"))
+    let mut resp = bwcommon::with_logging_info(info, "Username changed successfully");
+    append_cookie(
+        &mut resp,
+        auth_cookie("username", form.username.clone(), true, false),
+    );
+    Ok(resp)
 }
 
-#[post("/api/change-username")]
-async fn post_handler(
-    req: HttpRequest,
-    form: web::Json<ChangeUsernamePostData>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<HttpResponse, bwcommon::MyError> {
+pub async fn post_handler(
+    user: MaybeUser,
+    Extension(pool): Extension<Pool>,
+    Json(form): Json<ChangeUsernamePostData>,
+) -> Result<Response, bwcommon::MyError> {
     if std::env::var("SCMSCX_READONLY").unwrap_or_else(|_| "false".to_owned()) == "true" {
-        return Ok(HttpResponse::ServiceUnavailable()
-            .body("server is in maintenance mode, try again later.".to_owned()));
+        return Ok((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "server is in maintenance mode, try again later.",
+        )
+            .into_response());
     }
 
-    handler2(req, form, pool).await
+    handler2(user, pool, form).await
 }

@@ -1,43 +1,15 @@
-use actix_web::{cookie::Cookie, get, HttpResponse, Responder};
+use axum::http::{header, HeaderValue, StatusCode};
+use axum::response::Response;
 
-async fn handler2() -> Result<impl Responder, bwcommon::MyError> {
-    let info = bwcommon::ApiSpecificInfoForLogging {
-        ..Default::default()
-    };
+use crate::webutil::{append_cookie, removal_cookie};
 
-    Ok(
-        bwcommon::insert_extension(HttpResponse::TemporaryRedirect(), info)
-            .cookie(
-                Cookie::build("username", "")
-                    .path("/")
-                    .same_site(actix_web::cookie::SameSite::Lax)
-                    .secure(true)
-                    .expires(
-                        actix_web::cookie::time::OffsetDateTime::from_unix_timestamp(0).unwrap(),
-                    )
-                    .finish(),
-            )
-            .cookie(
-                Cookie::build("token", "")
-                    .path("/")
-                    .same_site(actix_web::cookie::SameSite::Lax)
-                    .secure(true)
-                    .expires(
-                        actix_web::cookie::time::OffsetDateTime::from_unix_timestamp(0).unwrap(),
-                    )
-                    .finish(),
-            )
-            .finish()
-            .customize()
-            .insert_header(("location", "/")),
-    )
-}
+pub async fn handler() -> Result<Response, bwcommon::MyError> {
+    let info = bwcommon::ApiSpecificInfoForLogging::default();
 
-// Ok(insert_extension(HttpResponse::TemporaryRedirect(), info)
-// .header("Location", format!("/map/{}", map_id))
-// .finish())
-
-#[get("/api/logout")]
-async fn handler() -> Result<impl Responder, bwcommon::MyError> {
-    handler2().await
+    let mut resp = bwcommon::with_logging_info(info, StatusCode::TEMPORARY_REDIRECT);
+    resp.headers_mut()
+        .insert(header::LOCATION, HeaderValue::from_static("/"));
+    append_cookie(&mut resp, removal_cookie("username"));
+    append_cookie(&mut resp, removal_cookie("token"));
+    Ok(resp)
 }

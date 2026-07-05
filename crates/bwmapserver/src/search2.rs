@@ -1,4 +1,3 @@
-use actix_web::web::Data;
 use anyhow::Result;
 use bb8_postgres::{bb8::Pool, tokio_postgres::NoTls, PostgresConnectionManager};
 use cached::proc_macro::cached;
@@ -353,9 +352,9 @@ pub async fn search2(
     query: &str,
     allow_nsfw: bool,
     query_params: &SearchParams,
-    pool: Data<Pool<PostgresConnectionManager<NoTls>>>,
+    pool: crate::webutil::Pool,
 ) -> Result<(usize, Vec<Map>), bwcommon::MyError> {
-    let maps = search_cache(query, allow_nsfw, query_params, (**pool).clone()).await?;
+    let maps = search_cache(query, allow_nsfw, query_params, pool.clone()).await?;
 
     let offset: usize = query_params.offset.try_into()?;
 

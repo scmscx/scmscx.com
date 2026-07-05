@@ -1,11 +1,11 @@
 use crate::api::bulkupload::{insert_parsed_map, parse_map};
-use crate::middleware::UserSession;
-use actix_web::post;
-use actix_web::web;
-use actix_web::HttpMessage;
-use actix_web::HttpResponse;
-use actix_web::Responder;
-use bwcommon::insert_extension;
+use crate::webutil::{MaybeUser, Pool};
+use axum::body::Body;
+use axum::extract::{Extension, Query};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+use bwcommon::with_logging_info;
 use bwcommon::ApiSpecificInfoForLogging;
 use bwcommon::MyError;
 use futures_util::StreamExt;
@@ -29,7 +29,7 @@ use tracing::info;
 //   })}`;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct UploadQuery {
+pub(crate) struct UploadQuery {
     filename: String,
     sha256: String,
     last_modified: i64,
@@ -37,26 +37,21 @@ struct UploadQuery {
     playlist: String,
 }
 
-#[post("/api/uiv2/upload-map")]
-async fn upload_map(
-    query: web::Query<UploadQuery>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-    req: actix_web::HttpRequest,
-    mut payload: actix_web::web::Payload,
-) -> Result<impl Responder, MyError> {
+pub async fn upload_map(
+    Query(query): Query<UploadQuery>,
+    Extension(pool): Extension<Pool>,
+    user: MaybeUser,
+    body: Body,
+) -> Result<Response, MyError> {
     if env::var("SCMSCX_READONLY").unwrap_or_else(|_| "false".to_owned()) == "true" {
-        return Ok(HttpResponse::ServiceUnavailable()
-            .body("server is in maintenance mode, try again later.".to_owned())
-            .customize());
+        return Ok((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "server is in maintenance mode, try again later.",
+        )
+            .into_response());
     }
 
-    let user_id = req.extensions().get::<UserSession>().map_or(10, |x| x.id);
-
-    let query = query.into_inner();
+    let user_id = user.id().unwrap_or(10);
 
     tokio::fs::create_dir_all("./pending/tmp").await?;
     tokio::fs::create_dir_all("./pending/backblaze").await?;
@@ -72,8 +67,9 @@ async fn upload_map(
     {
         let mut file = tokio::fs::File::create(fake_filename.as_str()).await?;
 
-        while let Some(chunk) = payload.next().await {
-            let bytes = chunk?;
+        let mut stream = body.into_data_stream();
+        while let Some(chunk) = stream.next().await {
+            let bytes = chunk.map_err(|e| anyhow::anyhow!("error reading body: {e}"))?;
             total_file_size += bytes.len();
 
             bwcommon::ensure!(total_file_size <= query.length);
@@ -97,13 +93,8 @@ async fn upload_map(
     // Parse + validate the map up front so we reject garbage early
     let parsed = parse_map(fake_filename.clone()).await?;
     if parsed.insert.is_none() {
-        return Ok(HttpResponse::Ok()
-            .content_type("application/json")
-            .body(serde_json::to_string(&json!(-1))?)
-            .customize());
+        return Ok(Json(json!(-1)).into_response());
     }
-
-    let pool = (**pool).clone();
 
     info!("playlist");
     let playlist_id: i64 = {
@@ -179,8 +170,5 @@ async fn upload_map(
     let map_id = bwcommon::get_web_id_from_db_id(map_id, crate::util::SEED_MAP_ID)?;
 
     info!("responding");
-    Ok(insert_extension(HttpResponse::Ok(), info)
-        .content_type("application/json")
-        .body(serde_json::to_string(&json!(map_id))?)
-        .customize())
+    Ok(with_logging_info(info, Json(json!(map_id))))
 }

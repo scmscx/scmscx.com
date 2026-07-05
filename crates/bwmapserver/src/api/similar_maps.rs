@@ -1,11 +1,14 @@
-use actix_web::get;
-use actix_web::{web, HttpResponse, Responder};
 use anyhow::Result;
-use bwcommon::{get_web_id_from_db_id, insert_extension, ApiSpecificInfoForLogging};
+use axum::extract::{Extension, Path};
+use axum::response::Response;
+use axum::Json;
+use bwcommon::{get_web_id_from_db_id, with_logging_info, ApiSpecificInfoForLogging};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use tracing::instrument;
+
+use crate::webutil::Pool;
 
 // type KdTree = kiddo::KdTree<f32, i64, 256>;
 
@@ -55,17 +58,11 @@ use tracing::instrument;
 //     anyhow::Ok(Arc::new(tree))
 // }
 
-#[get("/api/similar_maps/{map_id}")]
 #[instrument(skip_all)]
 pub async fn handler(
-    path: web::Path<(String,)>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, bwcommon::MyError> {
-    let (map_id,) = path.into_inner();
+    Path((map_id,)): Path<(String,)>,
+    Extension(pool): Extension<Pool>,
+) -> Result<Response, bwcommon::MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let con = pool.get().await?;
@@ -224,9 +221,10 @@ pub async fn handler(
 
     // ret.sort_by_key(|x| x.hamming_distance);
 
-    Ok(insert_extension(HttpResponse::Ok(), info)
-        .content_type("application/json")
-        .body(serde_json::to_string(&json!({
-            // "v1": ret,
-            "v2": nearest2}))?))
+    Ok(with_logging_info(
+        info,
+        Json(json!({
+        // "v1": ret,
+        "v2": nearest2})),
+    ))
 }
