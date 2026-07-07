@@ -234,3 +234,112 @@ pub fn insert_extension(
     resp.extensions_mut().insert(info);
     resp
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::http::Method;
+    use actix_web::test::TestRequest;
+    use actix_web::HttpResponse;
+
+    #[tokio::test]
+    async fn insert_extension_stashes_logging_info_and_keeps_body() {
+        let info = ApiSpecificInfoForLogging {
+            map_id: Some(42),
+            username: Some("neo".to_string()),
+            ..Default::default()
+        };
+
+        let resp = insert_extension(HttpResponse::Ok(), info).body("hello body");
+
+        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
+        let stashed = resp
+            .extensions()
+            .get::<ApiSpecificInfoForLogging>()
+            .cloned()
+            .expect("logging info must be present in the response extensions");
+        assert_eq!(stashed.map_id, Some(42));
+        assert_eq!(stashed.username.as_deref(), Some("neo"));
+
+        let bytes = actix_web::body::to_bytes(resp.into_body()).await.unwrap();
+        assert_eq!(&bytes[..], b"hello body");
+    }
+
+    #[test]
+    fn request_logging_info_maps_fields() {
+        // x-forwarded-for feeds actix's realip_remote_addr(), the same client-IP
+        // resolution the rate limiter and logging rely on.
+        let req = TestRequest::default()
+            .method(Method::POST)
+            .uri("/api/thing?q=1&z=2")
+            .insert_header(("referer", "https://ref"))
+            .insert_header(("accept-language", "ko"))
+            .insert_header(("accept-encoding", "gzip"))
+            .insert_header(("user-agent", "UA/1.0"))
+            .insert_header(("x-forwarded-for", "1.2.3.4"))
+            .to_http_request();
+
+        let info = get_request_logging_info(&req);
+
+        assert_eq!(info.ip.as_deref(), Some("1.2.3.4"));
+        assert_eq!(info.method, "POST");
+        assert_eq!(info.path, "/api/thing");
+        assert_eq!(info.query.as_deref(), Some("q=1&z=2"));
+        // No matched route in a bare TestRequest → event falls back to the path.
+        assert_eq!(info.event.as_deref(), Some("/api/thing"));
+        assert_eq!(info.referer, "https://ref");
+        assert_eq!(info.accept_language, "ko");
+        assert_eq!(info.accept_encoding, "gzip");
+        assert_eq!(info.user_agent, "UA/1.0");
+        // No tac extension → None.
+        assert!(info.tac.is_none());
+    }
+
+    #[test]
+    fn request_logging_info_event_falls_back_to_path_and_picks_up_tac() {
+        let req = TestRequest::default().uri("/raw/path").to_http_request();
+        req.extensions_mut().insert(TrackingAnalytics {
+            tracking_analytics_id: "tac-123".to_string(),
+            was_provided_by_request: true,
+        });
+
+        let info = get_request_logging_info(&req);
+
+        assert_eq!(info.event.as_deref(), Some("/raw/path"));
+        assert_eq!(info.tac.as_deref(), Some("tac-123"));
+        // Missing headers become empty strings, and no query → None.
+        assert_eq!(info.referer, "");
+        assert!(info.query.is_none());
+    }
+
+    #[test]
+    fn api_logging_info_serializes_flattened() {
+        let req_info = ApiRequestLoggingInfo {
+            ip: Some("9.9.9.9".to_string()),
+            tac: Some("t".to_string()),
+            event: Some("/e".to_string()),
+            method: "GET".to_string(),
+            path: "/e".to_string(),
+            query: None,
+            referer: String::new(),
+            accept_language: String::new(),
+            accept_encoding: String::new(),
+            user_agent: String::new(),
+        };
+        let props = ApiSpecificInfoForLogging {
+            map_id: Some(7),
+            ..Default::default()
+        };
+
+        let info = get_api_logging_info(req_info, props);
+        let v = serde_json::to_value(&info).unwrap();
+
+        // #[serde(flatten)] lifts req_info + properties fields to the top level.
+        assert_eq!(v["method"], "GET");
+        assert_eq!(v["ip"], "9.9.9.9");
+        assert_eq!(v["map_id"], 7);
+        assert!(v.get("time").is_some());
+        assert!(v.get("req_info").is_none());
+        assert!(v.get("properties").is_none());
+    }
+}

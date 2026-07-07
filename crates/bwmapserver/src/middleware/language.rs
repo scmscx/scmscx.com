@@ -202,3 +202,97 @@ where
         .boxed_local()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::http::header::SET_COOKIE;
+    use actix_web::{test, web, App, HttpMessage, HttpRequest, HttpResponse};
+
+    /// Echoes the LangData the middleware stashed in the request extensions.
+    async fn echo_lang(req: HttpRequest) -> HttpResponse {
+        let lang = req.extensions().get::<bwcommon::LangData>().cloned();
+        let body = match lang {
+            Some(bwcommon::LangData::English) => "English",
+            Some(bwcommon::LangData::Korean) => "Korean",
+            None => "none",
+        };
+        HttpResponse::Ok().body(body)
+    }
+
+    async fn run(req: test::TestRequest) -> (Vec<String>, String) {
+        let app = test::init_service(
+            App::new()
+                .wrap(LanguageTransformer)
+                .default_service(web::to(echo_lang)),
+        )
+        .await;
+        let resp = test::call_service(&app, req.to_request()).await;
+        let cookies = resp
+            .headers()
+            .get_all(SET_COOKIE)
+            .map(|v| v.to_str().unwrap().to_string())
+            .collect();
+        let body = String::from_utf8(test::read_body(resp).await.to_vec()).unwrap();
+        (cookies, body)
+    }
+
+    #[actix_web::test]
+    async fn accept_language_korean_sets_cookie_and_extension() {
+        let (cookies, body) =
+            run(test::TestRequest::get().insert_header(("accept-language", "ko-KR,ko;q=0.9")))
+                .await;
+        assert!(
+            cookies.iter().any(|c| c.starts_with("lang=kor")),
+            "expected lang=kor Set-Cookie, got {cookies:?}"
+        );
+        assert_eq!(body, "Korean");
+    }
+
+    #[actix_web::test]
+    async fn accept_language_english_sets_cookie_and_extension() {
+        let (cookies, body) =
+            run(test::TestRequest::get().insert_header(("accept-language", "en-US,en;q=0.9")))
+                .await;
+        assert!(cookies.iter().any(|c| c.starts_with("lang=eng")));
+        assert_eq!(body, "English");
+    }
+
+    #[actix_web::test]
+    async fn no_headers_defaults_to_english_and_sets_cookie() {
+        let (cookies, body) = run(test::TestRequest::get()).await;
+        assert!(cookies.iter().any(|c| c.starts_with("lang=eng")));
+        assert_eq!(body, "English");
+    }
+
+    #[actix_web::test]
+    async fn valid_lang_cookie_is_respected_and_not_reset() {
+        let (cookies, body) =
+            run(test::TestRequest::get().cookie(actix_web::cookie::Cookie::new("lang", "kor")))
+                .await;
+        assert!(
+            cookies.is_empty(),
+            "should not re-set an already-provided lang cookie"
+        );
+        assert_eq!(body, "Korean");
+    }
+
+    #[actix_web::test]
+    async fn cookie_overrides_accept_language_header() {
+        let (cookies, body) = run(test::TestRequest::get()
+            .cookie(actix_web::cookie::Cookie::new("lang", "eng"))
+            .insert_header(("accept-language", "ko")))
+        .await;
+        assert!(cookies.is_empty());
+        assert_eq!(body, "English");
+    }
+
+    #[actix_web::test]
+    async fn garbage_lang_cookie_falls_back_to_english_and_resets_cookie() {
+        let (cookies, body) =
+            run(test::TestRequest::get().cookie(actix_web::cookie::Cookie::new("lang", "zzz")))
+                .await;
+        assert!(cookies.iter().any(|c| c.starts_with("lang=eng")));
+        assert_eq!(body, "English");
+    }
+}

@@ -97,3 +97,58 @@ fn too_many_requests(retry_after: Duration) -> HttpResponse {
         .insert_header((RETRY_AFTER, retry_after.as_secs().max(1).to_string()))
         .body("Too many attempts. Please slow down.")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::http::StatusCode;
+
+    fn retry_after_secs(resp: &HttpResponse) -> u64 {
+        resp.headers()
+            .get(RETRY_AFTER)
+            .expect("Retry-After header present")
+            .to_str()
+            .unwrap()
+            .parse::<u64>()
+            .unwrap()
+    }
+
+    #[test]
+    fn allows_burst_then_denies() {
+        let limiter = UsernameLoginLimiter::new();
+        // Quota allows a burst of 10 for a given username.
+        for i in 0..10 {
+            assert!(
+                limiter.check("neo").is_ok(),
+                "attempt {i} should be allowed within the burst"
+            );
+        }
+        // The 11th immediate attempt is rejected with a 429.
+        let err = limiter
+            .check("neo")
+            .expect_err("11th attempt must be denied");
+        assert_eq!(err.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert!(retry_after_secs(&err) >= 1, "Retry-After floored to >= 1s");
+    }
+
+    #[test]
+    fn usernames_are_independent() {
+        let limiter = UsernameLoginLimiter::new();
+        for _ in 0..10 {
+            limiter.check("alice").unwrap();
+        }
+        // alice is now throttled, but bob is unaffected.
+        assert!(limiter.check("alice").is_err());
+        assert!(limiter.check("bob").is_ok());
+    }
+
+    #[test]
+    fn too_many_requests_floors_retry_after() {
+        let resp = too_many_requests(Duration::from_millis(10));
+        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(retry_after_secs(&resp), 1, "sub-second waits floor to 1s");
+
+        let resp = too_many_requests(Duration::from_secs(42));
+        assert_eq!(retry_after_secs(&resp), 42);
+    }
+}
