@@ -305,6 +305,49 @@ mod test {
         }
     }
 
+    /// Round-trip specific ids that place a *distinct* value in every base-256
+    /// byte, including ids >= 2^24 and >= 2^32. The quickcheck generators above
+    /// rarely produce large ids, and `web_ids_edge_cases` only uses 0 and
+    /// `2^35 - 1` (all-`0xFF` bytes) — so the high-byte decomposition in
+    /// `convert_id_to_byte_array` goes unpinned and the `/`<->`%`<->`*` mutations
+    /// there survive. With distinct bytes, any such mutation makes encode->decode
+    /// reconstruct a different id, so it is caught here. Distinct bytes also make
+    /// this a de-facto stability check on the produced web-id strings.
+    #[test]
+    fn id_round_trips_with_distinct_high_bytes() {
+        let ids: [i64; 11] = [
+            0,
+            1,
+            0xFF,
+            0x01_00,          // isolates byte[1]
+            0x01_00_00,       // isolates byte[2] (2^16)
+            0x01_00_00_00,    // isolates byte[3] (2^24)
+            0x04_03_02_01,    // distinct low four bytes
+            0x7F_65_43_21,    // distinct bytes near 2^31
+            0x01_00_00_00_00, // isolates byte[4] value bits (2^32)
+            0x05_44_33_22_11, // distinct across all five bytes
+            (1 << 35) - 1,    // maximum encodable id
+        ];
+
+        for &id in &ids {
+            // Directly exercises convert_id_to_byte_array against its inverse.
+            assert_eq!(
+                convert_byte_array_to_id(convert_id_to_byte_array(id).unwrap()).unwrap(),
+                id,
+                "byte round-trip failed for id {id:#x}"
+            );
+            // And the full web-id round-trip across a spread of seeds.
+            for seed in [0u8, 32, 97, 255] {
+                let web_id = get_web_id_from_db_id(id, seed).unwrap();
+                assert_eq!(
+                    get_db_id_from_web_id(&web_id, seed).unwrap(),
+                    id,
+                    "web-id round-trip failed for id {id:#x} seed {seed}"
+                );
+            }
+        }
+    }
+
     #[quickcheck]
     fn web_ids_do_not_repeat_small(seed: u8) {
         let mut set = HashSet::new();

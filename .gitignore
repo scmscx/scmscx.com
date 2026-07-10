@@ -2,3 +2,6 @@ target/
 dist/
 node_modules/
 .git.bak/
+# cargo-mutants scratch output (see `make mutants`).
+mutants.out/
+mutants.out.old/

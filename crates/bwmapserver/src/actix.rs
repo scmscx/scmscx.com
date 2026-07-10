@@ -1315,7 +1315,7 @@ pub(crate) async fn start() -> Result<()> {
             // nix::sys::socket::setsockopt(&fd, nix::sys::socket::sockopt::RcvBuf, &(4 * 1024))
             //     .unwrap();
         })
-        .bind("0.0.0.0:8080")
+        .bind(std::env::var("BIND_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".to_string()))
         .unwrap()
         .workers(4)
         .run()

@@ -43,7 +43,13 @@ pub async fn get_chk(chk_hash: &str) -> Result<Vec<u8>> {
     assert!(!bytes.is_empty());
     assert_eq!(hash(&bytes[..]), chk_hash);
 
-    tokio::fs::write(&path, &bytes[..]).await.unwrap();
+    // Cache atomically (temp + rename) so parallel `cargo test` threads never read
+    // a half-written file (which would fail the hash check above and re-download).
+    // Best-effort: we already hold the bytes, so a caching failure isn't fatal.
+    let tmp = dir.join(format!(".{chk_hash}.{}.tmp", std::process::id()));
+    if tokio::fs::write(&tmp, &bytes[..]).await.is_ok() {
+        let _ = tokio::fs::rename(&tmp, &path).await;
+    }
 
     anyhow::Ok(bytes.to_vec())
 }
