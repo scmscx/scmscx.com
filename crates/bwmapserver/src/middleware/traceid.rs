@@ -107,3 +107,57 @@ where
         .boxed_local()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::{test, web, App, HttpMessage, HttpRequest, HttpResponse};
+
+    /// Reports the trace id the middleware assigned (or "none").
+    async fn echo_trace(req: HttpRequest) -> HttpResponse {
+        let id = req.extensions().get::<TraceID>().map(|t| t.id.clone());
+        HttpResponse::Ok().body(id.unwrap_or_else(|| "none".to_string()))
+    }
+
+    async fn trace_id_body() -> String {
+        let app = test::init_service(
+            App::new()
+                .wrap(TraceIDTransformer)
+                .default_service(web::to(echo_trace)),
+        )
+        .await;
+        let resp = test::call_service(&app, test::TestRequest::get().to_request()).await;
+        String::from_utf8(test::read_body(resp).await.to_vec()).unwrap()
+    }
+
+    #[actix_web::test]
+    async fn assigns_six_char_trace_id_visible_to_handler() {
+        let id = trace_id_body().await;
+        assert_eq!(id.len(), 6, "trace id is truncated to 6 chars, got {id:?}");
+        assert!(
+            id.chars().all(|c| c.is_ascii_hexdigit()),
+            "trace id should be hex, got {id:?}"
+        );
+    }
+
+    #[actix_web::test]
+    async fn trace_ids_are_unique_per_request() {
+        assert_ne!(
+            trace_id_body().await,
+            trace_id_body().await,
+            "each request must get a fresh trace id"
+        );
+    }
+
+    #[actix_web::test]
+    async fn preserves_downstream_status() {
+        let app = test::init_service(
+            App::new()
+                .wrap(TraceIDTransformer)
+                .default_service(web::to(|| async { HttpResponse::ImATeapot().finish() })),
+        )
+        .await;
+        let resp = test::call_service(&app, test::TestRequest::get().to_request()).await;
+        assert_eq!(resp.status(), actix_web::http::StatusCode::IM_A_TEAPOT);
+    }
+}

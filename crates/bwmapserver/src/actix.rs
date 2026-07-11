@@ -1323,3 +1323,51 @@ pub(crate) async fn start() -> Result<()> {
 
     anyhow::Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{BackblazeAuth, ManifestChunk};
+
+    #[test]
+    fn manifest_chunk_deserializes_from_vite_manifest() {
+        // A realistic slice of dist/.vite/manifest.json.
+        let json = r#"{
+            "index.html": {
+                "file": "assets/index-abc123.js",
+                "name": "index",
+                "src": "index.html",
+                "isEntry": true,
+                "css": ["assets/index-def456.css"]
+            }
+        }"#;
+
+        let map: std::collections::HashMap<String, ManifestChunk> =
+            serde_json::from_str(json).unwrap();
+        let chunk = &map["index.html"];
+        assert_eq!(chunk.file, "assets/index-abc123.js");
+        assert_eq!(chunk.name.as_deref(), Some("index"));
+        assert_eq!(chunk.isEntry, Some(true));
+        assert_eq!(
+            chunk.css.as_deref(),
+            Some(&["assets/index-def456.css".to_string()][..])
+        );
+    }
+
+    #[test]
+    fn manifest_chunk_tolerates_missing_optional_fields() {
+        // Non-entry chunks omit isEntry/css.
+        let json = r#"{ "file": "assets/x.js", "src": "x.ts" }"#;
+        let chunk: ManifestChunk = serde_json::from_str(json).unwrap();
+        assert_eq!(chunk.file, "assets/x.js");
+        assert!(chunk.name.is_none());
+        assert!(chunk.isEntry.is_none());
+        assert!(chunk.css.is_none());
+    }
+
+    #[test]
+    fn backblaze_auth_default_is_empty() {
+        let auth = BackblazeAuth::default();
+        assert_eq!(auth.version, 0);
+        assert!(auth.auth.is_none());
+    }
+}

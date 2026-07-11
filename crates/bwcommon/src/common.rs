@@ -176,3 +176,52 @@ impl From<actix_web::error::BlockingError> for MyError {
         MyError { err: err.into() }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::error::ResponseError;
+    use actix_web::http::StatusCode;
+
+    #[test]
+    fn my_error_from_str_and_display() {
+        let e: MyError = "boom".into();
+        assert_eq!(e.to_string(), "boom");
+        // Debug delegates to the inner anyhow::Error and includes the message.
+        assert!(format!("{e:?}").contains("boom"));
+    }
+
+    #[test]
+    fn my_error_from_anyhow_preserves_message() {
+        let e: MyError = anyhow::anyhow!("kaboom {}", 7).into();
+        assert_eq!(e.to_string(), "kaboom 7");
+    }
+
+    #[tokio::test]
+    async fn response_error_is_500_with_generic_body() {
+        let e: MyError = "secret detail leaked here".into();
+
+        assert_eq!(e.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let resp = e.error_response();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        // The public body must NOT leak the internal error string.
+        let bytes = actix_web::body::to_bytes(resp.into_body()).await.unwrap();
+        let text = String::from_utf8(bytes.to_vec()).unwrap();
+        assert_eq!(text, "Something went wrong :)");
+        assert!(!text.contains("secret detail leaked here"));
+    }
+
+    #[test]
+    fn ensure_macro_ok_and_err() {
+        fn check(pass: bool) -> anyhow::Result<()> {
+            crate::ensure!(pass);
+            Ok(())
+        }
+        assert!(check(true).is_ok());
+        let err = check(false).unwrap_err();
+        // The failing condition text is embedded in the error message.
+        assert!(err.to_string().contains("pass"));
+    }
+}

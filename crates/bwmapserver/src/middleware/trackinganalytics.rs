@@ -135,3 +135,84 @@ where
         .boxed_local()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::http::header::SET_COOKIE;
+    use actix_web::{test, web, App, HttpMessage, HttpRequest, HttpResponse};
+
+    /// Reports "<id>|<was_provided_by_request>".
+    async fn echo_tac(req: HttpRequest) -> HttpResponse {
+        let out = req
+            .extensions()
+            .get::<TrackingAnalytics>()
+            .map(|t| format!("{}|{}", t.tracking_analytics_id, t.was_provided_by_request));
+        HttpResponse::Ok().body(out.unwrap_or_else(|| "none".to_string()))
+    }
+
+    async fn run(req: test::TestRequest) -> (Vec<String>, String) {
+        let app = test::init_service(
+            App::new()
+                .wrap(TrackingAnalyticsTransformer)
+                .default_service(web::to(echo_tac)),
+        )
+        .await;
+        let resp = test::call_service(&app, req.to_request()).await;
+        let cookies = resp
+            .headers()
+            .get_all(SET_COOKIE)
+            .map(|v| v.to_str().unwrap().to_string())
+            .collect();
+        let body = String::from_utf8(test::read_body(resp).await.to_vec()).unwrap();
+        (cookies, body)
+    }
+
+    #[actix_web::test]
+    async fn reuses_existing_tac_cookie_without_resetting() {
+        let (cookies, body) = run(test::TestRequest::get()
+            .cookie(actix_web::cookie::Cookie::new("tac", "existing-id-123")))
+        .await;
+        assert!(
+            cookies.is_empty(),
+            "an already-provided tac must not be re-set"
+        );
+        assert_eq!(body, "existing-id-123|true");
+    }
+
+    #[actix_web::test]
+    async fn generates_tac_when_absent_and_sets_cookie() {
+        let (cookies, body) =
+            run(test::TestRequest::get().insert_header(("user-agent", "UA/1.0"))).await;
+        assert!(
+            cookies.iter().any(|c| c.starts_with("tac=")),
+            "a fresh tac cookie must be set, got {cookies:?}"
+        );
+        let (id, provided) = body.split_once('|').unwrap();
+        assert_eq!(provided, "false");
+        // The generated id is a SHA-256 hex digest.
+        assert_eq!(id.len(), 64);
+        assert!(id.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[actix_web::test]
+    async fn generated_tac_is_deterministic_for_same_fingerprint() {
+        let build = || {
+            test::TestRequest::get()
+                .insert_header(("user-agent", "Mozilla/5.0"))
+                .insert_header(("accept-language", "en-US"))
+                .insert_header(("sec-ch-ua-platform", "\"Linux\""))
+        };
+        let (_, a) = run(build()).await;
+        let (_, b) = run(build()).await;
+        assert_eq!(a, b, "same fingerprint headers must hash to the same tac");
+    }
+
+    #[actix_web::test]
+    async fn different_user_agent_yields_different_tac() {
+        let (_, a) =
+            run(test::TestRequest::get().insert_header(("user-agent", "Mozilla/5.0"))).await;
+        let (_, b) = run(test::TestRequest::get().insert_header(("user-agent", "curl/8.0"))).await;
+        assert_ne!(a, b, "distinct fingerprints must produce distinct tacs");
+    }
+}

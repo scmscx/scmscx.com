@@ -137,3 +137,65 @@ impl Drop for InFlightGuard {
         self.0.dec();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::{test, web, App, HttpResponse};
+
+    #[actix_web::test]
+    async fn records_series_labelled_by_matched_route() {
+        // A route pattern unique to this test keeps the assertion robust against
+        // metrics written by other tests sharing the process-global registry.
+        let app = test::init_service(
+            App::new()
+                .wrap(MetricsTransformer)
+                .route("/metrics_probe_route", web::get().to(|| async { "ok" })),
+        )
+        .await;
+
+        let resp = test::call_service(
+            &app,
+            test::TestRequest::get()
+                .uri("/metrics_probe_route")
+                .to_request(),
+        )
+        .await;
+        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
+
+        let scraped = common::telemetry::encode_metrics();
+        assert!(
+            scraped.contains("route=\"/metrics_probe_route\""),
+            "expected the request counter to be labelled with the matched route"
+        );
+        assert!(scraped.contains("scmscx_http_request_duration_seconds"));
+        assert!(scraped.contains("scmscx_http_requests_in_flight"));
+    }
+
+    #[actix_web::test]
+    async fn unmatched_requests_bucket_under_other() {
+        // No route matches → MatchedPattern absent → "<other>" bucket, keeping
+        // label cardinality bounded.
+        let app = test::init_service(
+            App::new()
+                .wrap(MetricsTransformer)
+                .route("/known", web::get().to(|| async { "ok" }))
+                .default_service(web::to(HttpResponse::NotFound)),
+        )
+        .await;
+
+        let resp = test::call_service(
+            &app,
+            test::TestRequest::get()
+                .uri("/this/path/does/not/match")
+                .to_request(),
+        )
+        .await;
+        assert_eq!(resp.status(), actix_web::http::StatusCode::NOT_FOUND);
+
+        assert!(
+            common::telemetry::encode_metrics().contains("route=\"<other>\""),
+            "unmatched requests should be bucketed under <other>"
+        );
+    }
+}

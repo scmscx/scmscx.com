@@ -145,3 +145,92 @@ where
         .boxed_local()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::http::header::{LOCATION, SET_COOKIE};
+    use actix_web::http::StatusCode;
+    use actix_web::{test, web, App, HttpRequest};
+
+    /// A pool that never connects (port 1). Only the branches that don't touch
+    /// the DB are exercised here; anything that calls `pool.get()` would fail.
+    fn dead_pool() -> Pool<PostgresConnectionManager<NoTls>> {
+        let manager = PostgresConnectionManager::new(
+            "host=127.0.0.1 port=1 user=x dbname=x".parse().unwrap(),
+            NoTls,
+        );
+        Pool::builder().build_unchecked(manager)
+    }
+
+    async fn echo(req: HttpRequest) -> HttpResponse {
+        let has_user = req.extensions().get::<UserSession>().is_some();
+        HttpResponse::Ok().body(if has_user { "user" } else { "anon" })
+    }
+
+    async fn drive(
+        req: test::TestRequest,
+    ) -> ServiceResponse<EitherBody<actix_web::body::BoxBody>> {
+        // UserSessionTransformer requires the service it wraps to already yield an
+        // `EitherBody` (so it can short-circuit with a logout response). In the
+        // real app another layer provides that; here a tiny inner `wrap_fn` maps
+        // the handler's BoxBody into the left `EitherBody` variant.
+        // The first `.wrap()` is innermost: the body-mapper wraps routing and
+        // converts BoxBody → EitherBody, then UserSessionTransformer wraps that.
+        let app = test::init_service(
+            App::new()
+                .app_data(Data::new(dead_pool()))
+                .wrap_fn(|req, srv| {
+                    let fut = srv.call(req);
+                    async move {
+                        fut.await
+                            .map(ServiceResponse::map_into_left_body::<actix_web::body::BoxBody>)
+                    }
+                })
+                .wrap(UserSessionTransformer)
+                .default_service(web::to(echo)),
+        )
+        .await;
+        test::call_service(&app, req.to_request()).await
+    }
+
+    #[actix_web::test]
+    async fn passes_through_when_no_auth_cookies() {
+        // No username cookie → the middleware returns early (before ever touching
+        // the pool), so the dead pool is never queried.
+        let resp = drive(test::TestRequest::get()).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = test::read_body(resp).await;
+        assert_eq!(&body[..], b"anon");
+    }
+
+    #[actix_web::test]
+    async fn username_without_token_logs_out_and_clears_cookies() {
+        // A `username` cookie without a `token` is a stale session → 301 logout
+        // that clears both cookies. This DB-free branch also exercises the
+        // logout-cookie clearing, and the axum rewrite asserts the identical
+        // behavior — the refactor must preserve it.
+        let resp = drive(
+            test::TestRequest::get().cookie(actix_web::cookie::Cookie::new("username", "neo")),
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::MOVED_PERMANENTLY);
+        assert_eq!(resp.headers().get(LOCATION).unwrap(), "/");
+
+        let cookies: Vec<String> = resp
+            .headers()
+            .get_all(SET_COOKIE)
+            .map(|v| v.to_str().unwrap().to_string())
+            .collect();
+        assert_eq!(cookies.len(), 2);
+        for name in ["username", "token"] {
+            assert!(
+                cookies
+                    .iter()
+                    .any(|c| c.starts_with(&format!("{name}=")) && c.contains("Expires=")),
+                "expected a cleared {name} cookie, got {cookies:?}"
+            );
+        }
+    }
+}

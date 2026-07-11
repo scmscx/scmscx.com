@@ -49,6 +49,66 @@ where
     format!("{:x}", hasher.finalize())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_map_id_accepts_short_numeric() {
+        // Fewer than 8 all-ASCII-digit chars → parsed as a raw DB id.
+        assert_eq!(parse_map_id("0").unwrap(), 0);
+        assert_eq!(parse_map_id("123").unwrap(), 123);
+        assert_eq!(parse_map_id("1234567").unwrap(), 1_234_567);
+    }
+
+    #[test]
+    fn parse_map_id_decodes_web_ids_roundtrip() {
+        // An 8-char web id round-trips through the obfuscation scheme.
+        for db_id in [0i64, 1, 42, 39807, (1 << 20) - 1] {
+            let web = bwcommon::get_web_id_from_db_id(db_id, SEED_MAP_ID).unwrap();
+            assert_eq!(web.len(), 8, "web ids are 8 chars");
+            assert_eq!(
+                parse_map_id(&web).unwrap(),
+                db_id,
+                "parse_map_id must decode web id {web} back to {db_id}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_map_id_long_digit_string_is_treated_as_web_id() {
+        // 8+ digits is NOT a raw id (the `s.len() < 8` guard); it's routed to the
+        // web-id decoder, which rejects it (digits aren't all valid base32 chars,
+        // or the checksum fails).
+        assert!(parse_map_id("12345678").is_err());
+    }
+
+    #[test]
+    fn parse_map_id_rejects_garbage() {
+        assert!(parse_map_id("not-an-id").is_err());
+        assert!(parse_map_id("").is_err());
+    }
+
+    #[test]
+    fn sanitize_sc_string_picks_longest_segment_between_control_marks() {
+        // \u{0012} and \u{0013} are the left/right alignment marks used to split.
+        let s = "short\u{0012}the longest segment\u{0013}mid";
+        assert_eq!(sanitize_sc_string(s), "the longest segment");
+    }
+
+    #[test]
+    fn sanitize_sc_string_filters_control_chars() {
+        // Characters below ' ' (0x20) are stripped from the chosen segment.
+        let s = "ab\u{0001}c\u{0007}d";
+        assert_eq!(sanitize_sc_string(s), "abcd");
+    }
+
+    #[test]
+    fn sanitize_sc_string_empty() {
+        assert_eq!(sanitize_sc_string(""), "");
+    }
+}
+
 // pub(crate) fn sanitize_sc_scenario_string(s: &str) -> String {
 //     // split string by left or right marks
 

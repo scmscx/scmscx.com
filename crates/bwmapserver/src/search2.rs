@@ -369,3 +369,63 @@ pub async fn search2(
             .to_vec(),
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn search_params_defaults_from_empty_object() {
+        // The search handlers deserialize SearchParams straight from the query
+        // string; an omitted field must fall back to its documented default.
+        let p: SearchParams = serde_json::from_str("{}").unwrap();
+
+        assert_eq!(p.sort, "relevancy");
+
+        // Every search-field toggle defaults on.
+        assert!(p.unit_names && p.force_names && p.file_names);
+        assert!(p.scenario_names && p.scenario_descriptions && p.provided_by);
+
+        // Every tileset defaults on.
+        assert!(p.tileset_badlands && p.tileset_space_platform && p.tileset_installation);
+        assert!(p.tileset_ashworld && p.tileset_jungle && p.tileset_desert);
+        assert!(p.tileset_ice && p.tileset_twilight);
+
+        // Numeric bounds.
+        assert_eq!(p.minimum_map_width, 0);
+        assert_eq!(p.maximum_map_width, 256);
+        assert_eq!(p.minimum_map_height, 0);
+        assert_eq!(p.maximum_map_height, 256);
+        assert_eq!(p.minimum_human_players, 0);
+        assert_eq!(p.maximum_human_players, 256);
+        assert_eq!(p.last_modified_after, 0);
+        assert_eq!(p.last_modified_before, 2_524_608_000_000);
+        assert_eq!(p.time_uploaded_before, 2_524_608_000_000);
+        assert_eq!(p.offset, 0);
+
+        // "include" flags and uploaded_by default off/empty.
+        assert!(!p.include_broken && !p.include_outdated);
+        assert!(!p.include_unfinished && !p.include_nsfw);
+        assert_eq!(p.uploaded_by, "");
+    }
+
+    #[test]
+    fn search_params_honors_overrides() {
+        let p: SearchParams = serde_json::from_str(
+            r#"{"sort":"scenario","tileset_jungle":false,"maximum_map_width":128,
+                "include_nsfw":true,"uploaded_by":"neo","offset":300}"#,
+        )
+        .unwrap();
+
+        assert_eq!(p.sort, "scenario");
+        assert!(!p.tileset_jungle);
+        assert!(
+            p.tileset_badlands,
+            "unspecified tilesets keep their default"
+        );
+        assert_eq!(p.maximum_map_width, 128);
+        assert!(p.include_nsfw);
+        assert_eq!(p.uploaded_by, "neo");
+        assert_eq!(p.offset, 300);
+    }
+}
