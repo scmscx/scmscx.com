@@ -1,0 +1,82 @@
+name: mutants summary
+description: >
+  Summarize the last cargo-mutants run into the GitHub job summary: an outcome
+  table with the mutation score, a per-file breakdown of surviving (missed)
+  mutants, and the full missed list in a collapsible block — so the result is
+  readable on the job page without digging through the step log. Reads the
+  plain-text result files in mutants.out/; no jq/python dependency.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        # Writing the summary must never fail the job (the mutants step owns
+        # pass/fail; this only reports).
+        set +e
+
+        out=mutants.out
+        if [ ! -d "$out" ]; then
+          echo "### 🧬 Mutation testing" >> "$GITHUB_STEP_SUMMARY"
+          echo "_cargo-mutants did not run (no \`mutants.out/\`)._" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+
+        # `grep -c` prints 0 AND exits non-zero on an empty file, so `|| echo 0`
+        # would append a second 0 and corrupt the count — capture without the ||.
+        count() { local c; c=$(grep -c . "$1" 2>/dev/null); echo "${c:-0}"; }
+        caught=$(count "$out/caught.txt")
+        missed=$(count "$out/missed.txt")
+        timeout=$(count "$out/timeout.txt")
+        unviable=$(count "$out/unviable.txt")
+
+        # Mutation score = caught / tested, where "tested" excludes unviable
+        # mutants (those never built, so they say nothing about test quality).
+        # Timeouts count as detected — the mutation made the suite hang.
+        score=$(awk -v c="$caught" -v m="$missed" -v t="$timeout" \
+          'BEGIN { d=c+t; n=d+m; if (n==0) print "n/a"; else printf "%.1f%%", 100*d/n }')
+
+        {
+          echo "### 🧬 Mutation testing"
+          echo
+          if [ "$missed" -gt 0 ]; then
+            echo "❌ **$missed surviving mutant(s)** — mutation score **$score**"
+          else
+            echo "✅ **No surviving mutants** — mutation score **$score**"
+          fi
+          echo
+          echo "| Outcome | Count |"
+          echo "| --- | ---: |"
+          echo "| ✅ Caught | $caught |"
+          echo "| ❌ Missed (surviving) | $missed |"
+          echo "| ⏱️ Timeout | $timeout |"
+          echo "| 🚫 Unviable (didn't build) | $unviable |"
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        # Detail the surviving mutants: a per-file count table, then the full
+        # list. Only when there's something to show.
+        if [ "$missed" -gt 0 ]; then
+          {
+            echo
+            echo "<details><summary>❌ Surviving mutants by file</summary>"
+            echo
+            echo "| File | Surviving |"
+            echo "| --- | ---: |"
+            # File is the text before the first ':' (line:col:desc follow).
+            awk -F: '{ n[$1]++ } END { for (f in n) print n[f] "\t" f }' \
+              "$out/missed.txt" | sort -rn | while IFS=$'\t' read -r n f; do
+                echo "| \`$f\` | $n |"
+              done
+            echo
+            echo "</details>"
+            echo
+            echo "<details><summary>❌ Full surviving-mutant list</summary>"
+            echo
+            echo '```'
+            cat "$out/missed.txt"
+            echo '```'
+            echo
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+        fi
+
+        echo "::notice title=mutants::$caught caught, $missed missed, $timeout timeout, $unviable unviable — score $score"

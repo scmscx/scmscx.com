@@ -50,7 +50,10 @@ jobs:
         uses: ./.github/actions/sccache-stats
 
   mutants:
-    if: github.event_name == 'push'
+    # Full run on every push to main, and on demand via the Actions "Run
+    # workflow" button (workflow_dispatch). Skipped on the nightly schedule —
+    # that exists to refresh the deployed image, not to re-run mutation testing.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     needs: [test]
     timeout-minutes: 240
     name: Mutation testing (full)
@@ -103,12 +106,14 @@ jobs:
           missed=$(grep -c . mutants.out/missed.txt 2>/dev/null || echo 0)
           unviable=$(grep -c . mutants.out/unviable.txt 2>/dev/null || echo 0)
           echo "Mutants: caught=$caught missed=$missed unviable=$unviable"
+          # Any surviving mutant fails the job — add tests to catch them.
           if [ -s mutants.out/missed.txt ]; then
-            echo "::warning::surviving mutants (informational — not failing main):"
+            echo "::error::surviving mutants — add tests to catch them:"
             cat mutants.out/missed.txt
-          else
-            echo "No surviving mutants."
+            exit "${status:-1}"
           fi
+          echo "No surviving mutants."
+      - name: Mutants summary
+        uses: ./.github/actions/mutants-summary
       - name: sccache stats
-        if: always()
         uses: ./.github/actions/sccache-stats
