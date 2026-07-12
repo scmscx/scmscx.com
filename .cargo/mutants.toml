@@ -67,6 +67,49 @@ exclude_re = [
     # 2..4 with bits 0..1). For disjoint operands `a | b == a ^ b` for every
     # input, so the `|`->`^` mutation is a true equivalent.
     'replace \| with \^ in encode_base32',
+
+    # --- Not observable / not killable at the black-box (e2e) layer ---
+    # `ApiSpecificInfoForLogging` fields (user_id, map_id, username, chk_hash, …) are
+    # populated in handlers, stashed on the response via `insert_extension`, read back
+    # by PostgresLoggingMiddleware, and flow ONLY into the Mixpanel analytics JSON
+    # payload (bwcommon/src/logging.rs::do_mixpanel_stuff). They are never written to a
+    # DB column (userlogs binds user_id/username from the separate UserSession, not
+    # this struct) nor surfaced by any HTTP endpoint, and Mixpanel is disabled in the
+    # harness. Deleting one has no DB- or response-observable effect, so no e2e/unit
+    # test can catch it. ~15 mutants across flags/login/register/change_*/uiv2.
+    'delete field .* from struct .*ApiSpecificInfoForLogging',
+
+    # ratelimit.rs::retain_recent is pure housekeeping: it drops fully-replenished
+    # idle keys (recreated identically on the next check) and shrinks the map. No
+    # rate-limiting decision or Retry-After changes — the only effect is memory
+    # footprint, which the API doesn't expose. Behavior-equivalent.
+    'replace UsernameLoginLimiter::retain_recent with \(\)',
+    # ratelimit.rs::clock returns a shared `&'static DefaultClock`; the mutant leaks a
+    # fresh one per call. DefaultClock (quanta) reads a global monotonic reference, so
+    # a fresh instance's now() is identical, and Retry-After is floored to whole
+    # seconds anyway. Differs only by a per-call leak — behavior-equivalent.
+    'replace clock -> &.static DefaultClock with Box::leak',
+
+    # --- Line-anchored equivalents / harness-limited (anchored by line:col because
+    # the mutant text alone doesn't distinguish them from sibling, real mutants;
+    # re-check if these files shift) ---
+    # map_info.rs: the shift here is `1 << 0`, and `1 << 0 == 1 >> 0 == 1` — a true
+    # equivalent. (The sibling shifts `1<<1/2/3` ARE real and pinned by the melee
+    # force-properties test, so this must stay line-anchored, not function-wide.)
+    'uiv2/map_info\.rs:165:\d+: replace << with >>',
+    # chk.rs get_eups `owner > 12`→`>= 12` differs only on a unit with owner == 12.
+    # Audited 298 real maps: none exists (normal maps cap owners at 11; EUP maps jump
+    # straight to 84/114/255…). No obtainable fixture can distinguish it.
+    'chk\.rs:228:33: replace > with >=',
+    # uiv2/mod.rs get_map_image blackhole gate: with GSFS disabled in the harness the
+    # endpoint 404s every image anyway, so `&&`→`||` (which only changes WHICH 404
+    # path is taken) is unobservable here. The same blackhole-gate logic IS covered on
+    # the minimap route (which has a local fallback) by `image_endpoints_gate_access`.
+    'uiv2/mod\.rs:426:\d+: replace && with \|\|',
+    # search2.rs `unwrap_or(-1)` sentinel for a NULL modified_time. The normal upload
+    # path always writes a filetime row, so the branch is unreachable without a DB
+    # helper to delete it — killable in principle but very low value.
+    'search2\.rs:126:\d+: delete -',
 ]
 
 # Timeouts. Unit tests run in milliseconds; the E2E tests boot a server + clone a
@@ -77,6 +120,15 @@ build_timeout_multiplier = 3.0
 timeout_multiplier = 2.0
 minimum_test_timeout = 60.0
 
-# Don't let a mutant that only trips a warning lint (e.g. an unused variable) get
-# classified "unviable" instead of "caught".
-cap_lints = true
+# cap_lints is deliberately NOT set. cargo-mutants implements `cap_lints = true` by
+# exporting CARGO_ENCODED_RUSTFLAGS=--cap-lints=warn (see cargo.rs::encoded_rustflags),
+# and it does NOT read .cargo/config.toml — so that env var CLOBBERS this repo's
+# `build.rustflags = ["--cfg", "tokio_unstable"]`. The result is that mutant builds
+# use a different rustc command line than the `test` job, land in a different sccache
+# keyspace, and (with the mutants job's READ_ONLY cache) recompile the whole workspace
+# from scratch for every mutant. Leaving cap_lints off makes mutant builds inherit the
+# same `--cfg tokio_unstable` as `test`, so they reuse its warm cache and only recompile
+# the mutated crate. This is safe because nothing denies warnings in the build/test path
+# (warnings-as-errors lives in `cargo clippy -- -D warnings`, which mutants never runs;
+# workspace lints deny only clippy lints; `[lints.rust]` is warn-level). If you ever add
+# rustc-level deny-warnings back, revisit this — but prefer keeping them in the clippy gate.

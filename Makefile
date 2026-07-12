@@ -87,7 +87,7 @@ fmt: $(RUST_SOURCE)
 	cargo fmt --all -- --check
 
 clippy: $(RUST_SOURCE)
-	cargo clippy --workspace --all-targets
+	cargo clippy --workspace --all-targets -- -D warnings
 
 ci: fmt clippy test e2e scmscx.com-image-debug
 

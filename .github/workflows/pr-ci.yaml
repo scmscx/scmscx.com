@@ -8,9 +8,6 @@ on:
 permissions:
   contents: read
 
-env:
-  RUSTFLAGS: -Dwarnings
-
 jobs:
   test:
     timeout-minutes: 60
@@ -50,12 +47,12 @@ jobs:
           tool: cargo-mutants@27.1.0
       - name: Run cargo mutants (changed lines only)
         if: github.event_name == 'pull_request'
+        shell: bash
         env:
-          # cargo-mutants caps lints to warnings; the workflow-level `-Dwarnings`
-          # would turn a mutant's incidental warning into a hard error and
-          # misclassify it. Read the warm cache but don't write per-mutant
-          # single-use compiles into it.
-          RUSTFLAGS: ""
+          # Read the warm cache but don't write per-mutant single-use compiles into
+          # it. Cache reuse relies on mutant builds using the same rustc flags: no
+          # RUSTFLAGS override + cap_lints OFF in .cargo/mutants.toml (see the
+          # full-run job in ci.yaml for the rationale).
           SCCACHE_WEBDAV_RW_MODE: READ_ONLY
         run: |
           set +e
@@ -68,8 +65,14 @@ jobs:
             echo "Empty diff — nothing to mutate."
             exit 0
           fi
-          make mutants MUTANTS_ARGS="--in-diff pr.diff"
-          status=$?
+          # cargo-mutants only draws its live n/N progress on a TTY, which CI is
+          # not — prefix each completed-mutant line with a running [done/total]
+          # counter (mawk-safe; see the full-run job in ci.yaml for the rationale).
+          make mutants MUTANTS_ARGS="--in-diff pr.diff" 2>&1 | awk '
+            /^Found [0-9]+ mutant.* to test/ { total = $2 }
+            /^(caught|MISSED|FAILED|ok|unviable|TIMEOUT) +[^ ]+:[0-9]+:[0-9]+:/ { printf "[%d/%s] ", ++done, total }
+            { print; fflush() }'
+          status=${PIPESTATUS[0]}   # make's exit, not awk's
           # A PR touching no mutated file yields zero mutants (exit 0). Trust the
           # exit status rather than the caught-count heuristic the full run needs.
           if [ "$status" -eq 0 ]; then

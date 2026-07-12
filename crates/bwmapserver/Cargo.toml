@@ -115,6 +115,8 @@ tokio = { version = "1.47.1", features = ["macros", "rt", "time", "sync"] }
 tokio-postgres = "0.7.13"
 # Re-hash a downloaded CHK blob to prove the /api/chk/{hash} round-trip.
 sha2 = "0.10.9"
+# Clear FD_CLOEXEC on the pre-bound listener sockets handed to the server child.
+libc = "0.2"
 
 
 #  ├─── "actix-session"

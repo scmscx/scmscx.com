@@ -577,20 +577,50 @@ pub fn build_runtime() -> std::io::Result<tokio::runtime::Runtime> {
 /// within a tokio runtime.
 pub async fn init(version: &'static str) {
     install_panic_hook();
-    let endpoint: std::net::SocketAddr = std::env::var("PROMETHEUS_ENDPOINT")
-        .expect("PROMETHEUS_ENDPOINT not set")
-        .parse()
-        .expect("PROMETHEUS_ENDPOINT must be a socket address, e.g. 0.0.0.0:9101");
-    init_prometheus_server(endpoint).await;
+    // Prefer an inherited, already-bound listener (`PROMETHEUS_FD`) over binding
+    // an address (`PROMETHEUS_ENDPOINT`). The E2E harness hands the socket down
+    // this way so the scrape port is chosen and held race-free — see
+    // [`take_listener_from_env`].
+    if let Some(std_listener) = take_listener_from_env("PROMETHEUS_FD") {
+        std_listener
+            .set_nonblocking(true)
+            .expect("set inherited prometheus listener non-blocking");
+        let listener = tokio::net::TcpListener::from_std(std_listener)
+            .expect("adopt inherited prometheus listener");
+        tracing::info!("prometheus metrics server listening on inherited fd");
+        serve_prometheus(listener);
+    } else {
+        let endpoint: std::net::SocketAddr = std::env::var("PROMETHEUS_ENDPOINT")
+            .expect("PROMETHEUS_ENDPOINT not set")
+            .parse()
+            .expect("PROMETHEUS_ENDPOINT must be a socket address, e.g. 0.0.0.0:9101");
+        init_prometheus_server(endpoint).await;
+    }
     spawn_runtime_metrics_reporter(version);
+}
+
+/// Adopt an already-bound, listening TCP socket from the file-descriptor number
+/// held in `env_var` (if set and parseable); otherwise `None`, and the caller
+/// binds an address itself.
+///
+/// This lets a parent process pick a port, bind it, and hand the *live* socket
+/// down to this process — the port is held continuously, eliminating the classic
+/// "grab an ephemeral port, close it, then race to re-bind it" flaw. The E2E
+/// harness uses it for both the HTTP server and this scrape server; it is also
+/// the shape systemd / `systemfd` socket activation uses.
+///
+/// SAFETY: the parent's contract is that the fd is an owned, listening socket
+/// handed off for our exclusive use; we take sole ownership of it here.
+pub fn take_listener_from_env(env_var: &str) -> Option<std::net::TcpListener> {
+    use std::os::fd::FromRawFd;
+    let fd: std::os::fd::RawFd = std::env::var(env_var).ok()?.trim().parse().ok()?;
+    Some(unsafe { std::net::TcpListener::from_raw_fd(fd) })
 }
 
 /// Start the Prometheus scrape server on `addr`, serving `/metrics` (and a
 /// trivial `/health`). Runs in a spawned task; a bind failure is logged but does
 /// not bring the service down — metrics are best-effort.
 pub async fn init_prometheus_server(addr: std::net::SocketAddr) {
-    use axum::routing::get;
-
     let listener = match tokio::net::TcpListener::bind(addr).await {
         Ok(l) => l,
         Err(e) => {
@@ -600,6 +630,14 @@ pub async fn init_prometheus_server(addr: std::net::SocketAddr) {
     };
 
     tracing::info!("prometheus metrics server listening on http://{addr}/metrics");
+
+    serve_prometheus(listener);
+}
+
+/// Spawn the Prometheus scrape server (`/metrics`, plus a trivial `/health`) on
+/// an already-bound listener, in a background task. Serving is best-effort.
+fn serve_prometheus(listener: tokio::net::TcpListener) {
+    use axum::routing::get;
 
     let router = axum::Router::new()
         .route("/metrics", get(metrics_handler))

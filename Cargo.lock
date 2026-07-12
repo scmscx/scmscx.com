@@ -2957,6 +2957,7 @@ dependencies = [
  "handlebars",
  "image",
  "lazy_static",
+ "libc",
  "log",
  "prometheus-client",
  "rand 0.9.4",

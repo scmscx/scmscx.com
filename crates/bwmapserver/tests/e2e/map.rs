@@ -65,6 +65,21 @@ const FIGHTING_SPIRIT_LEN: usize = 70_819;
 const INCOME_WARS_SHA256: &str = "3b77b0f17e3e757a776882379bc9c7c2f55c5eac2e037f08a48040d5191ba8af";
 const INCOME_WARS_LEN: usize = 487_789;
 
+/// An extended-unit (EUP) map with placed units whose *owner* is out of the normal
+/// 0..=11 range — "포커 디펜스 1.2v" (web id `7pfzG5bc`). `get_eups` (which selects
+/// units with `owner > 12 || unit_id > 227`) returns 39 units here (all owner-side),
+/// exercising the `owner > 12` comparison a normal map leaves empty.
+const POKER_DEFENSE_SHA256: &str =
+    "d7b56e2a9004ed2d8feebae185b77ee76889f9a86beeb0ed232869302e668aad";
+const POKER_DEFENSE_LEN: usize = 99_420;
+
+/// An EUP map with placed units whose *unit id* is out of the normal 0..=227 range —
+/// "Untitled Scenario" (web id `cgD56Bkk`). `get_eups` returns 7 units here (all
+/// unit-id-side, owners in range), exercising the `unit_id > 227` comparison.
+const UNTITLED_EUP_SHA256: &str =
+    "dad825509d47223bd11c21eaf993cc873f3a78dc4e2ae61c2294e78fb7d18701";
+const UNTITLED_EUP_LEN: usize = 545_106;
+
 /// On-disk cache location for a pinned map, shared across test *processes*. Keyed by
 /// the map's sha256, so bumping a fixture hash automatically misses the old entry.
 /// Lives under the system temp dir (swept on reboot).
@@ -1137,6 +1152,61 @@ async fn search_returns_uploaded_map_for_matching_query_only() {
     );
 }
 
+/// The four time-window bounds arrive from the client in **milliseconds** but the
+/// DB stores times in **seconds**, so `search_cache` divides each by 1000 before
+/// binding it as a SQL bound. This pins that conversion in BOTH query branches
+/// (empty-query and keyword) against `/`→`*` and `/`→`%` mutations, by choosing
+/// bounds where the correct `/1000` includes/excludes the uploaded map but the
+/// mutated arithmetic flips it. The map's `uploaded_time` is `now()` and its
+/// `modified_time` is 1_700_000_000 s (from the upload's `last_modified`); both sit
+/// between 1e6 s and 2e9 s, which the crafted bounds below rely on.
+#[tokio::test]
+async fn search_time_bounds_divide_millis_to_seconds() {
+    let h = Harness::start().await;
+    let c = client();
+    let owner = register(&c, &h, "timeboundowner").await;
+    let id = upload_map(&c, &h, Some(&owner), "timeboundmarker.scx").await;
+
+    // (extra query params) -> whether the map should still be returned.
+    let cases: &[(&str, bool)] = &[
+        // Default bounds: the map is in range → returned. A `%` mutation collapses a
+        // large "before" bound to ~0 (`n*1000` ms ends in 000, so `% 1000 == 0`),
+        // excluding everything — so this case also guards the before-bound `%`.
+        ("", true),
+        // Upper ("before") bounds: correct /1000 puts the map ABOVE a tiny
+        // 1e9 ms (= 1e6 s) cap → excluded; `*1000` balloons the cap → wrongly kept.
+        ("time_uploaded_before=1000000000", false),
+        ("last_modified_before=1000000000", false),
+        // Lower ("after") bounds, the `*` side: correct /1000 leaves the map ABOVE a
+        // tiny 1e9 ms floor → kept; `*1000` lifts the floor past the map → dropped.
+        ("time_uploaded_after=1000000000", true),
+        ("last_modified_after=1000000000", true),
+        // Lower ("after") bounds, the `%` side: a huge 2e12 ms (= 2e9 s) floor is
+        // above the map → excluded; `% 1000 == 0` would drop the floor → wrongly kept.
+        ("time_uploaded_after=2000000000000", false),
+        ("last_modified_after=2000000000000", false),
+    ];
+
+    // Both the empty-query branch (lines 106-109) and the keyword branch (191-194)
+    // build the same bounds; run every case through each.
+    for query in ["", "timeboundmarker"] {
+        for (params, expect_present) in cases {
+            let url = h.url(&format!("/api/uiv2/search/{query}?{params}"));
+            let resp = c.get(&url).send().await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK, "search {url}");
+            let present = json_body(resp).await["maps"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|m| m["id"].as_str() == Some(id.as_str()));
+            assert_eq!(
+                present, *expect_present,
+                "query={query:?} params={params:?}: expected map present = {expect_present}"
+            );
+        }
+    }
+}
+
 /// The seven CHK endpoints all serve, purely from Postgres, the map parsed at
 /// upload — no gsfs/Backblaze needed. Covers the JSON views (strings, riff chunks,
 /// section object, trig/mbrf/eups arrays) and the raw `download_chk`, whose bytes
@@ -1251,6 +1321,65 @@ async fn chk_endpoints_serve_the_parsed_map() {
             .status(),
         StatusCode::INTERNAL_SERVER_ERROR,
         "an unknown chk hash is a 500"
+    );
+}
+
+/// `GET /api/chk/eups/{id}` returns the placed units that are "extended" — owner
+/// out of 0..=11 (`owner > 12`) OR unit id out of 0..=227 (`unit_id > 227`). Normal
+/// maps have none (pinned empty in `chk_endpoints_serve_the_parsed_map`), so the two
+/// `>` comparisons in the filter go untested there. These EUP fixtures each populate
+/// exactly one side of the `||`: the counts (39 owner-side, 7 unit-id-side) pin both
+/// comparisons — a `>`→`==` collapse on either would drop that fixture's whole set.
+#[tokio::test]
+async fn chk_eups_lists_extended_unit_placements() {
+    let h = Harness::start().await;
+    let c = client();
+    let owner = register(&c, &h, "eupowner").await;
+
+    // Owner-extended (owner > 12, unit_id <= 227): 39 placements.
+    let poker = upload_fixture(
+        &c,
+        &h,
+        Some(&owner),
+        "poker_defense.scx",
+        POKER_DEFENSE_SHA256,
+        POKER_DEFENSE_LEN,
+    )
+    .await;
+    let eups = json_body(
+        c.get(h.url(&format!("/api/chk/eups/{poker}")))
+            .send()
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(
+        eups.as_array().map(Vec::len),
+        Some(39),
+        "the owner-extended EUP map lists 39 extended placements, got {eups}"
+    );
+
+    // Unit-id-extended (unit_id > 227, owner in range): 7 placements.
+    let untitled = upload_fixture(
+        &c,
+        &h,
+        Some(&owner),
+        "untitled_eup.scx",
+        UNTITLED_EUP_SHA256,
+        UNTITLED_EUP_LEN,
+    )
+    .await;
+    let eups = json_body(
+        c.get(h.url(&format!("/api/chk/eups/{untitled}")))
+            .send()
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(
+        eups.as_array().map(Vec::len),
+        Some(7),
+        "the unit-id-extended EUP map lists 7 extended placements, got {eups}"
     );
 }
 

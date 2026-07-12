@@ -330,6 +330,60 @@ async fn login_is_username_rate_limited() {
     );
 }
 
+/// A username of exactly 100 chars is at the cap and must log in: the guard is
+/// `username.len() > 100`, so 100 is allowed. Pins the boundary against a `>`→`==`
+/// mutation (which would reject a 100-char username as if it were over-long).
+#[tokio::test]
+async fn login_allows_boundary_length_username() {
+    let h = Harness::start().await;
+    let c = harness::client();
+    let user = "u".repeat(100);
+    register(&c, &h, &user, "pw").await;
+
+    let resp = c
+        .post(h.url("/api/login"))
+        .header("x-forwarded-for", next_ip())
+        .header("content-type", "application/json")
+        .body(serde_json::json!({ "username": user, "password": "pw" }).to_string())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "a 100-char username is exactly at the cap and logs in"
+    );
+}
+
+/// An empty username is rejected up front by the `is_empty() ||` guard, *before*
+/// the per-username limiter is ever consulted — so a burst of empty-username logins
+/// keeps returning a plain 401 and never trips the limiter. Pins that ordering
+/// against a `||`→`&&` mutation, which makes the guard dead (a name can't be both
+/// empty and >100), letting the empty key accrue in the limiter until the 11th
+/// attempt would 429 instead of 401.
+#[tokio::test]
+async fn login_rejects_empty_username_before_the_limiter() {
+    let h = Harness::start().await;
+    let c = harness::client();
+    let attempt = || {
+        c.post(h.url("/api/login"))
+            .header("content-type", "application/json")
+            .body(serde_json::json!({ "username": "", "password": "x" }).to_string())
+    };
+
+    // The username limiter's burst is 10; send more than that from a single IP
+    // (well under the per-IP login burst of 20). Every one must be a 401 — under
+    // the mutant the 11th would be a 429.
+    for i in 0..11 {
+        let status = attempt().send().await.unwrap().status();
+        assert_eq!(
+            status,
+            StatusCode::UNAUTHORIZED,
+            "empty-username attempt {i} is a plain 401, never rate-limited"
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers for the workflows below.
 // ---------------------------------------------------------------------------
@@ -530,6 +584,16 @@ async fn sitemaps_manifest_and_redirect_pages() {
     for path in ["/a.txt", "/b.txt", "/c.txt"] {
         let resp = c.get(h.url(path)).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK, "GET {path}");
+        // The real handler sets `text/plain` even when the body is empty; a mutant
+        // that replaces it with `HttpResponse::Ok().finish()` would still 200 with
+        // an empty body but drop the Content-Type, so pin the header explicitly.
+        assert_eq!(
+            resp.headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
+            Some("text/plain"),
+            "{path} is served as text/plain"
+        );
         assert_eq!(
             resp.text().await.unwrap(),
             "",

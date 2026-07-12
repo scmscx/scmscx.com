@@ -1304,7 +1304,7 @@ pub(crate) async fn start() -> Result<()> {
         svc
     });
 
-    server
+    let server = server
         .keep_alive(std::time::Duration::from_mins(2))
         .on_connect(|_x, _y| {
             // let x = x.downcast_ref::<actix_web::rt::net::TcpStream>().unwrap();
@@ -1314,12 +1314,19 @@ pub(crate) async fn start() -> Result<()> {
 
             // nix::sys::socket::setsockopt(&fd, nix::sys::socket::sockopt::RcvBuf, &(4 * 1024))
             //     .unwrap();
-        })
-        .bind(std::env::var("BIND_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".to_string()))
-        .unwrap()
-        .workers(4)
-        .run()
-        .await?;
+        });
+
+    // Prefer an inherited, already-bound listener (`BIND_FD`) over binding
+    // `BIND_ADDR`. The E2E harness hands the socket down this way so the port is
+    // chosen and held race-free — no ephemeral-port grab/close/re-bind window.
+    // See `common::telemetry::take_listener_from_env`.
+    let server = match common::telemetry::take_listener_from_env("BIND_FD") {
+        Some(listener) => server.listen(listener)?,
+        None => server
+            .bind(std::env::var("BIND_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".to_string()))?,
+    };
+
+    server.workers(4).run().await?;
 
     anyhow::Ok(())
 }
