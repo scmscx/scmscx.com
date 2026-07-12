@@ -4,19 +4,16 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule: [cron: "0 8 * * *"] # at 4am EST, 8am UTC
 
 permissions:
   contents: read
 
-env:
-  RUSTFLAGS: -Dwarnings
-
 jobs:
   test:
-    # Build/lint/test, the E2E suite, the debug image, and the push — one job so
-    # they share a single checkout, build environment, and warm sccache. The
-    # nightly full-workspace mutation run lives in its own scheduled workflow
-    # (mutants.yaml).
+    # Build/lint/test, the E2E suite, the debug image, and the deploy. Runs on
+    # every push to main, on manual dispatch, and nightly (the schedule) so the
+    # deployed image is rebuilt and refreshed even on days with no commits.
     timeout-minutes: 45
     name: ${{format('Cargo {0}', matrix.rust)}}
     # if: false
@@ -48,6 +45,70 @@ jobs:
       - run: make scmscx.com-image-debug
       - run: make push
 
+      - name: sccache stats
+        if: always()
+        uses: ./.github/actions/sccache-stats
+
+  mutants:
+    if: github.event_name == 'push'
+    needs: [test]
+    timeout-minutes: 240
+    name: Mutation testing (full)
+    runs-on: self-hosted
+    env:
+      # Read the warm cache but don't write per-mutant single-use compiles into it.
+      # Reusing the `test` job's cache requires mutant builds to use the SAME rustc
+      # flags: there's no RUSTFLAGS override here (warnings-as-errors lives in the
+      # clippy gate, not the build), and cap_lints is deliberately OFF in
+      # .cargo/mutants.toml — enabling it makes cargo-mutants inject
+      # CARGO_ENCODED_RUSTFLAGS, which drops this repo's `--cfg tokio_unstable` and
+      # splits the sccache keyspace (see the note in .cargo/mutants.toml).
+      SCCACHE_WEBDAV_RW_MODE: READ_ONLY
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: "recursive"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Set up build environment
+        uses: ./.github/actions/setup-build-env
+      - name: Install cargo-mutants
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants@27.1.0
+      - name: Run cargo mutants (full)
+        shell: bash
+        run: |
+          set +e
+          # cargo-mutants only draws its live n/N progress on a TTY, which CI is
+          # not — so prefix each completed-mutant line with a running [done/total]
+          # counter. `total` comes from the "Found N mutants to test" banner; the
+          # count matches per-mutant outcome lines (caught|MISSED|FAILED|ok|
+          # unviable|TIMEOUT followed by a source location, which excludes the
+          # "ok Unmutated baseline" line). mawk-safe (no gawk 3-arg match/gensub).
+          make mutants 2>&1 | awk '
+            /^Found [0-9]+ mutant.* to test/ { total = $2 }
+            /^(caught|MISSED|FAILED|ok|unviable|TIMEOUT) +[^ ]+:[0-9]+:[0-9]+:/ { printf "[%d/%s] ", ++done, total }
+            { print; fflush() }'
+          status=${PIPESTATUS[0]}   # make's exit, not awk's — needed by the guard below
+          set -e
+          # Baseline guard: zero caught means the baseline build/test never really
+          # ran (env broken, e.g. no Postgres/wireguard) — fail loudly.
+          if [ ! -s mutants.out/caught.txt ]; then
+            echo "::error::cargo-mutants caught zero mutants (exit $status) — baseline likely failed to build or run"
+            exit "${status:-1}"
+          fi
+          caught=$(grep -c . mutants.out/caught.txt 2>/dev/null || echo 0)
+          missed=$(grep -c . mutants.out/missed.txt 2>/dev/null || echo 0)
+          unviable=$(grep -c . mutants.out/unviable.txt 2>/dev/null || echo 0)
+          echo "Mutants: caught=$caught missed=$missed unviable=$unviable"
+          if [ -s mutants.out/missed.txt ]; then
+            echo "::warning::surviving mutants (informational — not failing main):"
+            cat mutants.out/missed.txt
+          else
+            echo "No surviving mutants."
+          fi
       - name: sccache stats
         if: always()
         uses: ./.github/actions/sccache-stats

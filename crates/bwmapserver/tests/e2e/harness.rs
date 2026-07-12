@@ -22,6 +22,8 @@
 //! masquerade as a green suite.
 
 use std::fs;
+use std::os::fd::AsRawFd;
+use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -179,17 +181,29 @@ impl Harness {
             std::os::unix::fs::symlink(root.join("public"), work_dir.join("public")).unwrap();
         }
 
-        let app_port = free_port();
-        let prom_port = free_port();
         let log_path = std::env::temp_dir().join(format!("scmscx-e2e-app-{db}.log"));
         let log = fs::File::create(&log_path).unwrap();
         let log_err = log.try_clone().unwrap();
 
+        // Bind the app and Prometheus ports *here* and hand the live listening
+        // sockets down to the child as inherited file descriptors, rather than
+        // picking a port, closing it, and hoping the child re-binds it before
+        // anything else grabs it. The parent holds each port continuously from
+        // bind through hand-off, so there is no race window and no flaky
+        // `AddrInUse` at startup. The server adopts these via
+        // `common::telemetry::take_listener_from_env`.
+        let app_listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let prom_listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let app_port = app_listener.local_addr().unwrap().port();
+        let app_fd = app_listener.as_raw_fd();
+        let prom_fd = prom_listener.as_raw_fd();
+
         // Prod mode, Backblaze/GSFS/Mixpanel off, a small pool (parallel tests
-        // share one Postgres), and fresh free ports so instances never collide.
-        let app = Command::new(env!("CARGO_BIN_EXE_scmscx-com"))
-            .current_dir(&work_dir) // ./dist symlinked in; ./pending/ stays in /tmp
-            .env("BIND_ADDR", format!("127.0.0.1:{app_port}"))
+        // share one Postgres), and inherited listener fds so instances never race.
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_scmscx-com"));
+        cmd.current_dir(&work_dir) // ./dist symlinked in; ./pending/ stays in /tmp
+            .env("BIND_FD", app_fd.to_string())
+            .env("PROMETHEUS_FD", prom_fd.to_string())
             .env("DB_HOST", &pg.host)
             .env("DB_PORT", pg.port.to_string())
             .env("DB_USER", APP_USER)
@@ -198,15 +212,35 @@ impl Harness {
             .env("DB_CONNECTIONS", "4")
             .env("BACKBLAZE_DISABLED", "true")
             .env("MIXPANEL_DISABLED", "true")
-            .env("PROMETHEUS_ENDPOINT", format!("127.0.0.1:{prom_port}"))
             .env("ROOT_DIR", root.join("app/web"))
             .env("RUST_LOG", "warn")
             .env_remove("DEV_MODE")
             .env_remove("GSFSFE_ENDPOINT")
             .stdout(Stdio::from(log))
-            .stderr(Stdio::from(log_err))
-            .spawn()
-            .expect("spawn scmscx-com");
+            .stderr(Stdio::from(log_err));
+
+        // Rust marks socket fds `FD_CLOEXEC`, so they would close on `exec`. Clear
+        // it on our two fds in a `pre_exec` hook — which runs post-fork in the
+        // child only, so a sibling harness spawning concurrently never inherits
+        // (and thus never keeps alive) our sockets.
+        unsafe {
+            cmd.pre_exec(move || {
+                for fd in [app_fd, prom_fd] {
+                    if libc::fcntl(fd, libc::F_SETFD, 0) == -1 {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                }
+                Ok(())
+            });
+        }
+
+        let mut app = cmd.spawn().expect("spawn scmscx-com");
+
+        // The child inherited its own copies of the sockets (same underlying
+        // listeners); drop the parent's so only the child holds them — the parent
+        // never accepts on its side.
+        drop(app_listener);
+        drop(prom_listener);
 
         let base = format!("http://127.0.0.1:{app_port}");
         let ping = Client::builder()
@@ -215,6 +249,14 @@ impl Harness {
             .unwrap();
         let deadline = Instant::now() + Duration::from_secs(30);
         loop {
+            // Fail fast if the child exited during startup (e.g. a DB error)
+            // instead of polling a dead process until the deadline.
+            if let Ok(Some(_)) = app.try_wait() {
+                let logs = fs::read_to_string(&log_path).unwrap_or_default();
+                let _ = app.wait();
+                panic!("server exited during startup.\n--- server log ---\n{logs}");
+            }
+
             let up = ping
                 .get(format!("{base}/sitemap.txt"))
                 .send()
@@ -225,6 +267,8 @@ impl Harness {
             }
             if Instant::now() >= deadline {
                 let logs = fs::read_to_string(&log_path).unwrap_or_default();
+                let _ = app.kill();
+                let _ = app.wait();
                 panic!("server did not become ready within 30s.\n--- server log ---\n{logs}");
             }
             tokio::time::sleep(Duration::from_millis(300)).await;
@@ -294,14 +338,6 @@ async fn create_template_db(pg: &PgEnv, name: &str) {
         .expect("create per-test template database");
     drop(client);
     let _ = conn_task.await;
-}
-
-fn free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
 }
 
 fn repo_root() -> PathBuf {

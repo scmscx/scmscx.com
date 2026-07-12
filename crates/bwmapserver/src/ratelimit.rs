@@ -44,11 +44,16 @@ pub fn per_ip_login_governor_config(
         .expect("valid governor config")
 }
 
+/// One registration per 20 minutes (per IP) once the burst is spent. Extracted as
+/// a named constant so its value is unit-testable — the finished `GovernorConfig`
+/// exposes no getter, and the replenish period isn't observable in a fast test.
+pub(crate) const REGISTER_SECONDS_PER_REQUEST: u64 = 60 * 20;
+
 pub fn per_ip_register_governor_config(
 ) -> GovernorConfig<RealIpKeyExtractor, NoOpMiddleware<QuantaInstant>> {
     GovernorConfigBuilder::default()
         .key_extractor(RealIpKeyExtractor)
-        .seconds_per_request(60 * 20)
+        .seconds_per_request(REGISTER_SECONDS_PER_REQUEST)
         .burst_size(3)
         .finish()
         .expect("valid governor config")
@@ -140,6 +145,15 @@ mod tests {
         // alice is now throttled, but bob is unaffected.
         assert!(limiter.check("alice").is_err());
         assert!(limiter.check("bob").is_ok());
+    }
+
+    #[test]
+    fn register_replenish_period_is_twenty_minutes() {
+        // The per-IP register limiter replenishes one slot every 20 minutes. This
+        // pins the arithmetic (60 * 20) that builds it — the governor config itself
+        // exposes no getter, so the constant is the only testable surface.
+        assert_eq!(REGISTER_SECONDS_PER_REQUEST, 20 * 60);
+        assert_eq!(REGISTER_SECONDS_PER_REQUEST, 1200);
     }
 
     #[test]
