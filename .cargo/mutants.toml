@@ -1,0 +1,82 @@
+# Files to mutate.
+examine_globs = [
+    # --- Request handlers, caught by the E2E suite (driven over real HTTP) ---
+    "crates/bwmapserver/src/api/flags.rs",
+    "crates/bwmapserver/src/api/change_password.rs",
+    "crates/bwmapserver/src/api/change_username.rs",
+    "crates/bwmapserver/src/api/login.rs",
+    "crates/bwmapserver/src/api/register.rs",
+    "crates/bwmapserver/src/api/logout.rs",
+    "crates/bwmapserver/src/api/sitemap.rs",
+    "crates/bwmapserver/src/api/chk.rs",
+    "crates/bwmapserver/src/api/similar_maps.rs",
+    "crates/bwmapserver/src/api/random.rs",
+    "crates/bwmapserver/src/api/uiv2/mod.rs",
+    "crates/bwmapserver/src/api/uiv2/map_info.rs",
+    "crates/bwmapserver/src/api/uiv2/search.rs",
+    "crates/bwmapserver/src/api/uiv2/upload.rs",
+    "crates/bwmapserver/src/api/uiv2/filenames.rs",
+    "crates/bwmapserver/src/api/uiv2/filenames2.rs",
+    "crates/bwmapserver/src/api/uiv2/timestamps.rs",
+    "crates/bwmapserver/src/api/uiv2/units.rs",
+    "crates/bwmapserver/src/api/uiv2/replays.rs",
+    "crates/bwmapserver/src/api/uiv2/logout.rs",
+    "crates/bwmapserver/src/uiv2/index.rs",
+    "crates/bwmapserver/src/static_pages.rs",
+    # --- Pure-logic modules, caught by unit tests (E2E reaches some too) ---
+    "crates/bwmapserver/src/util.rs",              # parse_map_id
+    "crates/bwmapserver/src/ratelimit.rs",         # real-IP key extraction, Retry-After
+    "crates/bwmapserver/src/search2.rs",           # SearchParams parsing / sort mapping
+    "crates/bwmapserver/src/middleware/cachehtml.rs",         # Cache-Control on assets
+    "crates/bwmapserver/src/middleware/language.rs",          # Accept-Language negotiation
+    "crates/bwmapserver/src/middleware/usersession.rs",       # session validation / logout
+    "crates/bwmapserver/src/middleware/traceid.rs",           # trace-id assignment
+    "crates/bwmapserver/src/middleware/trackinganalytics.rs", # tac cookie minting
+    "crates/bwmapserver/src/middleware/metrics.rs",           # route-label / status metrics
+    "crates/bwcommon/src/id.rs",                   # web-id <-> db-id obfuscation
+]
+
+# Deliberately NOT mutated: `crates/bwmapserver/src/actix.rs` (the ~1300-line
+# router/wiring + inline core handlers — mostly framework plumbing E2E covers
+# only partially) and `crates/bwmapserver/src/api/bulkupload.rs` (not wired to any
+# route — dead code, so every mutant would trivially survive). Add files here as
+# their coverage justifies it.
+
+# Don't mutate the argument lists of these calls — logging (no observable behavior
+# change) or terminating (control flow doesn't continue, so mutating the arguments
+# is meaningless).
+skip_calls = [
+    "println!", "eprintln!", "print!", "eprint!",
+    "trace!", "debug!", "info!", "warn!", "error!", "event!", "span!",
+    "panic!", "unreachable!", "todo!", "unimplemented!",
+]
+skip_calls_defaults = true
+
+# Equivalent mutations — production and mutated code behave identically for every
+# input, so no test could ever distinguish them. Each entry has a one-line
+# rationale; keeping them out of scope stops them from masquerading as coverage
+# gaps.
+exclude_re = [
+    # id.rs::convert_id_to_byte_array decomposes an i64 into base-256 bytes as
+    # `(input / 256^k % 256) as u8`. Replacing `% 256` with `+ 256` is a no-op
+    # under the `as u8` truncation: (x + 256) mod 256 == x mod 256 for all x, so
+    # the mutated byte is bit-identical.
+    'replace % with \+ in convert_id_to_byte_array',
+    # id.rs::encode_base32 packs the 40-bit array into 5-bit groups by OR-ing two
+    # shifted-and-masked fields whose set bits are provably disjoint (e.g. bits
+    # 2..4 with bits 0..1). For disjoint operands `a | b == a ^ b` for every
+    # input, so the `|`->`^` mutation is a true equivalent.
+    'replace \| with \^ in encode_base32',
+]
+
+# Timeouts. Unit tests run in milliseconds; the E2E tests boot a server + clone a
+# database and finish in a few seconds. The multipliers plus a 60s floor give a
+# mutant that breaks startup (so every E2E test waits out its readiness timeout)
+# room to be killed as a hang rather than mis-timed.
+build_timeout_multiplier = 3.0
+timeout_multiplier = 2.0
+minimum_test_timeout = 60.0
+
+# Don't let a mutant that only trips a warning lint (e.g. an unused variable) get
+# classified "unviable" instead of "caught".
+cap_lints = true

@@ -88,7 +88,33 @@ tracing-log = "0.2.0"
 
 rand = "0.9.3"
 
+# Opt-in flag for the end-to-end suite. The e2e tests need a live Postgres whose
+# address arrives via E2E_PG_* env vars (set only by `make e2e` / `make mutants`),
+# so the target is gated behind this feature. That keeps `cargo test --all-targets`
+# (i.e. `make test`) from building and running the e2e target — Cargo silently
+# skips targets whose `required-features` aren't enabled — instead of it panicking
+# on the missing env vars.
+[features]
+e2e = []
+
+# End-to-end suite: the tests live in tests/e2e/e2e.rs with the harness alongside
+# them in tests/e2e/harness.rs (a submodule, not its own test binary). The target
+# is declared explicitly because Cargo only auto-discovers tests/*.rs, and gated
+# behind the `e2e` feature so it runs only via `make e2e` / `make mutants`.
+[[test]]
+name = "e2e"
+path = "tests/e2e/e2e.rs"
+required-features = ["e2e"]
+
 [dev-dependencies]
+# E2E tests (tests/e2e/): an async HTTP client + runtime to drive the server, and
+# tokio-postgres to create a per-test template-copied database.
+reqwest = { version = "0.12.24", default-features = false, features = ["json", "rustls-tls"] }
+serde_json = "1.0.143"
+tokio = { version = "1.47.1", features = ["macros", "rt", "time", "sync"] }
+tokio-postgres = "0.7.13"
+# Re-hash a downloaded CHK blob to prove the /api/chk/{hash} round-trip.
+sha2 = "0.10.9"
 
 
 #  ├─── "actix-session"

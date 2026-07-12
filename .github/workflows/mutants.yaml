@@ -1,0 +1,68 @@
+name: Nightly mutants
+
+on:
+  schedule: [cron: "0 8 * * *"] # at 4am EST, 8am UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Full-workspace mutation run against main. Expensive (it rebuilds a mutated
+  # crate and reruns its whole test suite — including the E2E tests — per mutant),
+  # so it runs only nightly and on manual dispatch, in its own workflow rather than
+  # bolted onto CI-and-push. Informational: it reports surviving mutants but does
+  # not fail on them (only on a broken baseline), so it never blocks main while the
+  # coverage backlog in .cargo/mutants.toml's scope is worked down. The PR workflow
+  # enforces coverage on *changed* lines instead (see pr-ci.yaml).
+  #
+  # Requires the same environment as `make e2e`: podman (from setup-build-env) and
+  # wireguard access to the map origin (10.99.99.5:5000) for the map fixture.
+  mutants:
+    timeout-minutes: 240
+    name: Mutation testing (full)
+    runs-on: self-hosted
+    env:
+      # cargo-mutants caps lints to warnings; a `-Dwarnings` build would turn a
+      # mutant's incidental warning into a hard error and misclassify it.
+      RUSTFLAGS: ""
+      # Read the warm cache but don't write per-mutant single-use compiles into it.
+      SCCACHE_WEBDAV_RW_MODE: READ_ONLY
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: "recursive"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Set up build environment
+        uses: ./.github/actions/setup-build-env
+      - name: Install cargo-mutants
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants@27.1.0
+      - name: Run cargo mutants (full)
+        run: |
+          set +e
+          make mutants
+          status=$?
+          set -e
+          # Baseline guard: zero caught means the baseline build/test never really
+          # ran (env broken, e.g. no Postgres/wireguard) — fail loudly.
+          if [ ! -s mutants.out/caught.txt ]; then
+            echo "::error::cargo-mutants caught zero mutants (exit $status) — baseline likely failed to build or run"
+            exit "${status:-1}"
+          fi
+          caught=$(grep -c . mutants.out/caught.txt 2>/dev/null || echo 0)
+          missed=$(grep -c . mutants.out/missed.txt 2>/dev/null || echo 0)
+          unviable=$(grep -c . mutants.out/unviable.txt 2>/dev/null || echo 0)
+          echo "Mutants: caught=$caught missed=$missed unviable=$unviable"
+          if [ -s mutants.out/missed.txt ]; then
+            echo "::warning::surviving mutants (informational — not failing main):"
+            cat mutants.out/missed.txt
+          else
+            echo "No surviving mutants."
+          fi
+      - name: sccache stats
+        if: always()
+        uses: ./.github/actions/sccache-stats

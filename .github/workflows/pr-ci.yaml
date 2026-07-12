@@ -13,7 +13,7 @@ env:
 
 jobs:
   test:
-    timeout-minutes: 30
+    timeout-minutes: 60
     name: ${{format('Cargo {0}', matrix.rust)}}
     # if: false
     runs-on: self-hosted
@@ -40,7 +40,47 @@ jobs:
       - run: make fmt
       - run: make clippy
       - run: make test
+      - run: make e2e
       - run: make scmscx.com-image-debug
+
+      - name: Install cargo-mutants
+        if: github.event_name == 'pull_request'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants@27.1.0
+      - name: Run cargo mutants (changed lines only)
+        if: github.event_name == 'pull_request'
+        env:
+          # cargo-mutants caps lints to warnings; the workflow-level `-Dwarnings`
+          # would turn a mutant's incidental warning into a hard error and
+          # misclassify it. Read the warm cache but don't write per-mutant
+          # single-use compiles into it.
+          RUSTFLAGS: ""
+          SCCACHE_WEBDAV_RW_MODE: READ_ONLY
+        run: |
+          set +e
+          # The PR is checked out as the base+head merge ref, so a diff against the
+          # freshly fetched base tip is exactly this PR's own changes.
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}" \
+            || { echo "::error::failed to fetch base ${{ github.base_ref }}"; exit 1; }
+          git diff FETCH_HEAD HEAD > pr.diff
+          if [ ! -s pr.diff ]; then
+            echo "Empty diff — nothing to mutate."
+            exit 0
+          fi
+          make mutants MUTANTS_ARGS="--in-diff pr.diff"
+          status=$?
+          # A PR touching no mutated file yields zero mutants (exit 0). Trust the
+          # exit status rather than the caught-count heuristic the full run needs.
+          if [ "$status" -eq 0 ]; then
+            echo "No surviving mutants in the changed lines."
+            exit 0
+          fi
+          if [ -s mutants.out/missed.txt ]; then
+            echo "::error::these changed lines have surviving mutants — add tests to catch them:"
+            cat mutants.out/missed.txt
+          fi
+          exit "$status"
 
       - name: sccache stats
         if: always()

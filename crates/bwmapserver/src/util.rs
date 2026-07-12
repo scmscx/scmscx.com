@@ -107,6 +107,59 @@ mod tests {
     fn sanitize_sc_string_empty() {
         assert_eq!(sanitize_sc_string(""), "");
     }
+
+    #[test]
+    fn is_dev_mode_reflects_env() {
+        // `is_dev_mode` is a thin wrapper over the DEV_MODE env var; only the exact
+        // string "true" enables it. Exercising the true branch is the one case the
+        // E2E suite can't (it always runs with DEV_MODE removed → prod mode), so
+        // without this a "-> false" mutation of the whole function goes unnoticed.
+        // DEV_MODE isn't read by any other unit test, so mutating this process-global
+        // for the duration of one test is safe.
+        let prev = std::env::var("DEV_MODE").ok();
+
+        std::env::set_var("DEV_MODE", "true");
+        assert!(is_dev_mode(), "DEV_MODE=true enables dev mode");
+
+        std::env::set_var("DEV_MODE", "false");
+        assert!(!is_dev_mode(), "DEV_MODE=false is prod mode");
+
+        std::env::set_var("DEV_MODE", "1");
+        assert!(!is_dev_mode(), "only the literal \"true\" enables dev mode");
+
+        std::env::remove_var("DEV_MODE");
+        assert!(!is_dev_mode(), "an unset DEV_MODE is prod mode");
+
+        match prev {
+            Some(v) => std::env::set_var("DEV_MODE", v),
+            None => std::env::remove_var("DEV_MODE"),
+        }
+    }
+
+    #[test]
+    fn finalize_hash_of_hasher_formats_lowercase_hex_digest() {
+        use sha2::{Digest, Sha256};
+
+        // The known SHA-256 of the empty input, as lowercase hex — pins that the
+        // function returns the real digest (not an empty/placeholder string).
+        let mut hasher = Sha256::new();
+        hasher.update(b"");
+        assert_eq!(
+            finalize_hash_of_hasher(hasher),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        );
+
+        // A different input hashes to a different 64-char hex string.
+        let mut hasher = Sha256::new();
+        hasher.update(b"scmscx.com");
+        let digest = finalize_hash_of_hasher(hasher);
+        assert_eq!(digest.len(), 64, "sha-256 hex is 64 chars");
+        assert!(digest.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_ne!(
+            digest, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "a non-empty input must not collide with the empty digest"
+        );
+    }
 }
 
 // pub(crate) fn sanitize_sc_scenario_string(s: &str) -> String {
