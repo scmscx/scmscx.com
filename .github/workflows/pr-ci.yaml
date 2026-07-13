@@ -86,7 +86,8 @@ jobs:
           exit "$status"
 
       - name: Mutants summary
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
         uses: ./.github/actions/mutants-summary
       - name: sccache stats
+        if: always()
         uses: ./.github/actions/sccache-stats

@@ -76,7 +76,14 @@ exclude_re = [
     # DB column (userlogs binds user_id/username from the separate UserSession, not
     # this struct) nor surfaced by any HTTP endpoint, and Mixpanel is disabled in the
     # harness. Deleting one has no DB- or response-observable effect, so no e2e/unit
-    # test can catch it. ~15 mutants across flags/login/register/change_*/uiv2.
+    # test can catch it. 13 mutants across flags/login/register/change_*/uiv2.
+    #
+    # NOTE: this entry is INERT under cargo-mutants 27.1.0 — its exclude_re engine
+    # never matches "delete field" (StructField-genre) mutants, so they are neither
+    # skipped here nor killable by any test. The `mutants` Makefile target strips
+    # them from missed.txt after the run instead (see the StructField-filter note
+    # there). Kept here for the rationale, and so it takes effect automatically if a
+    # future cargo-mutants fixes StructField matching.
     'delete field .* from struct .*ApiSpecificInfoForLogging',
 
     # ratelimit.rs::retain_recent is pure housekeeping: it drops fully-replenished
@@ -106,10 +113,66 @@ exclude_re = [
     # path is taken) is unobservable here. The same blackhole-gate logic IS covered on
     # the minimap route (which has a local fallback) by `image_endpoints_gate_access`.
     'uiv2/mod\.rs:426:\d+: replace && with \|\|',
+    # uiv2/mod.rs get_map_image blackhole gate, the `!=` comparisons (cols 30 and 62):
+    # `user_id != Some(uploaded_by)`→`==` and `user_id != Some(4)`→`==`. Same story as
+    # the `&&` above — with GSFS disabled the endpoint 404s every image regardless of
+    # the gate's decision, so flipping a comparison only changes WHICH 404 path runs.
+    'uiv2/mod\.rs:426:30: replace != with ==',
+    'uiv2/mod\.rs:426:62: replace != with ==',
     # search2.rs `unwrap_or(-1)` sentinel for a NULL modified_time. The normal upload
     # path always writes a filetime row, so the branch is unreachable without a DB
-    # helper to delete it — killable in principle but very low value.
+    # helper to delete it — killable in principle but very low value. Two identical
+    # sites (the empty-query and keyword-query branches), one exclusion each.
     'search2\.rs:126:\d+: delete -',
+    'search2\.rs:208:\d+: delete -',
+    # chk.rs get_eups `unit_id > 227`→`>= 227` differs only on a placed unit of type
+    # exactly 227 (the last normal id). The unit-id-extended fixture's ids are all
+    # > 227 and no normal fixture places a type-227 unit, so nothing distinguishes it —
+    # the unit-id sibling of the `owner > 12`→`>= 12` boundary excluded above.
+    'chk\.rs:228:51: replace > with >=',
+    # map_info.rs eups counter `unit_id > 227 || owner > 27`: the `||`, the `>`→`==`
+    # collapses, and the `+=` are pinned by map_info_counts_extended_unit_placements
+    # (poker = 39 owner-side, untitled = 7 unit-id-side). Only the `>`→`>=` boundary
+    # survives — it differs solely on a placed unit of type exactly 227 or an owner of
+    # exactly 27, which no available fixture contains (same boundary logic as the chk
+    # owner==12 / unit_id==227 exclusions above).
+    'uiv2/map_info\.rs:250:29: replace > with >=',
+    'uiv2/map_info\.rs:250:49: replace > with >=',
+    # map_info.rs wav-set match arms for Action::Transmission (line 312) and
+    # MissionBriefingAction::DisplayTransmission (line 334). The wav set is a HashSet;
+    # across every fixture the wavs these arms contribute are also referenced by a
+    # PlayWav action, so deleting either arm never changes the deduplicated set (the
+    # PlayWav arms themselves ARE pinned — the exact 13-wav LotR set in
+    # map_info_reports_parsed_chk_structure). Catching these needs a fixture with a wav
+    # referenced ONLY by a Transmission, which the suite doesn't have.
+    'uiv2/map_info\.rs:312:\d+: delete match arm',
+    'uiv2/map_info\.rs:334:\d+: delete match arm',
+    # units.rs line 74 is the legacy UNIS-section fallback branch (`else if
+    # parsed_chk.unis`), reached only by maps carrying the old UNIS section without the
+    # modern UNIx one. Every fixture uses UNIx, exercising the identical filter on line
+    # 58 (pinned by units_endpoint_lists_named_units), so the UNIS branch's
+    # `==`/`!=`/`&&` mutants are unobservable without an old-format fixture.
+    'uiv2/units\.rs:74:\d+: replace',
+    # map_info.rs trigger-list counters (`trigger_list_reads`, Deaths conditions at
+    # lines 287-288; `trigger_list_writes`, SetDeaths actions at 305-306) tally EUD
+    # references that land in the 96-byte window [0x51A280, 0x51A2E0). No fixture has a
+    # reference in that exact window, so both counters are 0 everywhere. The
+    # range-WIDENING mutants ARE killed — `&&`→`||`, `<`→`>`, and `>=`→`<` on the WRITE
+    # side pull income_wars's 60 death-reads / 2020 death-writes into range and flip
+    # the counter nonzero, which map_info_counts_extended_unit_deaths pins to 0. What's
+    # left below only ever keeps the counter at 0: the exact-boundary flips (`<`→`==`,
+    # `<`→`<=`), the read-side `>=`→`<` (income_wars has no death-read below 0x51A280),
+    # and the `+=` increments (never reached, so `-=`/`*=` still yield 0). Killing
+    # these needs a trigger-list-manipulation map the suite doesn't have. Anchored by
+    # line:col:replacement so the caught widening siblings on the same lines stay live.
+    'uiv2/map_info\.rs:287:36: replace >= with <',
+    'uiv2/map_info\.rs:287:63: replace < with ==',
+    'uiv2/map_info\.rs:287:63: replace < with <=',
+    'uiv2/map_info\.rs:288:44: replace \+= with',
+    'uiv2/map_info\.rs:305:40: replace >= with <',
+    'uiv2/map_info\.rs:305:67: replace < with ==',
+    'uiv2/map_info\.rs:305:67: replace < with <=',
+    'uiv2/map_info\.rs:306:49: replace \+= with',
 ]
 
 # Timeouts. Unit tests run in milliseconds; the E2E tests boot a server + clone a

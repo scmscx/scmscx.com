@@ -654,6 +654,87 @@ async fn map_info_counts_extended_unit_deaths() {
         props["set_death_euds"], 2020,
         "EUD death-write references are counted"
     );
+
+    // The separate `trigger_list_reads`/`trigger_list_writes` counters tally EUD
+    // references landing in the trigger-list region [0x51A280, 0x51A2E0). This map's
+    // 60 death-reads and 2020 death-writes all sit elsewhere, so both are 0 — and
+    // pinning that here (on a map that HAS heavy EUD traffic) kills the mutants that
+    // widen the range check to sweep those references in: an `&&`→`||` makes it match
+    // everything, and shifting a bound (`>=`→`<`, `<`→`>`) pulls this map's offsets
+    // into range. The remaining boundary flips (`==`/`<=`) and the `+=` increments
+    // need an offset that actually lands in the 96-byte window, which no available
+    // fixture has — those are excluded in .cargo/mutants.toml.
+    assert_eq!(
+        props["trigger_list_reads"], 0,
+        "none of this map's death-reads reference the trigger-list region"
+    );
+    assert_eq!(
+        props["trigger_list_writes"], 0,
+        "none of this map's death-writes reference the trigger-list region"
+    );
+}
+
+/// `map_info`'s `eups` property counts placed units that are "extended" — unit id
+/// out of 0..=227 (`unit_id > 227`) OR owner out of 0..=27 (`owner > 27`). A normal
+/// map has none (pinned to 0 in `map_info_reports_parsed_chk_structure`), so the two
+/// comparisons, their `||`, and the `+=` go untested there. These EUP fixtures each
+/// populate exactly one side of the `||`: the counts (39 owner-side, 7 unit-id-side)
+/// pin the whole expression — `||`→`&&` collapses either fixture's count to 0, a
+/// `>`→`==` drops that fixture's whole set, and `+=`→`-=`/`*=` breaks the tally. (The
+/// `>`→`>=` boundary — a placed unit of type exactly 227 or owner exactly 27 — is not
+/// reachable with any available fixture and is excluded in .cargo/mutants.toml.)
+///
+/// Note this counter differs from `GET /api/chk/eups` (chk.rs `get_eups`), which uses
+/// `owner > 12`; here the owner threshold is 27, so the two are pinned separately.
+#[tokio::test]
+async fn map_info_counts_extended_unit_placements() {
+    let h = Harness::start().await;
+    let c = client();
+    let owner = register(&c, &h, "eupplacementowner").await;
+
+    // Owner-extended (owner > 27, unit_id <= 227): 39 placements.
+    let poker = upload_fixture(
+        &c,
+        &h,
+        Some(&owner),
+        "poker_placements.scx",
+        POKER_DEFENSE_SHA256,
+        POKER_DEFENSE_LEN,
+    )
+    .await;
+    let poker_props = json_body(
+        c.get(h.url(&format!("/api/uiv2/map_info/{poker}")))
+            .send()
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(
+        poker_props["properties"]["eups"], 39,
+        "the owner-extended EUP map has 39 extended placements"
+    );
+
+    // Unit-id-extended (unit_id > 227, owner in range): 7 placements.
+    let untitled = upload_fixture(
+        &c,
+        &h,
+        Some(&owner),
+        "untitled_placements.scx",
+        UNTITLED_EUP_SHA256,
+        UNTITLED_EUP_LEN,
+    )
+    .await;
+    let untitled_props = json_body(
+        c.get(h.url(&format!("/api/uiv2/map_info/{untitled}")))
+            .send()
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(
+        untitled_props["properties"]["eups"], 7,
+        "the unit-id-extended EUP map has 7 extended placements"
+    );
 }
 
 /// Upload a map as a logged-in user, then read it back through the view/metadata
