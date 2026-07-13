@@ -114,6 +114,8 @@ jobs:
           fi
           echo "No surviving mutants."
       - name: Mutants summary
+        if: always()
         uses: ./.github/actions/mutants-summary
       - name: sccache stats
+        if: always()
         uses: ./.github/actions/sccache-stats
