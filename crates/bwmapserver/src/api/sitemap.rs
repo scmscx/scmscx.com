@@ -1,7 +1,11 @@
-use actix_web::{get, web, HttpResponse};
+use axum::extract::Extension;
+use axum::http::header;
+use axum::response::Response;
+use bwcommon::with_logging_info;
 
-#[get("/sitemap.txt")]
-async fn handler() -> Result<HttpResponse, bwcommon::MyError> {
+use crate::webutil::Pool;
+
+pub async fn handler() -> Result<Response, bwcommon::MyError> {
     let info = bwcommon::ApiSpecificInfoForLogging {
         ..Default::default()
     };
@@ -15,19 +19,13 @@ async fn handler() -> Result<HttpResponse, bwcommon::MyError> {
     s.push_str("https://scmscx.com/login\n");
     s.push_str("https://scmscx.com/register\n");
 
-    Ok(bwcommon::insert_extension(HttpResponse::Ok(), info)
-        .content_type("text/plain")
-        .body(s))
+    Ok(with_logging_info(
+        info,
+        ([(header::CONTENT_TYPE, "text/plain")], s),
+    ))
 }
 
-#[get("/a.txt")]
-async fn handlera(
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<HttpResponse, bwcommon::MyError> {
+pub async fn handlera(Extension(pool): Extension<Pool>) -> Result<Response, bwcommon::MyError> {
     let con = pool.get().await?;
     let ids: Vec<i64> = con.query(
             "select id from map where nsfw = false and outdated = false and unfinished = false and broken = false and blackholed = false and chkblob is not null order by id limit 50000 OFFSET 0",
@@ -52,19 +50,13 @@ async fn handlera(
         );
     }
 
-    Ok(bwcommon::insert_extension(HttpResponse::Ok(), info)
-        .content_type("text/plain")
-        .body(s))
+    Ok(with_logging_info(
+        info,
+        ([(header::CONTENT_TYPE, "text/plain")], s),
+    ))
 }
 
-#[get("/b.txt")]
-async fn handlerb(
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<HttpResponse, bwcommon::MyError> {
+pub async fn handlerb(Extension(pool): Extension<Pool>) -> Result<Response, bwcommon::MyError> {
     let con = pool.get().await?;
     let ids: Vec<i64> = con.query(
             "select id from map where nsfw = false and outdated = false and unfinished = false and broken = false and blackholed = false and chkblob is not null order by id limit 50000 OFFSET 50000",
@@ -89,19 +81,13 @@ async fn handlerb(
         );
     }
 
-    Ok(bwcommon::insert_extension(HttpResponse::Ok(), info)
-        .content_type("text/plain")
-        .body(s))
+    Ok(with_logging_info(
+        info,
+        ([(header::CONTENT_TYPE, "text/plain")], s),
+    ))
 }
 
-#[get("/c.txt")]
-async fn handlerc(
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<HttpResponse, bwcommon::MyError> {
+pub async fn handlerc(Extension(pool): Extension<Pool>) -> Result<Response, bwcommon::MyError> {
     let con = pool.get().await?;
     let ids: Vec<i64> = con.query(
             "select id from map where nsfw = false and outdated = false and unfinished = false and broken = false and blackholed = false and chkblob is not null order by id limit 50000 OFFSET 100000",
@@ -126,7 +112,8 @@ async fn handlerc(
         );
     }
 
-    Ok(bwcommon::insert_extension(HttpResponse::Ok(), info)
-        .content_type("text/plain")
-        .body(s))
+    Ok(with_logging_info(
+        info,
+        ([(header::CONTENT_TYPE, "text/plain")], s),
+    ))
 }

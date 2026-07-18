@@ -1,20 +1,16 @@
 use crate::db;
-use actix_web::{get, web, HttpRequest, HttpResponse, Responder};
+use crate::webutil::Pool;
+use axum::extract::{Extension, Path};
+use axum::http::{header, StatusCode};
+use axum::response::{IntoResponse, Response};
+use axum::Json;
 use bwcommon::MyError;
 use bwmap::ParsedChk;
 
-#[get("/api/chk/strings/{map_id}")]
-async fn get_chk_strings(
-    _req: HttpRequest,
-    path: web::Path<(String,)>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, MyError> {
-    let (map_id,) = path.into_inner();
-
+pub async fn get_chk_strings(
+    Path((map_id,)): Path<(String,)>,
+    Extension(pool): Extension<Pool>,
+) -> Result<Response, MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
@@ -30,7 +26,7 @@ async fn get_chk_strings(
         row.try_get::<_, String>(0)?
     };
 
-    let chkblob = db::get_chk(chkhash.clone(), (**pool).clone()).await?;
+    let chkblob = db::get_chk(chkhash.clone(), pool.clone()).await?;
     let parsed_chk = ParsedChk::from_bytes(chkblob.as_slice());
 
     let refs = parsed_chk.get_all_string_references()?;
@@ -45,23 +41,13 @@ async fn get_chk_strings(
         );
     }
 
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .body(serde_json::to_string(&strings).unwrap()))
+    Ok(Json(strings).into_response())
 }
 
-#[get("/api/chk/riff_chunks/{map_id}")]
-async fn get_chk_riff_chunks(
-    _req: HttpRequest,
-    path: web::Path<(String,)>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, MyError> {
-    let (map_id,) = path.into_inner();
-
+pub async fn get_chk_riff_chunks(
+    Path((map_id,)): Path<(String,)>,
+    Extension(pool): Extension<Pool>,
+) -> Result<Response, MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
@@ -77,27 +63,17 @@ async fn get_chk_riff_chunks(
         row.try_get::<_, String>(0)?
     };
 
-    let chkblob = db::get_chk(chkhash.clone(), (**pool).clone()).await?;
+    let chkblob = db::get_chk(chkhash.clone(), pool.clone()).await?;
 
     let raw_chunks = bwmap::parse_riff(chkblob.as_slice());
 
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .body(serde_json::to_string(&raw_chunks).unwrap()))
+    Ok(Json(raw_chunks).into_response())
 }
 
-#[get("/api/chk/json/{map_id}")]
-async fn get_chk_json(
-    _req: HttpRequest,
-    path: web::Path<(String,)>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, MyError> {
-    let (map_id,) = path.into_inner();
-
+pub async fn get_chk_json(
+    Path((map_id,)): Path<(String,)>,
+    Extension(pool): Extension<Pool>,
+) -> Result<Response, MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
@@ -112,26 +88,16 @@ async fn get_chk_json(
         row.try_get::<_, String>(0)?
     };
 
-    let chkblob = db::get_chk(chkhash.clone(), (**pool).clone()).await?;
+    let chkblob = db::get_chk(chkhash.clone(), pool.clone()).await?;
     let parsed_chk = ParsedChk::from_bytes(chkblob.as_slice());
 
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .body(serde_json::to_string(&parsed_chk).unwrap()))
+    Ok(Json(parsed_chk).into_response())
 }
 
-#[get("/api/chk/trig/{map_id}")]
-async fn get_chk_trig_json(
-    _req: HttpRequest,
-    path: web::Path<(String,)>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, MyError> {
-    let (map_id,) = path.into_inner();
-
+pub async fn get_chk_trig_json(
+    Path((map_id,)): Path<(String,)>,
+    Extension(pool): Extension<Pool>,
+) -> Result<Response, MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
@@ -146,28 +112,18 @@ async fn get_chk_trig_json(
         row.try_get::<_, String>(0)?
     };
 
-    let chkblob = db::get_chk(chkhash.clone(), (**pool).clone()).await?;
+    let chkblob = db::get_chk(chkhash.clone(), pool.clone()).await?;
     let parsed_chk = ParsedChk::from_bytes(chkblob.as_slice());
 
     let trigs = bwmap::parse_triggers(&parsed_chk);
 
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .body(serde_json::to_string(&trigs).unwrap()))
+    Ok(Json(trigs).into_response())
 }
 
-#[get("/api/chk/mbrf/{map_id}")]
-async fn get_chk_mbrf_json(
-    _req: HttpRequest,
-    path: web::Path<(String,)>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, MyError> {
-    let (map_id,) = path.into_inner();
-
+pub async fn get_chk_mbrf_json(
+    Path((map_id,)): Path<(String,)>,
+    Extension(pool): Extension<Pool>,
+) -> Result<Response, MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
@@ -182,28 +138,18 @@ async fn get_chk_mbrf_json(
         row.try_get::<_, String>(0)?
     };
 
-    let chkblob = db::get_chk(chkhash.clone(), (**pool).clone()).await?;
+    let chkblob = db::get_chk(chkhash.clone(), pool.clone()).await?;
     let parsed_chk = ParsedChk::from_bytes(chkblob.as_slice());
 
     let trigs = bwmap::parse_mission_briefing(&parsed_chk);
 
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .body(serde_json::to_string(&trigs).unwrap()))
+    Ok(Json(trigs).into_response())
 }
 
-#[get("/api/chk/eups/{map_id}")]
-async fn get_eups(
-    _req: HttpRequest,
-    path: web::Path<(String,)>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, MyError> {
-    let (map_id,) = path.into_inner();
-
+pub async fn get_eups(
+    Path((map_id,)): Path<(String,)>,
+    Extension(pool): Extension<Pool>,
+) -> Result<Response, MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
@@ -218,7 +164,7 @@ async fn get_eups(
         row.try_get::<_, String>(0)?
     };
 
-    let chkblob = db::get_chk(chkhash.clone(), (**pool).clone()).await?;
+    let chkblob = db::get_chk(chkhash.clone(), pool.clone()).await?;
     let parsed_chk = ParsedChk::from_bytes(chkblob.as_slice());
 
     if let Ok(unit_section) = parsed_chk.unit {
@@ -227,29 +173,21 @@ async fn get_eups(
             .iter()
             .filter(|x| x.owner > 12 || x.unit_id > 227)
             .collect();
-        Ok(HttpResponse::Ok()
-            .content_type("application/json")
-            .body(serde_json::to_string(&eups).unwrap()))
+        Ok(Json(eups).into_response())
     } else {
-        Ok(HttpResponse::NotFound().finish())
+        Ok(StatusCode::NOT_FOUND.into_response())
     }
 }
 
-#[get("/api/chk/{chk_hash}")]
-async fn download_chk(
-    _req: HttpRequest,
-    path: web::Path<(String,)>,
-    pool: web::Data<
-        bb8_postgres::bb8::Pool<
-            bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
-        >,
-    >,
-) -> Result<impl Responder, MyError> {
-    let (chkhash,) = path.into_inner();
+pub async fn download_chk(
+    Path((chkhash,)): Path<(String,)>,
+    Extension(pool): Extension<Pool>,
+) -> Result<Response, MyError> {
+    let chkblob = db::get_chk(chkhash.clone(), pool.clone()).await?;
 
-    let chkblob = db::get_chk(chkhash.clone(), (**pool).clone()).await?;
-
-    Ok(HttpResponse::Ok()
-        .content_type("application/octet-stream")
-        .body(chkblob))
+    Ok((
+        [(header::CONTENT_TYPE, "application/octet-stream")],
+        chkblob,
+    )
+        .into_response())
 }

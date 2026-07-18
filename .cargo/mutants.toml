@@ -112,13 +112,22 @@ exclude_re = [
     # endpoint 404s every image anyway, so `&&`→`||` (which only changes WHICH 404
     # path is taken) is unobservable here. The same blackhole-gate logic IS covered on
     # the minimap route (which has a local fallback) by `image_endpoints_gate_access`.
-    'uiv2/mod\.rs:426:\d+: replace && with \|\|',
+    'uiv2/mod\.rs:359:\d+: replace && with \|\|',
     # uiv2/mod.rs get_map_image blackhole gate, the `!=` comparisons (cols 30 and 62):
     # `user_id != Some(uploaded_by)`→`==` and `user_id != Some(4)`→`==`. Same story as
     # the `&&` above — with GSFS disabled the endpoint 404s every image regardless of
     # the gate's decision, so flipping a comparison only changes WHICH 404 path runs.
-    'uiv2/mod\.rs:426:30: replace != with ==',
-    'uiv2/mod\.rs:426:62: replace != with ==',
+    'uiv2/mod\.rs:359:30: replace != with ==',
+    'uiv2/mod\.rs:359:62: replace != with ==',
+
+    # traceid.rs trace_id: `if status.is_success() || status.is_redirection()` only
+    # SELECTS the log severity (info! vs warn!/error!) for the request-completion line;
+    # every arm returns the same response unchanged. Flipping `||`→`&&` (2xx/3xx would
+    # log at warn instead of info) has no DB- or HTTP-observable effect, so no e2e/unit
+    # test can catch it — a logging-only equivalent, same class as the
+    # ApiSpecificInfoForLogging exclusion above. Anchored by line:col since sibling
+    # mutants on this line would be the same logging-only branch.
+    'traceid\.rs:49:\d+: replace \|\| with &&',
     # search2.rs `unwrap_or(-1)` sentinel for a NULL modified_time. The normal upload
     # path always writes a filetime row, so the branch is unreachable without a DB
     # helper to delete it — killable in principle but very low value. Two identical

@@ -124,8 +124,10 @@ pub(crate) async fn insert_parsed_map(
                 Ok(x) => return Ok(x),
                 Err(e) => {
                     error!("failed to attempt transaction: error: {:?}", e);
-                    tokio::time::sleep(Duration::from_millis(rand::rng().random_range(300..2000)))
-                        .await;
+                    // Compute the delay before awaiting so the non-Send ThreadRng
+                    // isn't held across the await point (axum needs Send futures).
+                    let delay = rand::rng().random_range(300..2000);
+                    tokio::time::sleep(Duration::from_millis(delay)).await;
                 }
             }
         }

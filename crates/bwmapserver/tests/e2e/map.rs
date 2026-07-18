@@ -1718,3 +1718,85 @@ async fn random_returns_a_matching_map_id() {
         "an unknown sort is a 500"
     );
 }
+
+/// The read-only landing-page endpoints each run one query and JSON-encode the
+/// rows: `/api/uiv2/{featured,last_viewed,last_downloaded,last_uploaded}_maps`,
+/// `most_{viewed,downloaded}_maps`, and `last_uploaded_replays`. A whole-body
+/// mutation (`-> Ok(Json(vec![]))`) survives unless a test proves the endpoint
+/// returns real rows, so we arrange for one map to satisfy every query and assert
+/// each endpoint surfaces it.
+///
+/// One uploaded map, made to qualify for all of them: viewing it (via `map_info`)
+/// sets `last_viewed`; the rest need state no HTTP route creates, seeded directly —
+/// a `last_downloaded` timestamp, a `featuredmaps` row, and a `replay` joined to
+/// the map by chk hash.
+#[tokio::test]
+async fn landing_endpoints_surface_maps_and_replays() {
+    let h = Harness::start().await;
+    let c = client();
+    let owner = register(&c, &h, "landingowner").await;
+    let id = upload_map(&c, &h, Some(&owner), "e2elanding.scx").await;
+    let internal = map_internal_id(&c, &h, &id).await;
+
+    // View it once so `last_viewed` (and the view count) is populated.
+    let resp = c
+        .get(h.url(&format!("/api/uiv2/map_info/{id}")))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK, "map_info view");
+
+    // Seed the state no HTTP route creates: a download timestamp, a featured-map
+    // entry, and a replay whose chk hash matches the map (so the replay↔map join in
+    // last_uploaded_replays succeeds).
+    let chkblob = h
+        .db_text("select chkblob from map where id = $1", internal)
+        .await;
+    h.db_execute(&format!(
+        "update map set downloads = 42, last_downloaded = 1700000001 where id = {internal};
+         insert into featuredmaps (map_id, rank) values ({internal}, 100);
+         insert into replayblob (hash, data) values ('e2ereplayhash', '\\x00');
+         insert into replay (id, hash, uploaded_by, uploaded_time, chkhash)
+             values (1, 'e2ereplayhash', null, 1700000002, '{chkblob}');"
+    ))
+    .await;
+
+    // Every map-returning endpoint should include our map by web id.
+    for path in [
+        "featured_maps",
+        "last_viewed_maps",
+        "last_downloaded_maps",
+        "last_uploaded_maps",
+        "most_viewed_maps",
+        "most_downloaded_maps",
+    ] {
+        let resp = c
+            .get(h.url(&format!("/api/uiv2/{path}")))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK, "GET /api/uiv2/{path}");
+        let body = json_body(resp).await;
+        let arr = body.as_array().expect("array body");
+        assert!(
+            arr.iter()
+                .any(|m| m["map_id"].as_str() == Some(id.as_str())),
+            "/api/uiv2/{path} should surface our map, got {body}"
+        );
+    }
+
+    // The replay endpoint should surface the seeded replay, keyed to our map.
+    let resp = c
+        .get(h.url("/api/uiv2/last_uploaded_replays"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK, "GET last_uploaded_replays");
+    let body = json_body(resp).await;
+    let arr = body.as_array().expect("array body");
+    assert!(
+        arr.iter()
+            .any(|r| r["map_id"].as_str() == Some(id.as_str())),
+        "last_uploaded_replays should surface the replay for our map, got {body}"
+    );
+}

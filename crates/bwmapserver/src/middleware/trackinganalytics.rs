@@ -1,218 +1,175 @@
-use std::future::{ready, Ready};
-
-use actix_web::{
-    cookie::{Cookie, SameSite},
-    dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
-    http::header::HeaderValue,
-    Error, HttpMessage,
-};
+use axum::extract::Request;
+use axum::http::{header, HeaderValue};
+use axum::middleware::Next;
+use axum::response::Response;
+use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use bwcommon::TrackingAnalytics;
-use futures_util::{future::LocalBoxFuture, FutureExt};
 use sha2::{Digest, Sha256};
-use tracing::{info, instrument, Instrument};
+use tracing::info;
 
-pub struct TrackingAnalyticsTransformer;
+use crate::webutil::realip;
 
-impl<S, B> Transform<S, ServiceRequest> for TrackingAnalyticsTransformer
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type InitError = ();
-    type Transform = TrackingAnalyticsMiddleware<S>;
-    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+/// Resolves a stable tracking-analytics id (from the `tac` cookie, or a salted
+/// hash of client fingerprint headers) into the request extensions, and sets
+/// the `tac` cookie on the response when the request didn't already carry one.
+pub async fn tracking_analytics(mut req: Request, next: Next) -> Response {
+    let jar = CookieJar::from_headers(req.headers());
 
-    fn new_transform(&self, service: S) -> Self::Future {
-        ready(Ok(TrackingAnalyticsMiddleware { service }))
-    }
-}
+    let (tracking_analytics_id, was_provided_by_request) = if let Some(cookie) = jar.get("tac") {
+        (cookie.value().to_string(), true)
+    } else {
+        const SALT: &[u8] = b"this is a salt so that nobody can guess the content of these hashes";
 
-pub struct TrackingAnalyticsMiddleware<S> {
-    service: S,
-}
-
-impl<S, B> Service<ServiceRequest> for TrackingAnalyticsMiddleware<S>
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
-
-    forward_ready!(service);
-
-    #[instrument(skip_all, name = "")]
-    fn call(&self, req: ServiceRequest) -> Self::Future {
-        let (tracking_analytics_id, was_provided_by_request) = if let Some(cookie) =
-            req.cookie("tac")
-        {
-            let tac = cookie.value().to_string();
-
-            (tac, true)
-        } else {
-            const SALT: &[u8] =
-                b"this is a salt so that nobody can guess the content of these hashes";
-            let user_agent = req
-                .headers()
-                .get("user-agent")
-                .unwrap_or(&HeaderValue::from_static("default"))
-                .clone();
-            let accept_language = req
-                .headers()
-                .get("accept-language")
-                .unwrap_or(&HeaderValue::from_static("default"))
-                .clone();
-            let sec_ch_ua = req
-                .headers()
-                .get("sec-ch-ua")
-                .unwrap_or(&HeaderValue::from_static("default"))
-                .clone();
-            let sec_ch_mobile = req
-                .headers()
-                .get("sec-ch-mobile")
-                .unwrap_or(&HeaderValue::from_static("default"))
-                .clone();
-            let sec_ch_platform = req
-                .headers()
-                .get("sec-ch-ua-platform")
-                .unwrap_or(&HeaderValue::from_static("default"))
-                .clone();
-            let ip_address = req
-                .connection_info()
-                .realip_remote_addr()
-                .unwrap_or("default:5000")
-                .split(':')
-                .next()
+        let header_or = |name: &str| -> String {
+            req.headers()
+                .get(name)
+                .and_then(|x| x.to_str().ok())
                 .unwrap_or("default")
-                .to_owned();
-            info!("tac created. user_agent: {user_agent:?}, accept_language: {accept_language:?}, sec_ch_ua: {sec_ch_ua:?}, sec_ch_mobile: {sec_ch_mobile:?}, sec_ch_platform: {sec_ch_platform:?}, ip_address: {ip_address:?}");
-            let mut hasher = Sha256::new();
-            hasher.update(SALT);
-            hasher.update(ip_address);
-            hasher.update(user_agent);
-            hasher.update(accept_language);
-            hasher.update(sec_ch_ua);
-            hasher.update(sec_ch_mobile);
-            hasher.update(sec_ch_platform);
-            (format!("{:x}", hasher.finalize()), false)
+                .to_owned()
         };
 
-        req.extensions_mut().insert(TrackingAnalytics {
-            tracking_analytics_id: tracking_analytics_id.clone(),
-            was_provided_by_request,
-        });
+        let user_agent = header_or("user-agent");
+        let accept_language = header_or("accept-language");
+        let sec_ch_ua = header_or("sec-ch-ua");
+        let sec_ch_mobile = header_or("sec-ch-mobile");
+        let sec_ch_platform = header_or("sec-ch-ua-platform");
 
-        let tracking_analytics_id_clone = tracking_analytics_id.clone();
+        let peer = req
+            .extensions()
+            .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+            .map(|ci| ci.0);
+        let ip_address = realip(req.headers(), peer)
+            .unwrap_or_else(|| "default:5000".to_owned())
+            .split(':')
+            .next()
+            .unwrap_or("default")
+            .to_owned();
 
-        info!("tac: {}", tracking_analytics_id);
+        info!("tac created. user_agent: {user_agent:?}, accept_language: {accept_language:?}, sec_ch_ua: {sec_ch_ua:?}, sec_ch_mobile: {sec_ch_mobile:?}, sec_ch_platform: {sec_ch_platform:?}, ip_address: {ip_address:?}");
 
-        let fut = self.service.call(req);
-        async move {
-            let mut res = fut.await?;
+        let mut hasher = Sha256::new();
+        hasher.update(SALT);
+        hasher.update(ip_address);
+        hasher.update(user_agent);
+        hasher.update(accept_language);
+        hasher.update(sec_ch_ua);
+        hasher.update(sec_ch_mobile);
+        hasher.update(sec_ch_platform);
+        (format!("{:x}", hasher.finalize()), false)
+    };
 
-            if !was_provided_by_request {
-                res.response_mut()
-                    .add_cookie(
-                        &Cookie::build("tac", &tracking_analytics_id_clone)
-                            .path("/")
-                            .same_site(SameSite::Lax)
-                            .secure(true)
-                            .http_only(false)
-                            .permanent()
-                            .finish(),
-                    )
-                    .unwrap();
-            }
+    req.extensions_mut().insert(TrackingAnalytics {
+        tracking_analytics_id: tracking_analytics_id.clone(),
+        was_provided_by_request,
+    });
 
-            Ok(res)
-        }
-        .instrument(tracing::span::Span::current())
-        .boxed_local()
+    info!("tac: {}", tracking_analytics_id);
+
+    let mut res = next.run(req).await;
+
+    if !was_provided_by_request {
+        let cookie = Cookie::build(("tac", tracking_analytics_id))
+            .path("/")
+            .same_site(SameSite::Lax)
+            .secure(true)
+            .http_only(false)
+            .permanent()
+            .build();
+        res.headers_mut().append(
+            header::SET_COOKIE,
+            HeaderValue::from_str(&cookie.to_string()).unwrap(),
+        );
     }
+
+    res
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::http::header::SET_COOKIE;
-    use actix_web::{test, web, App, HttpMessage, HttpRequest, HttpResponse};
+    use axum::body::Body;
+    use axum::routing::get;
+    use axum::{Extension, Router};
+    use tower::ServiceExt;
 
     /// Reports "<id>|<was_provided_by_request>".
-    async fn echo_tac(req: HttpRequest) -> HttpResponse {
-        let out = req
-            .extensions()
-            .get::<TrackingAnalytics>()
-            .map(|t| format!("{}|{}", t.tracking_analytics_id, t.was_provided_by_request));
-        HttpResponse::Ok().body(out.unwrap_or_else(|| "none".to_string()))
-    }
-
-    async fn run(req: test::TestRequest) -> (Vec<String>, String) {
-        let app = test::init_service(
-            App::new()
-                .wrap(TrackingAnalyticsTransformer)
-                .default_service(web::to(echo_tac)),
+    async fn echo_tac(ta: Option<Extension<TrackingAnalytics>>) -> String {
+        ta.map_or_else(
+            || "none".to_string(),
+            |Extension(t)| format!("{}|{}", t.tracking_analytics_id, t.was_provided_by_request),
         )
-        .await;
-        let resp = test::call_service(&app, req.to_request()).await;
-        let cookies = resp
-            .headers()
-            .get_all(SET_COOKIE)
-            .map(|v| v.to_str().unwrap().to_string())
-            .collect();
-        let body = String::from_utf8(test::read_body(resp).await.to_vec()).unwrap();
-        (cookies, body)
     }
 
-    #[actix_web::test]
+    async fn run(headers: &[(&str, &str)]) -> Response {
+        let app = Router::new()
+            .route("/", get(echo_tac))
+            .layer(axum::middleware::from_fn(tracking_analytics));
+        let mut builder = axum::http::Request::builder().uri("/");
+        for (k, v) in headers {
+            builder = builder.header(*k, *v);
+        }
+        app.oneshot(builder.body(Body::empty()).unwrap())
+            .await
+            .unwrap()
+    }
+
+    fn set_cookies(res: &Response) -> Vec<String> {
+        res.headers()
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .map(|v| v.to_str().unwrap().to_string())
+            .collect()
+    }
+
+    async fn body(res: Response) -> String {
+        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        String::from_utf8(bytes.to_vec()).unwrap()
+    }
+
+    #[tokio::test]
     async fn reuses_existing_tac_cookie_without_resetting() {
-        let (cookies, body) = run(test::TestRequest::get()
-            .cookie(actix_web::cookie::Cookie::new("tac", "existing-id-123")))
-        .await;
+        let res = run(&[("cookie", "tac=existing-id-123")]).await;
         assert!(
-            cookies.is_empty(),
+            set_cookies(&res).is_empty(),
             "an already-provided tac must not be re-set"
         );
-        assert_eq!(body, "existing-id-123|true");
+        assert_eq!(body(res).await, "existing-id-123|true");
     }
 
-    #[actix_web::test]
+    #[tokio::test]
     async fn generates_tac_when_absent_and_sets_cookie() {
-        let (cookies, body) =
-            run(test::TestRequest::get().insert_header(("user-agent", "UA/1.0"))).await;
+        let res = run(&[("user-agent", "UA/1.0")]).await;
+        let cookies = set_cookies(&res);
         assert!(
             cookies.iter().any(|c| c.starts_with("tac=")),
             "a fresh tac cookie must be set, got {cookies:?}"
         );
-        let (id, provided) = body.split_once('|').unwrap();
+        let out = body(res).await;
+        let (id, provided) = out.split_once('|').unwrap();
         assert_eq!(provided, "false");
         // The generated id is a SHA-256 hex digest.
         assert_eq!(id.len(), 64);
         assert!(id.chars().all(|c| c.is_ascii_hexdigit()));
     }
 
-    #[actix_web::test]
+    #[tokio::test]
     async fn generated_tac_is_deterministic_for_same_fingerprint() {
-        let build = || {
-            test::TestRequest::get()
-                .insert_header(("user-agent", "Mozilla/5.0"))
-                .insert_header(("accept-language", "en-US"))
-                .insert_header(("sec-ch-ua-platform", "\"Linux\""))
-        };
-        let (_, a) = run(build()).await;
-        let (_, b) = run(build()).await;
+        let hdrs = &[
+            ("user-agent", "Mozilla/5.0"),
+            ("accept-language", "en-US"),
+            ("sec-ch-ua-platform", "\"Linux\""),
+        ];
+        let a = body(run(hdrs).await).await;
+        let b = body(run(hdrs).await).await;
         assert_eq!(a, b, "same fingerprint headers must hash to the same tac");
     }
 
-    #[actix_web::test]
+    #[tokio::test]
     async fn different_user_agent_yields_different_tac() {
-        let (_, a) =
-            run(test::TestRequest::get().insert_header(("user-agent", "Mozilla/5.0"))).await;
-        let (_, b) = run(test::TestRequest::get().insert_header(("user-agent", "curl/8.0"))).await;
+        let a = body(run(&[("user-agent", "Mozilla/5.0")]).await).await;
+        let b = body(run(&[("user-agent", "curl/8.0")]).await).await;
         assert_ne!(a, b, "distinct fingerprints must produce distinct tacs");
     }
 }

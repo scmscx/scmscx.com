@@ -1,35 +1,29 @@
-use crate::middleware::UserSession;
 use crate::search2::search2;
 use crate::search2::SearchParams;
-use actix_web::get;
-use actix_web::web::Data;
-use actix_web::web::Path;
-use actix_web::web::Query;
-use actix_web::HttpMessage;
-use actix_web::HttpRequest;
-use actix_web::HttpResponse;
-use actix_web::Responder;
-use bb8_postgres::bb8::Pool;
-use bb8_postgres::tokio_postgres::NoTls;
-use bb8_postgres::PostgresConnectionManager;
-use bwcommon::insert_extension;
+use crate::webutil::{MaybeUser, Pool};
+use axum::extract::Extension;
+use axum::extract::Path;
+use axum::extract::Query;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+use bwcommon::with_logging_info;
 use bwcommon::ApiSpecificInfoForLogging;
 use serde_json::json;
 
 async fn handler(
-    req: HttpRequest,
+    allow_nsfw: bool,
     query: String,
     query_params: Query<SearchParams>,
-    pool: Data<Pool<PostgresConnectionManager<NoTls>>>,
-) -> Result<impl Responder, bwcommon::MyError> {
-    let query_params = query_params.into_inner();
-    let allow_nsfw = req.extensions().get::<UserSession>().is_some();
+    pool: Pool,
+) -> Result<Response, bwcommon::MyError> {
+    let query_params = query_params.0;
 
     match query_params.sort.as_str() {
         "relevancy" | "scenario" | "lastmodifiedold" | "lastmodifiednew" | "timeuploadedold"
         | "timeuploadednew" => {}
         _ => {
-            return Ok(HttpResponse::BadRequest().finish());
+            return Ok(StatusCode::BAD_REQUEST.into_response());
         }
     }
 
@@ -39,29 +33,28 @@ async fn handler(
         ..Default::default()
     };
 
-    Ok(insert_extension(HttpResponse::Ok(), info)
-        .content_type("application/json")
-        .body(serde_json::to_string(&json!({
+    Ok(with_logging_info(
+        info,
+        Json(json!({
             "total_results": maps.0,
             "maps": maps.1,
-        }))?))
+        })),
+    ))
 }
 
-#[get("/api/uiv2/search/{query}")]
-async fn search_query(
-    req: HttpRequest,
-    query: Path<String>,
+pub async fn search_query(
+    user: MaybeUser,
+    Path(query): Path<String>,
     query_params: Query<SearchParams>,
-    pool: Data<Pool<PostgresConnectionManager<NoTls>>>,
-) -> Result<impl Responder, bwcommon::MyError> {
-    handler(req, query.into_inner(), query_params, pool).await
+    Extension(pool): Extension<Pool>,
+) -> Result<Response, bwcommon::MyError> {
+    handler(user.0.is_some(), query, query_params, pool).await
 }
 
-#[get("/api/uiv2/search")]
-async fn search(
-    req: HttpRequest,
+pub async fn search(
+    user: MaybeUser,
     query_params: Query<SearchParams>,
-    pool: Data<Pool<PostgresConnectionManager<NoTls>>>,
-) -> Result<impl Responder, bwcommon::MyError> {
-    handler(req, String::new(), query_params, pool).await
+    Extension(pool): Extension<Pool>,
+) -> Result<Response, bwcommon::MyError> {
+    handler(user.0.is_some(), String::new(), query_params, pool).await
 }

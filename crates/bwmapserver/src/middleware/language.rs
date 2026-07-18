@@ -1,298 +1,166 @@
-// let (lang, is_lang_set, langdata) = if let Some(cookie) = req.cookie("lang") {
-//     let lang = cookie.value().to_string();
+use axum::extract::Request;
+use axum::http::{header, HeaderValue};
+use axum::middleware::Next;
+use axum::response::Response;
+use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
+use tracing::info;
 
-//     if lang == "eng" {
-//         ("eng".to_string(), true, bwcommon::LangData::English)
-//     } else if lang == "kor" {
-//         ("kor".to_string(), true, bwcommon::LangData::Korean)
-//     } else {
-//         ("eng".to_string(), false, bwcommon::LangData::English)
-//     }
-// } else {
-//     let langstring = req.headers().get("Accept-Language").unwrap_or(&HeaderValue::from_static("en-US,en;q=0.9")).to_str().unwrap_or("nullnull").to_owned();
+/// Resolves the request language (from the `lang` cookie or `Accept-Language`),
+/// stashes the `LangData` in the request extensions, and sets the `lang` cookie
+/// on the response when it wasn't already provided.
+pub async fn language(mut req: Request, next: Next) -> Response {
+    let jar = CookieJar::from_headers(req.headers());
 
-//     let mut ret = ("eng".to_string(), false, bwcommon::LangData::English);
+    let (lang, is_lang_set, langdata) = if let Some(cookie) = jar.get("lang") {
+        let lang = cookie.value().to_string();
 
-//     for langcode in langstring.split(',') {
-//         if langcode.contains("en") {
-//             ret = ("eng".to_string(), false, bwcommon::LangData::English);
-//             break;
-//         } else if langcode.contains("ko") {
-//             ret = ("kor".to_string(), false, bwcommon::LangData::Korean);
-//             break;
-//         }
-//     }
-
-//     ret
-// };
-
-// req.extensions_mut().insert(langdata);
-
-// let fut = srv.call(req);
-// Box::pin(async move {
-//     let mut res = fut.await?;
-
-//     if !is_lang_set {
-//         res.response_mut()
-//             .add_cookie(
-//                 &Cookie::build("lang", &lang)
-//                     .path("/")
-//                     .same_site(SameSite::Lax)
-//                     .secure(true)
-//                     .finish(),
-//             )
-//             .unwrap();
-//     }
-
-//     Ok(res)
-// })
-//     let path = req.path().to_owned();
-//     let trace_id: String = uuid::Uuid::new_v4()
-//         .as_simple()
-//         .to_string()
-//         .chars()
-//         .take(6)
-//         .collect();
-//     let ip = req
-//         .connection_info()
-//         .realip_remote_addr()
-//         .unwrap_or("x.x.x.x")
-//         .to_owned();
-//     let user_agent = req
-//         .headers()
-//         .get("user-agent")
-//         .map(|x| x.to_str().unwrap_or("couldn't unwrap").to_owned())
-//         .unwrap_or("couldn't unwrap2".to_string());
-//     req.extensions_mut().insert(TraceID {
-//         id: trace_id.clone(),
-//         start_time: Instant::now(),
-//     });
-//     let fut = self.service.call(req);
-//     async move {
-//         match fut.await {
-//             Ok(x) => {
-//                 if x.status().is_success() {
-//                     info!(status=%x.status(), %path, %ip, %user_agent);
-//                 } else if x.status().is_redirection() {
-//                     info!(status=%x.status(), %path, %ip, %user_agent);
-//                 } else if x.status().is_client_error() {
-//                     warn!(status=%x.status(), %path, %ip, %user_agent);
-//                 } else if x.status().is_server_error() {
-//                     error!(status=%x.status(), %path, %ip, %user_agent);
-//                 } else {
-//                     warn!(status=%x.status(), %path, %ip, %user_agent);
-//                 }
-//                 Ok(x)
-//             }
-//             Err(x) => {
-//                 error!(%path, %ip, %user_agent, err=?x);
-//                 Err(x)
-//             }
-//         }
-//     }
-//     .instrument(info_span!("traceid", trace_id = %trace_id))
-//     .boxed_local()
-// }
-
-use std::future::{ready, Ready};
-
-use actix_web::http::header::HeaderValue;
-use actix_web::{
-    cookie::{Cookie, SameSite},
-    dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
-    Error, HttpMessage,
-};
-use futures_util::{future::LocalBoxFuture, FutureExt};
-use log::info;
-use tracing::{instrument, Instrument};
-
-pub struct LanguageTransformer;
-
-impl<S, B> Transform<S, ServiceRequest> for LanguageTransformer
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type InitError = ();
-    type Transform = LanguageMiddleware<S>;
-    type Future = Ready<Result<Self::Transform, Self::InitError>>;
-
-    fn new_transform(&self, service: S) -> Self::Future {
-        ready(Ok(LanguageMiddleware { service }))
-    }
-}
-
-pub struct LanguageMiddleware<S> {
-    service: S,
-}
-
-impl<S, B> Service<ServiceRequest> for LanguageMiddleware<S>
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
-
-    forward_ready!(service);
-
-    #[instrument(skip_all, name = "")]
-    fn call(&self, req: ServiceRequest) -> Self::Future {
-        let (lang, is_lang_set, langdata) = if let Some(cookie) = req.cookie("lang") {
-            let lang = cookie.value().to_string();
-
-            if lang == "eng" {
-                ("eng".to_string(), true, bwcommon::LangData::English)
-            } else if lang == "kor" {
-                ("kor".to_string(), true, bwcommon::LangData::Korean)
-            } else {
-                ("eng".to_string(), false, bwcommon::LangData::English)
-            }
+        if lang == "eng" {
+            ("eng".to_string(), true, bwcommon::LangData::English)
+        } else if lang == "kor" {
+            ("kor".to_string(), true, bwcommon::LangData::Korean)
         } else {
-            let langstring = req
-                .headers()
-                .get("Accept-Language")
-                .unwrap_or(&HeaderValue::from_static("en-US,en;q=0.9"))
-                .to_str()
-                .unwrap_or("nullnull")
-                .to_owned();
-
-            let mut ret = ("eng".to_string(), false, bwcommon::LangData::English);
-
-            for langcode in langstring.split(',') {
-                if langcode.contains("en") {
-                    ret = ("eng".to_string(), false, bwcommon::LangData::English);
-                    break;
-                } else if langcode.contains("ko") {
-                    ret = ("kor".to_string(), false, bwcommon::LangData::Korean);
-                    break;
-                }
-            }
-
-            ret
-        };
-
-        info!("setting language data: {:?}", langdata);
-        req.extensions_mut().insert(langdata);
-
-        let fut = self.service.call(req);
-        async move {
-            let mut res = fut.await?;
-
-            if !is_lang_set {
-                res.response_mut()
-                    .add_cookie(
-                        &Cookie::build("lang", &lang)
-                            .path("/")
-                            .same_site(SameSite::Lax)
-                            .secure(true)
-                            .finish(),
-                    )
-                    .unwrap();
-            }
-
-            Ok(res)
+            ("eng".to_string(), false, bwcommon::LangData::English)
         }
-        .instrument(tracing::span::Span::current())
-        .boxed_local()
+    } else {
+        let langstring = req
+            .headers()
+            .get("Accept-Language")
+            .and_then(|x| x.to_str().ok())
+            .unwrap_or("en-US,en;q=0.9")
+            .to_owned();
+
+        let mut ret = ("eng".to_string(), false, bwcommon::LangData::English);
+
+        for langcode in langstring.split(',') {
+            if langcode.contains("en") {
+                ret = ("eng".to_string(), false, bwcommon::LangData::English);
+                break;
+            } else if langcode.contains("ko") {
+                ret = ("kor".to_string(), false, bwcommon::LangData::Korean);
+                break;
+            }
+        }
+
+        ret
+    };
+
+    info!("setting language data: {:?}", langdata);
+    req.extensions_mut().insert(langdata);
+
+    let mut res = next.run(req).await;
+
+    if !is_lang_set {
+        let cookie = Cookie::build(("lang", lang))
+            .path("/")
+            .same_site(SameSite::Lax)
+            .secure(true)
+            .build();
+        res.headers_mut().append(
+            header::SET_COOKIE,
+            HeaderValue::from_str(&cookie.to_string()).unwrap(),
+        );
     }
+
+    res
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::http::header::SET_COOKIE;
-    use actix_web::{test, web, App, HttpMessage, HttpRequest, HttpResponse};
+    use axum::body::Body;
+    use axum::routing::get;
+    use axum::{Extension, Router};
+    use tower::ServiceExt;
 
-    /// Echoes the LangData the middleware stashed in the request extensions.
-    async fn echo_lang(req: HttpRequest) -> HttpResponse {
-        let lang = req.extensions().get::<bwcommon::LangData>().cloned();
-        let body = match lang {
-            Some(bwcommon::LangData::English) => "English",
-            Some(bwcommon::LangData::Korean) => "Korean",
-            None => "none",
-        };
-        HttpResponse::Ok().body(body)
+    /// Echoes the LangData the `language` middleware stashed in the extensions.
+    async fn echo_lang(lang: Option<Extension<bwcommon::LangData>>) -> String {
+        match lang {
+            Some(Extension(bwcommon::LangData::English)) => "English".to_string(),
+            Some(Extension(bwcommon::LangData::Korean)) => "Korean".to_string(),
+            None => "none".to_string(),
+        }
     }
 
-    async fn run(req: test::TestRequest) -> (Vec<String>, String) {
-        let app = test::init_service(
-            App::new()
-                .wrap(LanguageTransformer)
-                .default_service(web::to(echo_lang)),
-        )
-        .await;
-        let resp = test::call_service(&app, req.to_request()).await;
-        let cookies = resp
-            .headers()
-            .get_all(SET_COOKIE)
+    async fn run(headers: &[(&str, &str)]) -> Response {
+        let app = Router::new()
+            .route("/", get(echo_lang))
+            .layer(axum::middleware::from_fn(language));
+
+        let mut builder = axum::http::Request::builder().uri("/");
+        for (k, v) in headers {
+            builder = builder.header(*k, *v);
+        }
+        app.oneshot(builder.body(Body::empty()).unwrap())
+            .await
+            .unwrap()
+    }
+
+    fn set_cookies(res: &Response) -> Vec<String> {
+        res.headers()
+            .get_all(header::SET_COOKIE)
+            .iter()
             .map(|v| v.to_str().unwrap().to_string())
-            .collect();
-        let body = String::from_utf8(test::read_body(resp).await.to_vec()).unwrap();
-        (cookies, body)
+            .collect()
     }
 
-    #[actix_web::test]
+    async fn body(res: Response) -> String {
+        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        String::from_utf8(bytes.to_vec()).unwrap()
+    }
+
+    #[tokio::test]
     async fn accept_language_korean_sets_cookie_and_extension() {
-        let (cookies, body) =
-            run(test::TestRequest::get().insert_header(("accept-language", "ko-KR,ko;q=0.9")))
-                .await;
+        let res = run(&[("accept-language", "ko-KR,ko;q=0.9")]).await;
+        let cookies = set_cookies(&res);
         assert!(
             cookies.iter().any(|c| c.starts_with("lang=kor")),
             "expected lang=kor Set-Cookie, got {cookies:?}"
         );
-        assert_eq!(body, "Korean");
+        assert_eq!(body(res).await, "Korean");
     }
 
-    #[actix_web::test]
+    #[tokio::test]
     async fn accept_language_english_sets_cookie_and_extension() {
-        let (cookies, body) =
-            run(test::TestRequest::get().insert_header(("accept-language", "en-US,en;q=0.9")))
-                .await;
-        assert!(cookies.iter().any(|c| c.starts_with("lang=eng")));
-        assert_eq!(body, "English");
+        let res = run(&[("accept-language", "en-US,en;q=0.9")]).await;
+        assert!(set_cookies(&res).iter().any(|c| c.starts_with("lang=eng")));
+        assert_eq!(body(res).await, "English");
     }
 
-    #[actix_web::test]
+    #[tokio::test]
     async fn no_headers_defaults_to_english_and_sets_cookie() {
-        let (cookies, body) = run(test::TestRequest::get()).await;
-        assert!(cookies.iter().any(|c| c.starts_with("lang=eng")));
-        assert_eq!(body, "English");
+        let res = run(&[]).await;
+        assert!(set_cookies(&res).iter().any(|c| c.starts_with("lang=eng")));
+        assert_eq!(body(res).await, "English");
     }
 
-    #[actix_web::test]
+    #[tokio::test]
     async fn valid_lang_cookie_is_respected_and_not_reset() {
-        let (cookies, body) =
-            run(test::TestRequest::get().cookie(actix_web::cookie::Cookie::new("lang", "kor")))
-                .await;
+        let res = run(&[("cookie", "lang=kor")]).await;
+        // When the request already carries a valid lang cookie, the middleware
+        // does NOT emit a Set-Cookie.
         assert!(
-            cookies.is_empty(),
+            set_cookies(&res).is_empty(),
             "should not re-set an already-provided lang cookie"
         );
-        assert_eq!(body, "Korean");
+        assert_eq!(body(res).await, "Korean");
     }
 
-    #[actix_web::test]
+    #[tokio::test]
     async fn cookie_overrides_accept_language_header() {
-        let (cookies, body) = run(test::TestRequest::get()
-            .cookie(actix_web::cookie::Cookie::new("lang", "eng"))
-            .insert_header(("accept-language", "ko")))
-        .await;
-        assert!(cookies.is_empty());
-        assert_eq!(body, "English");
+        // Cookie wins over the header.
+        let res = run(&[("cookie", "lang=eng"), ("accept-language", "ko")]).await;
+        assert!(set_cookies(&res).is_empty());
+        assert_eq!(body(res).await, "English");
     }
 
-    #[actix_web::test]
+    #[tokio::test]
     async fn garbage_lang_cookie_falls_back_to_english_and_resets_cookie() {
-        let (cookies, body) =
-            run(test::TestRequest::get().cookie(actix_web::cookie::Cookie::new("lang", "zzz")))
-                .await;
-        assert!(cookies.iter().any(|c| c.starts_with("lang=eng")));
-        assert_eq!(body, "English");
+        let res = run(&[("cookie", "lang=zzz")]).await;
+        // Unknown value → English, and because is_lang_set is false the cookie
+        // is (re)written to a valid value.
+        assert!(set_cookies(&res).iter().any(|c| c.starts_with("lang=eng")));
+        assert_eq!(body(res).await, "English");
     }
 }

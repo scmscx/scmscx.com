@@ -1,14 +1,11 @@
-use std::{
-    future::{ready, Ready},
-    time::Instant,
-};
+use std::time::Instant;
 
-use actix_web::{
-    dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
-    Error, HttpMessage,
-};
-use futures_util::{future::LocalBoxFuture, FutureExt};
-use tracing::{error, info, instrument, warn, Instrument};
+use axum::extract::Request;
+use axum::middleware::Next;
+use axum::response::Response;
+use tracing::{error, info, warn, Instrument};
+
+use crate::webutil::realip;
 
 #[derive(Clone, Debug)]
 pub struct TraceID {
@@ -16,123 +13,94 @@ pub struct TraceID {
     pub start_time: Instant,
 }
 
-pub struct TraceIDTransformer;
+/// Assigns a short trace id to each request (stashed in the request extensions
+/// for downstream middleware) and logs the final status/path/ip/user-agent.
+pub async fn trace_id(mut req: Request, next: Next) -> Response {
+    let path = req.uri().path().to_owned();
 
-impl<S, B> Transform<S, ServiceRequest> for TraceIDTransformer
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type InitError = ();
-    type Transform = TracewIDMiddleware<S>;
-    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+    let trace_id: String = uuid::Uuid::new_v4()
+        .as_simple()
+        .to_string()
+        .chars()
+        .take(6)
+        .collect();
 
-    fn new_transform(&self, service: S) -> Self::Future {
-        ready(Ok(TracewIDMiddleware { service }))
-    }
-}
+    let peer = req
+        .extensions()
+        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+        .map(|ci| ci.0);
+    let ip = realip(req.headers(), peer).unwrap_or_else(|| "x.x.x.x".to_owned());
 
-pub struct TracewIDMiddleware<S> {
-    service: S,
-}
+    let user_agent = req.headers().get("user-agent").map_or_else(
+        || "couldn't unwrap2".to_string(),
+        |x| x.to_str().unwrap_or("couldn't unwrap").to_owned(),
+    );
 
-impl<S, B> Service<ServiceRequest> for TracewIDMiddleware<S>
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+    req.extensions_mut().insert(TraceID {
+        id: trace_id.clone(),
+        start_time: Instant::now(),
+    });
 
-    forward_ready!(service);
+    let span = tracing::info_span!("traceid-middleware", trace_id = %trace_id);
 
-    #[instrument(skip_all, name = "traceid-middleware", fields(trace_id))]
-    fn call(&self, req: ServiceRequest) -> Self::Future {
-        let path = req.path().to_owned();
-
-        let trace_id: String = uuid::Uuid::new_v4()
-            .as_simple()
-            .to_string()
-            .chars()
-            .take(6)
-            .collect();
-
-        let ip = req
-            .connection_info()
-            .realip_remote_addr()
-            .unwrap_or("x.x.x.x")
-            .to_owned();
-
-        let user_agent = req.headers().get("user-agent").map_or_else(
-            || "couldn't unwrap2".to_string(),
-            |x| x.to_str().unwrap_or("couldn't unwrap").to_owned(),
-        );
-
-        req.extensions_mut().insert(TraceID {
-            id: trace_id.clone(),
-            start_time: Instant::now(),
-        });
-
-        tracing::Span::current().record("trace_id", trace_id.as_str());
-        let fut = self.service.call(req);
-
-        async move {
-            match fut.await {
-                Ok(x) => {
-                    if x.status().is_success() {
-                        info!(status=%x.status(), %path, %ip, %user_agent);
-                    } else if x.status().is_redirection() {
-                        info!(status=%x.status(), %path, %ip, %user_agent);
-                    } else if x.status().is_client_error() {
-                        warn!(status=%x.status(), %path, %ip, %user_agent);
-                    } else if x.status().is_server_error() {
-                        error!(status=%x.status(), %path, %ip, %user_agent);
-                    } else {
-                        warn!(status=%x.status(), %path, %ip, %user_agent);
-                    }
-                    Ok(x)
-                }
-                Err(x) => {
-                    error!(%path, %ip, %user_agent, err=?x);
-                    Err(x)
-                }
-            }
+    async move {
+        let res = next.run(req).await;
+        let status = res.status();
+        if status.is_success() || status.is_redirection() {
+            info!(status = %status, %path, %ip, %user_agent);
+        } else if status.is_client_error() {
+            warn!(status = %status, %path, %ip, %user_agent);
+        } else if status.is_server_error() {
+            error!(status = %status, %path, %ip, %user_agent);
+        } else {
+            warn!(status = %status, %path, %ip, %user_agent);
         }
-        .instrument(tracing::Span::current())
-        .boxed_local()
+        res
     }
+    .instrument(span)
+    .await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::{test, web, App, HttpMessage, HttpRequest, HttpResponse};
+    use axum::body::Body;
+    use axum::http::StatusCode;
+    use axum::routing::get;
+    use axum::{Extension, Router};
+    use tower::ServiceExt;
 
-    /// Reports the trace id the middleware assigned (or "none").
-    async fn echo_trace(req: HttpRequest) -> HttpResponse {
-        let id = req.extensions().get::<TraceID>().map(|t| t.id.clone());
-        HttpResponse::Ok().body(id.unwrap_or_else(|| "none".to_string()))
+    /// Reports the trace id assigned by the middleware, or "none".
+    async fn echo_trace(trace: Option<Extension<TraceID>>) -> String {
+        trace.map_or_else(|| "none".to_string(), |Extension(t)| t.id)
     }
 
-    async fn trace_id_body() -> String {
-        let app = test::init_service(
-            App::new()
-                .wrap(TraceIDTransformer)
-                .default_service(web::to(echo_trace)),
+    async fn run() -> Response {
+        let app = Router::new()
+            .route("/", get(echo_trace))
+            .layer(axum::middleware::from_fn(trace_id));
+        app.oneshot(
+            axum::http::Request::builder()
+                .uri("/")
+                .body(Body::empty())
+                .unwrap(),
         )
-        .await;
-        let resp = test::call_service(&app, test::TestRequest::get().to_request()).await;
-        String::from_utf8(test::read_body(resp).await.to_vec()).unwrap()
+        .await
+        .unwrap()
     }
 
-    #[actix_web::test]
+    async fn body(res: Response) -> String {
+        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        String::from_utf8(bytes.to_vec()).unwrap()
+    }
+
+    #[tokio::test]
     async fn assigns_six_char_trace_id_visible_to_handler() {
-        let id = trace_id_body().await;
+        let res = run().await;
+        assert_eq!(res.status(), StatusCode::OK);
+        let id = body(res).await;
         assert_eq!(id.len(), 6, "trace id is truncated to 6 chars, got {id:?}");
         assert!(
             id.chars().all(|c| c.is_ascii_hexdigit()),
@@ -140,24 +108,30 @@ mod tests {
         );
     }
 
-    #[actix_web::test]
+    #[tokio::test]
     async fn trace_ids_are_unique_per_request() {
-        assert_ne!(
-            trace_id_body().await,
-            trace_id_body().await,
-            "each request must get a fresh trace id"
-        );
+        let a = body(run().await).await;
+        let b = body(run().await).await;
+        assert_ne!(a, b, "each request must get a fresh trace id");
     }
 
-    #[actix_web::test]
+    #[tokio::test]
     async fn preserves_downstream_status() {
-        let app = test::init_service(
-            App::new()
-                .wrap(TraceIDTransformer)
-                .default_service(web::to(|| async { HttpResponse::ImATeapot().finish() })),
-        )
-        .await;
-        let resp = test::call_service(&app, test::TestRequest::get().to_request()).await;
-        assert_eq!(resp.status(), actix_web::http::StatusCode::IM_A_TEAPOT);
+        async fn teapot() -> StatusCode {
+            StatusCode::IM_A_TEAPOT
+        }
+        let app = Router::new()
+            .route("/", get(teapot))
+            .layer(axum::middleware::from_fn(trace_id));
+        let res = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::IM_A_TEAPOT);
     }
 }

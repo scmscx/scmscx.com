@@ -1,6 +1,5 @@
 use crate::common::MyError;
 
-use actix_web::HttpMessage;
 use reqwest::StatusCode;
 use serde::Serialize;
 use tokio::time::sleep;
@@ -127,14 +126,6 @@ pub fn do_mixpanel_stuff(
     Ok(tx.send(data)?)
 }
 
-pub fn get_header<'a>(req: &'a actix_web::HttpRequest, name: &str) -> &'a str {
-    if let Some(v) = req.headers().get(name) {
-        v.to_str().unwrap_or("")
-    } else {
-        ""
-    }
-}
-
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct ApiSpecificInfoForLogging {
     pub user_id: Option<i64>,
@@ -175,42 +166,6 @@ pub struct TrackingAnalytics {
     pub was_provided_by_request: bool,
 }
 
-pub fn get_request_logging_info(req: &actix_web::HttpRequest) -> ApiRequestLoggingInfo {
-    let ip = req
-        .connection_info()
-        .realip_remote_addr()
-        .map(std::string::ToString::to_string);
-
-    let query = req.uri().query().map(std::string::ToString::to_string);
-
-    let tac = req
-        .extensions()
-        .get::<TrackingAnalytics>()
-        .map(|tac| tac.tracking_analytics_id.clone());
-
-    ApiRequestLoggingInfo {
-        ip,
-        tac,
-        event: Some(req.match_pattern().map_or_else(
-            || req.path().to_owned(),
-            |x| {
-                if x.is_empty() {
-                    req.path().to_owned()
-                } else {
-                    x
-                }
-            },
-        )),
-        method: req.method().to_string(),
-        path: req.uri().path().to_string(),
-        query,
-        referer: get_header(req, "referer").to_string(),
-        accept_language: get_header(req, "accept-language").to_string(),
-        accept_encoding: get_header(req, "accept-encoding").to_string(),
-        user_agent: get_header(req, "user-agent").to_string(),
-    }
-}
-
 pub fn get_api_logging_info(
     req_info: ApiRequestLoggingInfo,
     properties: ApiSpecificInfoForLogging,
@@ -227,66 +182,116 @@ pub fn get_api_logging_info(
     }
 }
 
-pub fn insert_extension(
-    mut resp: actix_web::HttpResponseBuilder,
+// --- response logging helpers ------------------------------------------------
+
+/// axum equivalent of `insert_extension`: render `body` into a response and
+/// stash the per-request logging info in the response's extensions, where the
+/// postgres-logging middleware reads it back out.
+pub fn with_logging_info<T: axum::response::IntoResponse>(
     info: ApiSpecificInfoForLogging,
-) -> actix_web::HttpResponseBuilder {
+    body: T,
+) -> axum::response::Response {
+    let mut resp = axum::response::IntoResponse::into_response(body);
     resp.extensions_mut().insert(info);
     resp
+}
+
+fn header_str<'a>(headers: &'a http::HeaderMap, name: &str) -> &'a str {
+    headers
+        .get(name)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+}
+
+/// axum equivalent of `get_request_logging_info`. `ip` and `event` (the matched
+/// route pattern) are resolved by the caller since they aren't available on the
+/// bare request `Parts` (they come from a real-IP helper and `MatchedPath`).
+pub fn get_request_logging_info_from_parts(
+    parts: &http::request::Parts,
+    ip: Option<String>,
+    event: Option<String>,
+) -> ApiRequestLoggingInfo {
+    let headers = &parts.headers;
+
+    let tac = parts
+        .extensions
+        .get::<TrackingAnalytics>()
+        .map(|tac| tac.tracking_analytics_id.clone());
+
+    ApiRequestLoggingInfo {
+        ip,
+        tac,
+        event: event.or_else(|| Some(parts.uri.path().to_owned())),
+        method: parts.method.to_string(),
+        path: parts.uri.path().to_string(),
+        query: parts.uri.query().map(std::string::ToString::to_string),
+        referer: header_str(headers, "referer").to_string(),
+        accept_language: header_str(headers, "accept-language").to_string(),
+        accept_encoding: header_str(headers, "accept-encoding").to_string(),
+        user_agent: header_str(headers, "user-agent").to_string(),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::http::Method;
-    use actix_web::test::TestRequest;
-    use actix_web::HttpResponse;
 
     #[tokio::test]
-    async fn insert_extension_stashes_logging_info_and_keeps_body() {
+    async fn with_logging_info_stashes_extension_and_keeps_body() {
         let info = ApiSpecificInfoForLogging {
             map_id: Some(42),
             username: Some("neo".to_string()),
             ..Default::default()
         };
 
-        let resp = insert_extension(HttpResponse::Ok(), info).body("hello body");
+        let resp = with_logging_info(info, "hello body");
 
-        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
+        // Body/status preserved from the wrapped response.
+        assert_eq!(resp.status(), http::StatusCode::OK);
         let stashed = resp
             .extensions()
             .get::<ApiSpecificInfoForLogging>()
-            .cloned()
             .expect("logging info must be present in the response extensions");
         assert_eq!(stashed.map_id, Some(42));
         assert_eq!(stashed.username.as_deref(), Some("neo"));
 
-        let bytes = actix_web::body::to_bytes(resp.into_body()).await.unwrap();
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
         assert_eq!(&bytes[..], b"hello body");
+    }
+
+    fn parts_with(uri: &str, headers: &[(&str, &str)]) -> http::request::Parts {
+        let mut builder = http::Request::builder().method("POST").uri(uri);
+        for (k, v) in headers {
+            builder = builder.header(*k, *v);
+        }
+        builder.body(()).unwrap().into_parts().0
     }
 
     #[test]
     fn request_logging_info_maps_fields() {
-        // x-forwarded-for feeds actix's realip_remote_addr(), the same client-IP
-        // resolution the rate limiter and logging rely on.
-        let req = TestRequest::default()
-            .method(Method::POST)
-            .uri("/api/thing?q=1&z=2")
-            .insert_header(("referer", "https://ref"))
-            .insert_header(("accept-language", "ko"))
-            .insert_header(("accept-encoding", "gzip"))
-            .insert_header(("user-agent", "UA/1.0"))
-            .insert_header(("x-forwarded-for", "1.2.3.4"))
-            .to_http_request();
+        let parts = parts_with(
+            "/api/thing?q=1&z=2",
+            &[
+                ("referer", "https://ref"),
+                ("accept-language", "ko"),
+                ("accept-encoding", "gzip"),
+                ("user-agent", "UA/1.0"),
+            ],
+        );
 
-        let info = get_request_logging_info(&req);
+        let info = get_request_logging_info_from_parts(
+            &parts,
+            Some("1.2.3.4".to_string()),
+            Some("/api/thing/{id}".to_string()),
+        );
 
         assert_eq!(info.ip.as_deref(), Some("1.2.3.4"));
         assert_eq!(info.method, "POST");
         assert_eq!(info.path, "/api/thing");
         assert_eq!(info.query.as_deref(), Some("q=1&z=2"));
-        // No matched route in a bare TestRequest → event falls back to the path.
-        assert_eq!(info.event.as_deref(), Some("/api/thing"));
+        assert_eq!(info.event.as_deref(), Some("/api/thing/{id}"));
         assert_eq!(info.referer, "https://ref");
         assert_eq!(info.accept_language, "ko");
         assert_eq!(info.accept_encoding, "gzip");
@@ -297,14 +302,15 @@ mod tests {
 
     #[test]
     fn request_logging_info_event_falls_back_to_path_and_picks_up_tac() {
-        let req = TestRequest::default().uri("/raw/path").to_http_request();
-        req.extensions_mut().insert(TrackingAnalytics {
+        let mut parts = parts_with("/raw/path", &[]);
+        parts.extensions.insert(TrackingAnalytics {
             tracking_analytics_id: "tac-123".to_string(),
             was_provided_by_request: true,
         });
 
-        let info = get_request_logging_info(&req);
+        let info = get_request_logging_info_from_parts(&parts, None, None);
 
+        // event falls back to the path when no matched-route is supplied.
         assert_eq!(info.event.as_deref(), Some("/raw/path"));
         assert_eq!(info.tac.as_deref(), Some("tac-123"));
         // Missing headers become empty strings, and no query → None.
@@ -339,6 +345,7 @@ mod tests {
         assert_eq!(v["ip"], "9.9.9.9");
         assert_eq!(v["map_id"], 7);
         assert!(v.get("time").is_some());
+        // No nested "req_info"/"properties" keys thanks to flatten.
         assert!(v.get("req_info").is_none());
         assert!(v.get("properties").is_none());
     }

@@ -10,6 +10,7 @@ mod static_pages;
 mod tests;
 mod uiv2;
 mod util;
+mod webutil;
 
 use tracing_log::LogTracer;
 use tracing_subscriber::{fmt::format::FmtSpan, layer::SubscriberExt, EnvFilter, Layer};
