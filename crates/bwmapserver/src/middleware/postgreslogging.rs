@@ -1,22 +1,17 @@
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use axum::extract::{MatchedPath, Request};
+use axum::extract::Request;
 use axum::middleware::Next;
 use axum::response::Response;
-use bwcommon::{do_mixpanel_stuff, ApiSpecificInfoForLogging, LoggedError, TrackingAnalytics};
+use bwcommon::{LoggedError, TrackingAnalytics};
 
 use super::{usersession::UserSession, TraceID};
 use crate::webutil::{realip, Pool};
 
 /// Captures per-request metadata, then (after the handler runs) writes a row to
-/// `userlogs` on a background task and ships a mixpanel event. Mirrors the old
-/// actix `PostgresLoggingTransformer`.
-pub async fn postgres_logging(
-    pool: Pool,
-    tx: std::sync::mpsc::Sender<serde_json::Value>,
-    req: Request,
-    next: Next,
-) -> Response {
+/// `userlogs` on a background task. Mirrors the old actix
+/// `PostgresLoggingTransformer`.
+pub async fn postgres_logging(pool: Pool, req: Request, next: Next) -> Response {
     let headers = req.headers();
 
     let header_opt = |name: &str| -> Option<String> {
@@ -48,11 +43,6 @@ pub async fn postgres_logging(
     let user_username = user.map(|x| x.username.clone());
     let user_token = user.map(|x| x.token.clone());
 
-    let event = req
-        .extensions()
-        .get::<MatchedPath>()
-        .map(|m| m.as_str().to_owned());
-
     let path = req.uri().path().to_owned();
     let query_string = req.uri().query().unwrap_or("").to_owned();
     let method = req.method().to_string();
@@ -70,44 +60,12 @@ pub async fn postgres_logging(
     let cookies = header_opt("cookie");
     let referer = header_opt("referer");
 
-    // Build the mixpanel request-info now (needs headers), before the request
-    // is consumed by the handler.
-    let req_info = bwcommon::ApiRequestLoggingInfo {
-        ip: real_addr.clone(),
-        tac: tracking_analytics_id.clone(),
-        event: event.clone().or_else(|| Some(path.clone())),
-        method: method.clone(),
-        path: path.clone(),
-        query: if query_string.is_empty() {
-            None
-        } else {
-            Some(query_string.clone())
-        },
-        referer: referer.clone().unwrap_or_default(),
-        accept_language: accept_language.clone().unwrap_or_default(),
-        accept_encoding: accept_encoding.clone().unwrap_or_default(),
-        user_agent: user_agent.clone().unwrap_or_default(),
-    };
-
     let res = next.run(req).await;
 
     let request_time = start_time.map(|x| Instant::now().duration_since(x).as_micros() as i64);
 
     let status = res.status().as_u16() as i16;
     let error = res.extensions().get::<LoggedError>().map(|e| e.0.clone());
-
-    // Only successful (non-error) responses produce a mixpanel event, matching
-    // the old code's Ok-branch behavior.
-    if error.is_none() {
-        let properties = res
-            .extensions()
-            .get::<ApiSpecificInfoForLogging>()
-            .cloned()
-            .unwrap_or_default();
-        let info = bwcommon::get_api_logging_info(req_info, properties);
-        // best-effort; a send failure only means the mixpanel worker is gone.
-        let _ = do_mixpanel_stuff(info, tx);
-    }
 
     tokio::spawn(async move {
         let result = async move {
@@ -141,8 +99,8 @@ mod tests {
     use tower::ServiceExt;
 
     /// A pool that never connects (port 1). The background userlog INSERT fails
-    /// harmlessly (it's a detached, best-effort task); the response and the
-    /// mixpanel decision — the parts we assert — don't depend on it.
+    /// harmlessly (it's a detached, best-effort task); the response passthrough —
+    /// the part we assert — doesn't depend on it.
     fn dead_pool() -> Pool {
         let manager = bb8_postgres::PostgresConnectionManager::new(
             "host=127.0.0.1 port=1 user=x dbname=x".parse().unwrap(),
@@ -151,10 +109,10 @@ mod tests {
         bb8_postgres::bb8::Pool::builder().build_unchecked(manager)
     }
 
-    fn app_with(tx: std::sync::mpsc::Sender<serde_json::Value>, router: Router) -> Router {
+    fn app_with(router: Router) -> Router {
         let pool = dead_pool();
         router.layer(axum::middleware::from_fn(move |req, next| {
-            postgres_logging(pool.clone(), tx.clone(), req, next)
+            postgres_logging(pool.clone(), req, next)
         }))
     }
 
@@ -170,33 +128,23 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn successful_response_emits_one_mixpanel_event() {
-        let (tx, rx) = std::sync::mpsc::channel();
-        let app = app_with(tx, Router::new().route("/api/ok", get(|| async { "ok" })));
+    async fn successful_response_passes_through() {
+        let app = app_with(Router::new().route("/api/ok", get(|| async { "ok" })));
 
         let res = drive(app, "/api/ok").await;
         assert_eq!(res.status(), http::StatusCode::OK);
-
-        // Exactly one event was queued for the mixpanel worker.
-        assert!(rx.try_recv().is_ok(), "a mixpanel event should be queued");
-        assert!(rx.try_recv().is_err(), "no more than one event per request");
     }
 
     #[tokio::test]
-    async fn error_response_emits_no_mixpanel_event() {
+    async fn error_response_passes_through() {
         async fn boom() -> Result<&'static str, bwcommon::MyError> {
             Err("boom".into())
         }
-        let (tx, rx) = std::sync::mpsc::channel();
-        let app = app_with(tx, Router::new().route("/api/boom", get(boom)));
+        let app = app_with(Router::new().route("/api/boom", get(boom)));
 
         let res = drive(app, "/api/boom").await;
-        // The MyError → 500 path stamps a LoggedError extension, which suppresses
-        // the mixpanel event (matching the old actix error branch).
+        // The MyError → 500 path stamps a LoggedError extension, which the
+        // middleware records; the client still gets the 500.
         assert_eq!(res.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
-        assert!(
-            rx.try_recv().is_err(),
-            "error responses must not emit a mixpanel event"
-        );
     }
 }

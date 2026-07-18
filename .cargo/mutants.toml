@@ -68,24 +68,6 @@ exclude_re = [
     # input, so the `|`->`^` mutation is a true equivalent.
     'replace \| with \^ in encode_base32',
 
-    # --- Not observable / not killable at the black-box (e2e) layer ---
-    # `ApiSpecificInfoForLogging` fields (user_id, map_id, username, chk_hash, …) are
-    # populated in handlers, stashed on the response via `insert_extension`, read back
-    # by PostgresLoggingMiddleware, and flow ONLY into the Mixpanel analytics JSON
-    # payload (bwcommon/src/logging.rs::do_mixpanel_stuff). They are never written to a
-    # DB column (userlogs binds user_id/username from the separate UserSession, not
-    # this struct) nor surfaced by any HTTP endpoint, and Mixpanel is disabled in the
-    # harness. Deleting one has no DB- or response-observable effect, so no e2e/unit
-    # test can catch it. 13 mutants across flags/login/register/change_*/uiv2.
-    #
-    # NOTE: this entry is INERT under cargo-mutants 27.1.0 — its exclude_re engine
-    # never matches "delete field" (StructField-genre) mutants, so they are neither
-    # skipped here nor killable by any test. The `mutants` Makefile target strips
-    # them from missed.txt after the run instead (see the StructField-filter note
-    # there). Kept here for the rationale, and so it takes effect automatically if a
-    # future cargo-mutants fixes StructField matching.
-    'delete field .* from struct .*ApiSpecificInfoForLogging',
-
     # ratelimit.rs::retain_recent is pure housekeeping: it drops fully-replenished
     # idle keys (recreated identically on the next check) and shrinks the map. No
     # rate-limiting decision or Retry-After changes — the only effect is memory
@@ -124,9 +106,8 @@ exclude_re = [
     # SELECTS the log severity (info! vs warn!/error!) for the request-completion line;
     # every arm returns the same response unchanged. Flipping `||`→`&&` (2xx/3xx would
     # log at warn instead of info) has no DB- or HTTP-observable effect, so no e2e/unit
-    # test can catch it — a logging-only equivalent, same class as the
-    # ApiSpecificInfoForLogging exclusion above. Anchored by line:col since sibling
-    # mutants on this line would be the same logging-only branch.
+    # test can catch it — a logging-only equivalent. Anchored by line:col since
+    # sibling mutants on this line would be the same logging-only branch.
     'traceid\.rs:49:\d+: replace \|\| with &&',
     # search2.rs `unwrap_or(-1)` sentinel for a NULL modified_time. The normal upload
     # path always writes a filetime row, so the branch is unreachable without a DB

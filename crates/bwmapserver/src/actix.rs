@@ -19,7 +19,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router, ServiceExt};
 use backblaze::api::{b2_authorize_account, b2_download_file_by_name, B2AuthorizeAccount};
-use bwcommon::{with_logging_info, ApiSpecificInfoForLogging, MyError};
+use bwcommon::MyError;
 use common::gsfs::gsfs_get_mapblob;
 use common::{register_counter, register_gauge};
 use futures::lock::Mutex;
@@ -112,11 +112,6 @@ pub async fn get_map(
     headers: HeaderMap,
     Path((mapblob_hash,)): Path<(String,)>,
 ) -> Result<Response, MyError> {
-    let info = ApiSpecificInfoForLogging {
-        mapblob_hash: Some(mapblob_hash.clone()),
-        ..Default::default()
-    };
-
     {
         let mapblob_hash = mapblob_hash.clone();
         if let Some(useragent) = headers.get("user-agent") {
@@ -154,33 +149,30 @@ pub async fn get_map(
                     source = "gsfs"
                 )
                 .inc();
-                return Ok(with_logging_info(
-                    info,
-                    (
-                        [(header::CONTENT_TYPE, "application/octet-stream")],
-                        Body::from_stream(async_stream::stream! {
-                            use sha2::Digest;
-                            let mut hasher = sha2::Sha256::new();
-                            let bytes_total = register_counter!(
-                                "scmscx",
-                                map_download_bytes,
-                                "Total bytes streamed to clients for map downloads, by source",
-                                source = "gsfs"
-                            );
+                return Ok(IntoResponse::into_response((
+                    [(header::CONTENT_TYPE, "application/octet-stream")],
+                    Body::from_stream(async_stream::stream! {
+                        use sha2::Digest;
+                        let mut hasher = sha2::Sha256::new();
+                        let bytes_total = register_counter!(
+                            "scmscx",
+                            map_download_bytes,
+                            "Total bytes streamed to clients for map downloads, by source",
+                            source = "gsfs"
+                        );
 
-                            while let Some(chunk) = stream.next().await {
-                                let chunk = chunk?;
-                                bytes_total.inc_by(chunk.len() as u64);
-                                hasher.update(&chunk);
-                                yield Result::<_, anyhow::Error>::Ok(chunk);
-                            }
+                        while let Some(chunk) = stream.next().await {
+                            let chunk = chunk?;
+                            bytes_total.inc_by(chunk.len() as u64);
+                            hasher.update(&chunk);
+                            yield Result::<_, anyhow::Error>::Ok(chunk);
+                        }
 
-                            if finalize_hash_of_hasher(hasher) != mapblob_hash {
-                                yield Err(anyhow::anyhow!("Hash mismatch"));
-                            }
-                        }),
-                    ),
-                ));
+                        if finalize_hash_of_hasher(hasher) != mapblob_hash {
+                            yield Err(anyhow::anyhow!("Hash mismatch"));
+                        }
+                    }),
+                )));
             }
             Err(error) => {
                 error!("Failed to download from gsfs: {}", error);
@@ -221,40 +213,37 @@ pub async fn get_map(
                 );
                 let mut temp_file = tokio::fs::File::create_new(&temp_filename).await;
 
-                return Ok(with_logging_info(
-                    info,
-                    (
-                        [(header::CONTENT_TYPE, "application/octet-stream")],
-                        Body::from_stream(async_stream::stream! {
-                            use sha2::Digest;
-                            let mut hasher = sha2::Sha256::new();
-                            let bytes_total = register_counter!(
-                                "scmscx",
-                                map_download_bytes,
-                                "Total bytes streamed to clients for map downloads, by source",
-                                source = "backblaze"
-                            );
+                return Ok(IntoResponse::into_response((
+                    [(header::CONTENT_TYPE, "application/octet-stream")],
+                    Body::from_stream(async_stream::stream! {
+                        use sha2::Digest;
+                        let mut hasher = sha2::Sha256::new();
+                        let bytes_total = register_counter!(
+                            "scmscx",
+                            map_download_bytes,
+                            "Total bytes streamed to clients for map downloads, by source",
+                            source = "backblaze"
+                        );
 
-                            while let Some(chunk) = stream.next().await {
-                                let chunk = chunk?;
-                                bytes_total.inc_by(chunk.len() as u64);
-                                if let Ok(temp) = &mut temp_file {
-                                    if let Err(e) = temp.write_all(&chunk).await {
-                                        error!("Failed to write to temp file: {e}, temp_filename: {temp_filename}");
-                                        temp_file = Err(std::io::Error::from(std::io::ErrorKind::Other));
-                                    } else {
-                                        hasher.update(&chunk);
-                                    }
+                        while let Some(chunk) = stream.next().await {
+                            let chunk = chunk?;
+                            bytes_total.inc_by(chunk.len() as u64);
+                            if let Ok(temp) = &mut temp_file {
+                                if let Err(e) = temp.write_all(&chunk).await {
+                                    error!("Failed to write to temp file: {e}, temp_filename: {temp_filename}");
+                                    temp_file = Err(std::io::Error::from(std::io::ErrorKind::Other));
+                                } else {
+                                    hasher.update(&chunk);
                                 }
-                                yield Result::<_, anyhow::Error>::Ok(chunk);
                             }
+                            yield Result::<_, anyhow::Error>::Ok(chunk);
+                        }
 
-                            if let Err(e) = tokio::fs::remove_file(&temp_filename).await {
-                                error!("Failed to remove temp file: {e}, temp_filename: {temp_filename}");
-                            }
-                        }),
-                    ),
-                ));
+                        if let Err(e) = tokio::fs::remove_file(&temp_filename).await {
+                            error!("Failed to remove temp file: {e}, temp_filename: {temp_filename}");
+                        }
+                    }),
+                )));
             }
         }
 
@@ -268,7 +257,7 @@ pub async fn get_map(
         source = "failed"
     )
     .inc();
-    Ok(with_logging_info(info, StatusCode::INTERNAL_SERVER_ERROR))
+    Ok(StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }
 
 pub async fn get_replay(
@@ -280,18 +269,10 @@ pub async fn get_replay(
         .query_one("select replayblob.data from replay join replayblob on replayblob.hash = replay.hash where replay.id = $1", &[&replay_id])
         .await?.try_get::<_, Vec<u8>>(0)?;
 
-    let info = ApiSpecificInfoForLogging {
-        replay_id: Some(replay_id),
-        ..Default::default()
-    };
-
-    Ok(with_logging_info(
-        info,
-        (
-            [(header::CONTENT_TYPE, "application/octet-stream")],
-            replay_blob,
-        ),
-    ))
+    Ok(IntoResponse::into_response((
+        [(header::CONTENT_TYPE, "application/octet-stream")],
+        replay_blob,
+    )))
 }
 
 pub async fn recent_activity(Extension(pool): Extension<Pool>) -> Result<Response, MyError> {
@@ -524,12 +505,6 @@ pub async fn get_search_result_popup(
 
     let minimap = db::get_minimap(chkhash.clone(), pool.clone()).await?.2;
 
-    let info = ApiSpecificInfoForLogging {
-        map_id: Some(map_id),
-        chk_hash: Some(chkhash),
-        ..Default::default()
-    };
-
     use base64::Engine;
 
     let body = serde_json::to_string(&serde_json::json!({
@@ -537,16 +512,13 @@ pub async fn get_search_result_popup(
         "minimap": base64::prelude::BASE64_STANDARD.encode(&minimap)
     }))?;
 
-    Ok(with_logging_info(
-        info,
-        (
-            [
-                (header::CONTENT_TYPE, "application/json"),
-                (header::CACHE_CONTROL, "public, max-age=60, immutable"),
-            ],
-            body,
-        ),
-    ))
+    Ok(IntoResponse::into_response((
+        [
+            (header::CONTENT_TYPE, "application/json"),
+            (header::CACHE_CONTROL, "public, max-age=60, immutable"),
+        ],
+        body,
+    )))
 }
 
 pub async fn get_minimap_resized(
@@ -610,21 +582,13 @@ pub async fn get_minimap_resized(
         image::ExtendedColorType::Rgb8,
     )?;
 
-    let info = ApiSpecificInfoForLogging {
-        chk_hash: Some(chk_id),
-        ..Default::default()
-    };
-
-    Ok(with_logging_info(
-        info,
-        (
-            [
-                (header::CONTENT_TYPE, "image/png"),
-                (header::CACHE_CONTROL, "public, max-age=60, immutable"),
-            ],
-            png,
-        ),
-    ))
+    Ok(IntoResponse::into_response((
+        [
+            (header::CONTENT_TYPE, "image/png"),
+            (header::CACHE_CONTROL, "public, max-age=60, immutable"),
+        ],
+        png,
+    )))
 }
 
 pub async fn get_selection_of_random_maps(
@@ -729,12 +693,10 @@ pub(crate) struct TagPost {
 
 pub async fn get_tags(
     Extension(pool): Extension<Pool>,
-    user: MaybeUser,
+    _user: MaybeUser,
     Path((map_id,)): Path<(String,)>,
 ) -> Result<Response, MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
-
-    let user_id = user.id();
 
     let con = pool.get().await?;
     let tags = con
@@ -756,13 +718,7 @@ pub async fn get_tags(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let info = ApiSpecificInfoForLogging {
-        user_id,
-        map_id: Some(map_id),
-        ..Default::default()
-    };
-
-    Ok(with_logging_info(info, Json(tags)))
+    Ok(Json(tags).into_response())
 }
 
 pub async fn set_tags(
@@ -785,16 +741,10 @@ pub async fn set_tags(
 
     let outcome = db::set_tags(map_id, map, user_id, pool).await?;
 
-    let info = ApiSpecificInfoForLogging {
-        user_id: Some(user_id),
-        map_id: Some(map_id),
-        ..Default::default()
-    };
-
     match outcome {
-        None => Ok(with_logging_info(info, StatusCode::NOT_FOUND)),
-        Some(false) => Ok(with_logging_info(info, StatusCode::FORBIDDEN)),
-        Some(true) => Ok(with_logging_info(info, StatusCode::OK)),
+        None => Ok(StatusCode::NOT_FOUND.into_response()),
+        Some(false) => Ok(StatusCode::FORBIDDEN.into_response()),
+        Some(true) => Ok(StatusCode::OK.into_response()),
     }
 }
 
@@ -818,16 +768,10 @@ pub async fn add_tags(
 
     let outcome = db::add_tags(map_id, map, user_id, pool).await?;
 
-    let info = ApiSpecificInfoForLogging {
-        user_id: Some(user_id),
-        map_id: Some(map_id),
-        ..Default::default()
-    };
-
     match outcome {
-        None => Ok(with_logging_info(info, StatusCode::NOT_FOUND)),
-        Some(false) => Ok(with_logging_info(info, StatusCode::FORBIDDEN)),
-        Some(true) => Ok(with_logging_info(info, StatusCode::OK)),
+        None => Ok(StatusCode::NOT_FOUND.into_response()),
+        Some(false) => Ok(StatusCode::FORBIDDEN.into_response()),
+        Some(true) => Ok(StatusCode::OK.into_response()),
     }
 }
 
@@ -980,8 +924,6 @@ pub(crate) async fn start() -> Result<()> {
     }
 
     let handlebars = register_handlebars()?;
-
-    let tx = bwcommon::create_mixpanel_channel().await;
 
     let manifest: Manifest = Arc::new(serde_json::from_str::<
         std::collections::HashMap<String, ManifestChunk>,
@@ -1214,8 +1156,7 @@ pub(crate) async fn start() -> Result<()> {
             }))
             .layer(axum::middleware::from_fn({
                 let pool = db_pool.clone();
-                let tx = tx.clone();
-                move |req, next| mw::postgres_logging(pool.clone(), tx.clone(), req, next)
+                move |req, next| mw::postgres_logging(pool.clone(), req, next)
             }))
             .layer(axum::middleware::from_fn(mw::cache_html))
             .layer(axum::middleware::from_fn(mw::metrics))

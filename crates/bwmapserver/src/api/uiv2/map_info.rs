@@ -2,8 +2,6 @@ use axum::extract::{Extension, Path};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use bwcommon::with_logging_info;
-use bwcommon::ApiSpecificInfoForLogging;
 use bwmap::ParsedChk;
 use serde::Serialize;
 use serde_json::json;
@@ -384,52 +382,46 @@ pub async fn map_info(
         })()?;
     }
 
-    let info = ApiSpecificInfoForLogging {
-        ..Default::default()
-    };
-
-    Ok(with_logging_info(
-        info,
-        Json(json!({
-            "scenario": scenario_name,
-            "scenario_description": scenario_description,
-            "player_owners": player_owners,
-            "player_side": player_side,
-            "forces": forces,
-            "internal_id": map_id,
-            "properties": {
-                "ver": ver,
-                "width": width,
-                "height": height,
-                "tileset": tileset,
-                "sprites": sprites,
-                "doodads": doodads,
-                "triggers": triggers,
-                "briefing_triggers": briefing_triggers,
-                "locations": locations,
-                "units": units,
-                "unique_terrain_tiles": unique_terrain_tiles,
-                "eups": eups,
-                "get_death_euds": get_death_euds,
-                "set_death_euds": set_death_euds,
-                "trigger_list_reads": trigger_list_reads,
-                "trigger_list_writes": trigger_list_writes,
-            },
-            "meta": {
-                "chkhash": chkhash,
-                "chk_size": chk_size,
-                "mpq_hash": mpq_hash,
-                "mpq_size": mpq_size,
-                "uploaded_by": uploaded_by_username,
-                "uploaded_time": uploaded_time,
-                "last_viewed": last_viewed,
-                "last_downloaded": last_downloaded,
-                "views": views,
-                "downloads": downloads,
-            },
-            "wavs": wavs,
-        })),
-    ))
+    Ok(Json(json!({
+        "scenario": scenario_name,
+        "scenario_description": scenario_description,
+        "player_owners": player_owners,
+        "player_side": player_side,
+        "forces": forces,
+        "internal_id": map_id,
+        "properties": {
+            "ver": ver,
+            "width": width,
+            "height": height,
+            "tileset": tileset,
+            "sprites": sprites,
+            "doodads": doodads,
+            "triggers": triggers,
+            "briefing_triggers": briefing_triggers,
+            "locations": locations,
+            "units": units,
+            "unique_terrain_tiles": unique_terrain_tiles,
+            "eups": eups,
+            "get_death_euds": get_death_euds,
+            "set_death_euds": set_death_euds,
+            "trigger_list_reads": trigger_list_reads,
+            "trigger_list_writes": trigger_list_writes,
+        },
+        "meta": {
+            "chkhash": chkhash,
+            "chk_size": chk_size,
+            "mpq_hash": mpq_hash,
+            "mpq_size": mpq_size,
+            "uploaded_by": uploaded_by_username,
+            "uploaded_time": uploaded_time,
+            "last_viewed": last_viewed,
+            "last_downloaded": last_downloaded,
+            "views": views,
+            "downloads": downloads,
+        },
+        "wavs": wavs,
+    }))
+    .into_response())
 }
 
 // #[post("/api/uiv2/map_info/{map_id}")]

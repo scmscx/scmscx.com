@@ -1,15 +1,10 @@
 use axum::extract::Extension;
 use axum::http::header;
-use axum::response::Response;
-use bwcommon::with_logging_info;
+use axum::response::{IntoResponse, Response};
 
 use crate::webutil::Pool;
 
 pub async fn handler() -> Result<Response, bwcommon::MyError> {
-    let info = bwcommon::ApiSpecificInfoForLogging {
-        ..Default::default()
-    };
-
     let mut s = String::new();
 
     s.push_str("https://scmscx.com/\n");
@@ -19,10 +14,7 @@ pub async fn handler() -> Result<Response, bwcommon::MyError> {
     s.push_str("https://scmscx.com/login\n");
     s.push_str("https://scmscx.com/register\n");
 
-    Ok(with_logging_info(
-        info,
-        ([(header::CONTENT_TYPE, "text/plain")], s),
-    ))
+    Ok(([(header::CONTENT_TYPE, "text/plain")], s).into_response())
 }
 
 pub async fn handlera(Extension(pool): Extension<Pool>) -> Result<Response, bwcommon::MyError> {
@@ -34,10 +26,6 @@ pub async fn handlera(Extension(pool): Extension<Pool>) -> Result<Response, bwco
             anyhow::Ok(row.try_get::<_, i64>(0)?)
         }).collect::<Result<Vec<_>, _>>()?;
 
-    let info = bwcommon::ApiSpecificInfoForLogging {
-        ..Default::default()
-    };
-
     let mut s = String::new();
 
     for i in ids {
@@ -50,10 +38,7 @@ pub async fn handlera(Extension(pool): Extension<Pool>) -> Result<Response, bwco
         );
     }
 
-    Ok(with_logging_info(
-        info,
-        ([(header::CONTENT_TYPE, "text/plain")], s),
-    ))
+    Ok(([(header::CONTENT_TYPE, "text/plain")], s).into_response())
 }
 
 pub async fn handlerb(Extension(pool): Extension<Pool>) -> Result<Response, bwcommon::MyError> {
@@ -65,10 +50,6 @@ pub async fn handlerb(Extension(pool): Extension<Pool>) -> Result<Response, bwco
             anyhow::Ok(row.try_get::<_, i64>(0)?)
         }).collect::<Result<Vec<_>, _>>()?;
 
-    let info = bwcommon::ApiSpecificInfoForLogging {
-        ..Default::default()
-    };
-
     let mut s = String::new();
 
     for i in ids {
@@ -81,10 +62,7 @@ pub async fn handlerb(Extension(pool): Extension<Pool>) -> Result<Response, bwco
         );
     }
 
-    Ok(with_logging_info(
-        info,
-        ([(header::CONTENT_TYPE, "text/plain")], s),
-    ))
+    Ok(([(header::CONTENT_TYPE, "text/plain")], s).into_response())
 }
 
 pub async fn handlerc(Extension(pool): Extension<Pool>) -> Result<Response, bwcommon::MyError> {
@@ -96,10 +74,6 @@ pub async fn handlerc(Extension(pool): Extension<Pool>) -> Result<Response, bwco
             anyhow::Ok(row.try_get::<_, i64>(0)?)
         }).collect::<Result<Vec<_>, _>>()?;
 
-    let info = bwcommon::ApiSpecificInfoForLogging {
-        ..Default::default()
-    };
-
     let mut s = String::new();
 
     for i in ids {
@@ -112,8 +86,5 @@ pub async fn handlerc(Extension(pool): Extension<Pool>) -> Result<Response, bwco
         );
     }
 
-    Ok(with_logging_info(
-        info,
-        ([(header::CONTENT_TYPE, "text/plain")], s),
-    ))
+    Ok(([(header::CONTENT_TYPE, "text/plain")], s).into_response())
 }

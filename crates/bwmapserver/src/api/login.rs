@@ -36,13 +36,8 @@ pub async fn post_handler(
 
     match crate::db::login(form.username.clone(), form.password.clone(), pool).await {
         Ok(token) => {
-            let info = bwcommon::ApiSpecificInfoForLogging {
-                username: Some(form.username.clone()),
-                ..Default::default()
-            };
-
             let secure = !is_dev_mode();
-            let mut resp = bwcommon::with_logging_info(info, StatusCode::OK);
+            let mut resp = StatusCode::OK.into_response();
             append_cookie(&mut resp, auth_cookie("token", token, secure, true));
             append_cookie(
                 &mut resp,

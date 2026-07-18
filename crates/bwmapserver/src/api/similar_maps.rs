@@ -1,8 +1,8 @@
 use anyhow::Result;
 use axum::extract::{Extension, Path};
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
-use bwcommon::{get_web_id_from_db_id, with_logging_info, ApiSpecificInfoForLogging};
+use bwcommon::get_web_id_from_db_id;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -154,10 +154,6 @@ pub async fn handler(
     //     .instrument(tracing::info_span!("get_kd_tree").or_current())
     //     .await?;
 
-    let info = ApiSpecificInfoForLogging {
-        ..Default::default()
-    };
-
     // let nearest: Vec<_> = {
     //     let span = info_span!("nearest");
     //     let _e = span.enter();
@@ -221,10 +217,8 @@ pub async fn handler(
 
     // ret.sort_by_key(|x| x.hamming_distance);
 
-    Ok(with_logging_info(
-        info,
-        Json(json!({
+    Ok(Json(json!({
         // "v1": ret,
-        "v2": nearest2})),
-    ))
+        "v2": nearest2}))
+    .into_response())
 }

@@ -54,12 +54,7 @@ async fn handler2(
 
     crate::db::change_username(user_id, form.username.clone(), form.password.clone(), pool).await?;
 
-    let info = bwcommon::ApiSpecificInfoForLogging {
-        user_id: Some(user_id),
-        ..Default::default()
-    };
-
-    let mut resp = bwcommon::with_logging_info(info, "Username changed successfully");
+    let mut resp = "Username changed successfully".into_response();
     append_cookie(
         &mut resp,
         auth_cookie("username", form.username.clone(), true, false),

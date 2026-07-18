@@ -5,8 +5,6 @@ use axum::extract::{Extension, Query};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use bwcommon::with_logging_info;
-use bwcommon::ApiSpecificInfoForLogging;
 use bwcommon::MyError;
 use futures_util::StreamExt;
 use serde::Deserialize;
@@ -159,10 +157,6 @@ pub async fn upload_map(
         Some(query.last_modified / 1000),
     )
     .await?;
-    let info = ApiSpecificInfoForLogging {
-        map_id: Some(map_id),
-        ..Default::default()
-    };
 
     info!("removing temp file");
     tokio::fs::remove_file(&fake_filename).await?;
@@ -170,5 +164,5 @@ pub async fn upload_map(
     let map_id = bwcommon::get_web_id_from_db_id(map_id, crate::util::SEED_MAP_ID)?;
 
     info!("responding");
-    Ok(with_logging_info(info, Json(json!(map_id))))
+    Ok(Json(json!(map_id)).into_response())
 }

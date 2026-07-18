@@ -7,8 +7,6 @@ use axum::extract::Query;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use bwcommon::with_logging_info;
-use bwcommon::ApiSpecificInfoForLogging;
 use serde_json::json;
 
 async fn handler(
@@ -29,17 +27,11 @@ async fn handler(
 
     let maps = search2(query.as_str(), allow_nsfw, &query_params, pool.clone()).await?;
 
-    let info = ApiSpecificInfoForLogging {
-        ..Default::default()
-    };
-
-    Ok(with_logging_info(
-        info,
-        Json(json!({
-            "total_results": maps.0,
-            "maps": maps.1,
-        })),
-    ))
+    Ok(Json(json!({
+        "total_results": maps.0,
+        "maps": maps.1,
+    }))
+    .into_response())
 }
 
 pub async fn search_query(

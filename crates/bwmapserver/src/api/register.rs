@@ -55,12 +55,7 @@ async fn handler2(pool: Pool, form: RegisterFormData) -> Result<Response, bwcomm
 
     if let Ok(token) = crate::db::register(form.username.clone(), form.password.clone(), pool).await
     {
-        let info = bwcommon::ApiSpecificInfoForLogging {
-            username: Some(form.username.clone()),
-            ..Default::default()
-        };
-
-        let mut resp = bwcommon::with_logging_info(info, StatusCode::OK);
+        let mut resp = StatusCode::OK.into_response();
         append_cookie(&mut resp, auth_cookie("token", token, true, true));
         append_cookie(
             &mut resp,

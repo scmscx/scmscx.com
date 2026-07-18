@@ -11,9 +11,8 @@
 use crate::search2::{search_cache, SearchParams};
 use crate::webutil::{MaybeUser, Pool};
 use axum::extract::{Extension, Path, Query};
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
-use bwcommon::{with_logging_info, ApiSpecificInfoForLogging};
 use rand::Rng;
 
 async fn random_core(
@@ -54,11 +53,7 @@ pub async fn handler(
 
     let map_id = random_core(query.as_str(), allow_nsfw, query_params, pool).await?;
 
-    let info = ApiSpecificInfoForLogging {
-        ..Default::default()
-    };
-
-    Ok(with_logging_info(info, Json(map_id)))
+    Ok(Json(map_id).into_response())
 }
 
 pub async fn handler_noquery(
@@ -70,9 +65,5 @@ pub async fn handler_noquery(
 
     let map_id = random_core("", allow_nsfw, query_params, pool).await?;
 
-    let info = ApiSpecificInfoForLogging {
-        ..Default::default()
-    };
-
-    Ok(with_logging_info(info, Json(map_id)))
+    Ok(Json(map_id).into_response())
 }

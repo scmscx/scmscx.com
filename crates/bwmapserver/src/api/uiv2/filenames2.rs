@@ -1,8 +1,6 @@
 use axum::extract::{Extension, Path};
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
-use bwcommon::with_logging_info;
-use bwcommon::ApiSpecificInfoForLogging;
 use bwcommon::MyError;
 
 use crate::webutil::Pool;
@@ -41,9 +39,5 @@ pub async fn filenames2(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let info = ApiSpecificInfoForLogging {
-        ..Default::default()
-    };
-
-    Ok(with_logging_info(info, Json(filetimes)))
+    Ok(Json(filetimes).into_response())
 }

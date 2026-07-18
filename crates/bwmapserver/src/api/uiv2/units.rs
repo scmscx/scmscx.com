@@ -1,8 +1,6 @@
 use axum::extract::{Extension, Path};
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
-use bwcommon::with_logging_info;
-use bwcommon::ApiSpecificInfoForLogging;
 use bwcommon::MyError;
 use bwmap::ParsedChk;
 use serde_json::json;
@@ -37,10 +35,6 @@ pub async fn units(
             zstd::bulk::decompress(data.as_slice(), length)?,
             row.try_get::<_, bool>("spoiler_unit_names")?,
         )
-    };
-
-    let info = ApiSpecificInfoForLogging {
-        ..Default::default()
     };
 
     let parsed_chk = ParsedChk::from_bytes(chkblob.as_slice());
@@ -79,5 +73,5 @@ pub async fn units(
         Vec::new()
     };
 
-    Ok(with_logging_info(info, Json(units)))
+    Ok(Json(units).into_response())
 }
