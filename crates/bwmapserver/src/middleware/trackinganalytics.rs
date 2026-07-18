@@ -7,7 +7,7 @@ use bwcommon::TrackingAnalytics;
 use sha2::{Digest, Sha256};
 use tracing::info;
 
-use crate::webutil::realip;
+use crate::webutil::{ip_only, realip};
 
 /// Resolves a stable tracking-analytics id (from the `tac` cookie, or a salted
 /// hash of client fingerprint headers) into the request extensions, and sets
@@ -38,12 +38,8 @@ pub async fn tracking_analytics(mut req: Request, next: Next) -> Response {
             .extensions()
             .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
             .map(|ci| ci.0);
-        let ip_address = realip(req.headers(), peer)
-            .unwrap_or_else(|| "default:5000".to_owned())
-            .split(':')
-            .next()
-            .unwrap_or("default")
-            .to_owned();
+        let ip_address =
+            realip(req.headers(), peer).map_or_else(|| "default".to_owned(), |ip| ip_only(&ip));
 
         info!("tac created. user_agent: {user_agent:?}, accept_language: {accept_language:?}, sec_ch_ua: {sec_ch_ua:?}, sec_ch_mobile: {sec_ch_mobile:?}, sec_ch_platform: {sec_ch_platform:?}, ip_address: {ip_address:?}");
 

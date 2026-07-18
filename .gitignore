@@ -1,6 +1,8 @@
 target/
 dist/
 node_modules/
+# wrangler local dev secrets (ORIGIN_BASE, Access tokens)
+.dev.vars
 .git.bak/
 # cargo-mutants scratch output (see `make mutants`).
 mutants.out/

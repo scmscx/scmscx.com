@@ -10,7 +10,7 @@ use crate::actix::{Handlebars, Manifest};
 use crate::search2;
 use crate::search2::SearchParams;
 use crate::util::is_dev_mode;
-use crate::util::sanitize_sc_string;
+use crate::util::scenario_and_description;
 use crate::webutil::{MaybeUser, Pool};
 
 fn html(body: String) -> Response {
@@ -224,31 +224,7 @@ pub async fn map(
     };
 
     let parsed_chk = ParsedChk::from_bytes(chkblob.as_slice());
-
-    let (scenario, description) = if let Ok(sprp) = &parsed_chk.sprp {
-        let scenario = if sprp.scenario_name_string_number == 0 {
-            "Untitled Scenario".to_string()
-        } else if let Ok(s) = parsed_chk.get_string(sprp.scenario_name_string_number as usize) {
-            sanitize_sc_string(s.as_str())
-        } else {
-            "<<Could not get scenario name>>".to_owned()
-        };
-
-        let description = if sprp.description_string_number == 0 {
-            String::new()
-        } else if let Ok(s) = parsed_chk.get_string(sprp.description_string_number as usize) {
-            sanitize_sc_string(s.as_str())
-        } else {
-            "<<Could not get scenario description>>".to_owned()
-        };
-
-        (scenario, description)
-    } else {
-        (
-            "<<Could not get scenario name>>".to_owned(),
-            "<<Could not get scenario description>>".to_owned(),
-        )
-    };
+    let (scenario, description) = scenario_and_description(&parsed_chk);
 
     if nsfw && user_id.is_none() {
         return Ok(StatusCode::FORBIDDEN.into_response());

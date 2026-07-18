@@ -166,10 +166,20 @@ exclude_re = [
 ]
 
 # Timeouts. Unit tests run in milliseconds; the E2E tests boot a server + clone a
-# database and finish in a few seconds. The multipliers plus a 60s floor give a
+# database and finish in a few seconds. The test multiplier plus a 60s floor give a
 # mutant that breaks startup (so every E2E test waits out its readiness timeout)
 # room to be killed as a hang rather than mis-timed.
-build_timeout_multiplier = 3.0
+#
+# The build timeout uses a deliberately generous MULTIPLIER. The base build is only
+# ~5s, so the old `build_timeout_multiplier = 3.0` produced a ~17s cap with almost no
+# slack, and cargo-mutants' TOML config exposes no absolute `build_timeout` /
+# `minimum_build_timeout` to floor it — this multiplier is the only build-timeout lever
+# here. A single mutant's rebuild overrunning 17s on a loaded CI runner then turned a
+# would-be-CAUGHT mutant into a spurious TIMEOUT failure (e.g. util.rs
+# `scenario_and_description`, a plain value swap that cannot actually hang the
+# compiler). 20x (~100s off the ~5s base) is far above any real mutant build here —
+# even a cold sccache miss — while still bounding a genuinely non-terminating build.
+build_timeout_multiplier = 20.0
 timeout_multiplier = 2.0
 minimum_test_timeout = 60.0
 

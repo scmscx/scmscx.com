@@ -14,4 +14,7 @@
     "noEmit": true,
     "isolatedModules": true,
   },
+  "exclude": [
+    "functions"
+  ],
 }

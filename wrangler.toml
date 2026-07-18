@@ -1,0 +1,26 @@
+# Cloudflare Pages project config for the scmscx.com frontend + Functions.
+#
+# Because this wrangler.toml exists, Cloudflare manages the project's config here:
+# non-secret environment variables MUST be declared below — the dashboard's
+# "Variables and Secrets" page becomes read-only for plain vars, and only encrypted
+# Secrets can be set there. So:
+#   - ORIGIN_BASE (non-secret)                  -> here, in [vars] / [env.preview.vars]
+#   - ORIGIN_ACCESS_CLIENT_ID / _SECRET (secrets, for the locked-down cutover)
+#                                               -> dashboard Secrets, or
+#                                                  `wrangler pages secret put`
+#
+# See docs/cloudflare-ppe-setup.md and docs/cloudflare-phase3-runbook.md.
+
+name = "scmscx-ppe"
+compatibility_date = "2024-11-01"
+pages_build_output_dir = "dist/pages"
+
+# The origin the Functions proxy /api/* to. PPE points at the existing public
+# origin. Declared for BOTH environments so the proxy works whether a deploy lands
+# as production or preview. At the locked-down cutover, production's ORIGIN_BASE
+# becomes the Tunnel hostname (https://origin.scmscx.com) — adjust then.
+[vars]
+ORIGIN_BASE = "https://scmscx.com"
+
+[env.preview.vars]
+ORIGIN_BASE = "https://scmscx.com"
