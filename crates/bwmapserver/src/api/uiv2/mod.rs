@@ -13,8 +13,6 @@ use axum::extract::{Extension, Path};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use bwcommon::with_logging_info;
-use bwcommon::ApiSpecificInfoForLogging;
 use bwcommon::MyError;
 use common::gsfs::gsfs_get_map_image;
 use common::gsfs::gsfs_get_minimap;
@@ -259,12 +257,6 @@ pub async fn get_minimap(
         return Ok(StatusCode::NOT_FOUND.into_response());
     }
 
-    let info = ApiSpecificInfoForLogging {
-        map_id: Some(map_id),
-        chk_hash: Some(chkblob_hash.clone()),
-        ..Default::default()
-    };
-
     if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
         match tokio::time::timeout(
             std::time::Duration::from_secs(1),
@@ -273,13 +265,11 @@ pub async fn get_minimap(
         .await
         {
             Ok(Ok(stream)) => {
-                return Ok(with_logging_info(
-                    info,
-                    (
-                        [(header::CONTENT_TYPE, "application/octet-stream")],
-                        Body::from_stream(stream),
-                    ),
-                ));
+                return Ok((
+                    [(header::CONTENT_TYPE, "application/octet-stream")],
+                    Body::from_stream(stream),
+                )
+                    .into_response());
             }
             Ok(Err(error)) => {
                 error!("Failed to get minimap from gsfs: {}", error);
@@ -311,10 +301,7 @@ pub async fn get_minimap(
         });
     }
 
-    Ok(with_logging_info(
-        info,
-        ([(header::CONTENT_TYPE, "image/png")], minimap),
-    ))
+    Ok(([(header::CONTENT_TYPE, "image/png")], minimap).into_response())
 }
 
 pub async fn get_map_image(
@@ -360,12 +347,6 @@ pub async fn get_map_image(
         return Ok(StatusCode::NOT_FOUND.into_response());
     }
 
-    let info = ApiSpecificInfoForLogging {
-        map_id: Some(map_id),
-        chk_hash: Some(chkblob_hash.clone()),
-        ..Default::default()
-    };
-
     if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
         match tokio::time::timeout(
             std::time::Duration::from_secs(1),
@@ -374,13 +355,11 @@ pub async fn get_map_image(
         .await
         {
             Ok(Ok(stream)) => {
-                return Ok(with_logging_info(
-                    info,
-                    (
-                        [(header::CONTENT_TYPE, "image/webp")],
-                        Body::from_stream(stream),
-                    ),
-                ));
+                return Ok((
+                    [(header::CONTENT_TYPE, "image/webp")],
+                    Body::from_stream(stream),
+                )
+                    .into_response());
             }
             Ok(Err(error)) => {
                 error!("Failed to get mapimg from gsfs: {}", error);
@@ -391,13 +370,11 @@ pub async fn get_map_image(
         }
     }
 
-    Ok(with_logging_info(info, StatusCode::NOT_FOUND))
+    Ok(StatusCode::NOT_FOUND.into_response())
 }
 
 pub async fn is_session_valid(user: MaybeUser) -> Result<Response, MyError> {
     let is_session_valid = user.0.is_some();
 
-    let info = ApiSpecificInfoForLogging::default();
-
-    Ok(with_logging_info(info, Json(json!(is_session_valid))))
+    Ok(Json(json!(is_session_valid)).into_response())
 }

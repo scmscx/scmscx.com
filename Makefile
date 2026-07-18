@@ -113,18 +113,6 @@ ci: fmt clippy test e2e scmscx.com-image-debug
 # Kept out of `ci`: slower than the unit suite, and it exits non-zero while real
 # gaps remain (that's the point). The E2E harness drops each per-test database on
 # teardown so one long-lived container survives a whole run's thousands of tests.
-#
-# StructField filter: cargo-mutants 27.1.0 cannot honor an `exclude_re` for
-# "delete field" (StructField-genre) mutants — the name it matches the regex
-# against omits them entirely, so no pattern removes them (verified: `-E delete`
-# only ever drops MatchArm+UnaryOperator mutants). That leaves the
-# `ApiSpecificInfoForLogging` logging fields — documented as behavior-equivalent
-# in .cargo/mutants.toml (populated only into the Mixpanel payload, which is off
-# in the harness; never DB- or response-observable) — perpetually "missed". Since
-# no test can catch them and the toml exclude can't drop them, strip those lines
-# from missed.txt after the run and recompute the exit code, so the verdict (and
-# the CI missed-count, which reads this file) reflects only real gaps. Drop this
-# once cargo-mutants can exclude StructField mutants and the toml entry suffices.
 mutants: $(RUST_SOURCE) dist/vite postgres-image
 	podman rm -f $(E2E_PG_CONTAINER) >/dev/null 2>&1 || true
 	podman run -d --name $(E2E_PG_CONTAINER) -p 127.0.0.1:$(E2E_PG_PORT):5432 \
@@ -139,13 +127,6 @@ mutants: $(RUST_SOURCE) dist/vite postgres-image
 		cargo mutants --in-place --features e2e $(MUTANTS_ARGS); \
 		status=$$?; \
 		podman rm -f $(E2E_PG_CONTAINER) >/dev/null; \
-		if [ -f mutants.out/missed.txt ]; then \
-			grep -v 'delete field .* from struct .*ApiSpecificInfoForLogging' \
-				mutants.out/missed.txt > mutants.out/missed.filtered || true; \
-			mv mutants.out/missed.filtered mutants.out/missed.txt; \
-			if [ -s mutants.out/missed.txt ]; then status=2; \
-			elif [ "$$status" = 2 ]; then status=0; fi; \
-		fi; \
 		exit $$status
 
 run: scmscx.com-image-debug bwrender-image-debug postgres-image

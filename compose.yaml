@@ -51,6 +51,5 @@ services:
       DB_PASSWORD: anotverysecurepassword
       PROMETHEUS_ENDPOINT: "0.0.0.0:9101"
       BACKBLAZE_DISABLED: "true"
-      MIXPANEL_DISABLED: "true"
       GSFSFE_ENDPOINT: "http://127.0.0.1:42069"
       SCMSCX_RENDER: "true"

@@ -198,8 +198,8 @@ impl Harness {
         let app_fd = app_listener.as_raw_fd();
         let prom_fd = prom_listener.as_raw_fd();
 
-        // Prod mode, Backblaze/GSFS/Mixpanel off, a small pool (parallel tests
-        // share one Postgres), and inherited listener fds so instances never race.
+        // Prod mode, Backblaze/GSFS off, a small pool (parallel tests share one
+        // Postgres), and inherited listener fds so instances never race.
         let mut cmd = Command::new(env!("CARGO_BIN_EXE_scmscx-com"));
         cmd.current_dir(&work_dir) // ./dist symlinked in; ./pending/ stays in /tmp
             .env("BIND_FD", app_fd.to_string())
@@ -211,7 +211,6 @@ impl Harness {
             .env("DB_PASSWORD", &pg.password)
             .env("DB_CONNECTIONS", "4")
             .env("BACKBLAZE_DISABLED", "true")
-            .env("MIXPANEL_DISABLED", "true")
             .env("ROOT_DIR", root.join("app/web"))
             .env("RUST_LOG", "warn")
             .env_remove("DEV_MODE")

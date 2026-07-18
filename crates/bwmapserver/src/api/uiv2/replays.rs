@@ -1,8 +1,6 @@
 use axum::extract::{Extension, Path};
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
-use bwcommon::with_logging_info;
-use bwcommon::ApiSpecificInfoForLogging;
 use bwcommon::MyError;
 
 use crate::webutil::Pool;
@@ -49,9 +47,5 @@ pub async fn replays(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let info = ApiSpecificInfoForLogging {
-        ..Default::default()
-    };
-
-    Ok(with_logging_info(info, Json(replays)))
+    Ok(Json(replays).into_response())
 }

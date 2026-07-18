@@ -2,7 +2,6 @@ use axum::extract::Extension;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use bwcommon::with_logging_info;
 
 use crate::webutil::{MaybeUser, Pool};
 
@@ -51,12 +50,7 @@ async fn handler2(
 
     crate::db::change_password(user_id, form.password.clone(), pool).await?;
 
-    let info = bwcommon::ApiSpecificInfoForLogging {
-        user_id: Some(user_id),
-        ..Default::default()
-    };
-
-    Ok(with_logging_info(info, "Password changed successfully"))
+    Ok("Password changed successfully".into_response())
 }
 
 pub async fn post_handler(

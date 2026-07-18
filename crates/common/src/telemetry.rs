@@ -257,10 +257,11 @@ const RUNTIME_SAMPLE_INTERVAL: std::time::Duration = std::time::Duration::from_s
 /// it degrades to the small stable subset from `Handle::metrics()`.
 ///
 /// Note: it monitors *the runtime it is spawned on*. In `bwrender` that is the
-/// whole pipeline; in the actix web server that is the main/background runtime
-/// (pumpers, reporters, scrape server) — actix serves requests on its own
-/// per-worker runtimes, whose latency is already captured by the HTTP middleware
-/// histogram.
+/// whole pipeline; in the web server that is the single runtime built by
+/// [`build_runtime`] — `axum::serve` handles requests on that same runtime, so
+/// (unlike the old actix server, which served requests on its own per-worker
+/// runtimes off to the side) request-handler poll times feed into these metrics
+/// and the `scmscx_tokio_poll_time_seconds` histogram.
 pub fn spawn_runtime_metrics_reporter(version: &'static str) {
     let start = std::time::Instant::now();
     let handle = tokio::runtime::Handle::current();

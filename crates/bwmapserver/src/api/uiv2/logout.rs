@@ -1,12 +1,10 @@
 use axum::http::{header, HeaderValue, StatusCode};
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 
 use crate::webutil::{append_cookie, removal_cookie};
 
 pub async fn logout2() -> Result<Response, bwcommon::MyError> {
-    let info = bwcommon::ApiSpecificInfoForLogging::default();
-
-    let mut resp = bwcommon::with_logging_info(info, StatusCode::TEMPORARY_REDIRECT);
+    let mut resp = StatusCode::TEMPORARY_REDIRECT.into_response();
     resp.headers_mut()
         .insert(header::LOCATION, HeaderValue::from_static("/uiv2"));
     append_cookie(&mut resp, removal_cookie("username"));

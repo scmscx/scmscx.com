@@ -2,8 +2,6 @@ use axum::extract::{Extension, Path};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use bwcommon::with_logging_info;
-use bwcommon::ApiSpecificInfoForLogging;
 use bwcommon::MyError;
 
 use crate::webutil::{MaybeUser, Pool};
@@ -24,12 +22,10 @@ fn validate_flag(flag: &str) -> Option<&'static str> {
 }
 
 pub async fn get_flag(
-    user: MaybeUser,
+    _user: MaybeUser,
     Path((map_id, flag)): Path<(String, String)>,
     Extension(pool): Extension<Pool>,
 ) -> Result<Response, MyError> {
-    let user_id = user.id();
-
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let Some(column) = validate_flag(&flag) else {
@@ -40,13 +36,7 @@ pub async fn get_flag(
     let statement = format!("select {column} from map where map.id = $1");
     let checked: bool = con.query_one(&statement, &[&map_id]).await?.try_get(0)?;
 
-    let info = ApiSpecificInfoForLogging {
-        user_id,
-        map_id: Some(map_id),
-        ..Default::default()
-    };
-
-    Ok(with_logging_info(info, Json(checked)))
+    Ok(Json(checked).into_response())
 }
 
 pub async fn set_flag(
@@ -89,22 +79,16 @@ pub async fn set_flag(
         .map(|r| r.try_get::<_, i64>(0))
         .transpose()?;
 
-    let info = ApiSpecificInfoForLogging {
-        user_id: Some(user_id),
-        map_id: Some(map_id),
-        ..Default::default()
-    };
-
     let Some(owner) = owner else {
-        return Ok(with_logging_info(info, StatusCode::NOT_FOUND));
+        return Ok(StatusCode::NOT_FOUND.into_response());
     };
 
     if owner != user_id && user_id != 4 {
-        return Ok(with_logging_info(info, StatusCode::FORBIDDEN));
+        return Ok(StatusCode::FORBIDDEN.into_response());
     }
 
     tx.execute(&statement, &[&checked, &map_id]).await?;
     tx.commit().await?;
 
-    Ok(with_logging_info(info, StatusCode::OK))
+    Ok(StatusCode::OK.into_response())
 }
