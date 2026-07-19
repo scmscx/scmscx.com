@@ -7,6 +7,12 @@ import { Env } from "./_shared";
 
 // Paths the Rust origin owns. Everything else is Pages (static shell + the /map
 // and /search OG Functions).
+//
+// KEEP IN SYNC WITH `app/web/public/_routes.json` `include`: these paths only ever
+// reach this middleware if _routes.json invokes the Functions runtime for them.
+// Adding a proxied path here without adding it to _routes.json means Pages serves it
+// as a (nonexistent) static asset and 404s it. The include list is these paths plus
+// `/map/*` and `/search/*` (the OG Functions).
 const ORIGIN_PREFIXES = ["/api/"];
 const ORIGIN_EXACT = new Set([
   "/sitemap.txt",
