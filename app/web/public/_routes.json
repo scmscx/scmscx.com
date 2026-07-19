@@ -1,5 +1,14 @@
 {
   "version": 1,
-  "include": ["/*"],
-  "exclude": ["/assets/*"]
+  "include": [
+    "/api/*",
+    "/sitemap.txt",
+    "/a.txt",
+    "/b.txt",
+    "/c.txt",
+    "/site.webmanifest",
+    "/map/*",
+    "/search/*"
+  ],
+  "exclude": []
 }
