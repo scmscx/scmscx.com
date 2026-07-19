@@ -40,10 +40,16 @@ export class SetAttr {
 
 /// Replace an element's text content in text mode (the runtime escapes it), so
 /// this is safe for reflected user input.
+///
+/// The field is `content`, NOT `text`: HTMLRewriter's `.on(selector, handlers)`
+/// treats a `text` property on the handler object as a text-chunk callback and
+/// throws `Incorrect type for the 'text' field ... not of type 'function'` when it
+/// isn't one. `element`, `comments`, `text`, `doctype`, and `end` are all reserved
+/// handler names — keep instance fields clear of them.
 export class SetText {
-  constructor(private readonly text: string) {}
+  constructor(private readonly content: string) {}
   element(el: Element) {
-    el.setInnerContent(this.text);
+    el.setInnerContent(this.content);
   }
 }
 
