@@ -1,5 +1,6 @@
 // use futures::FutureExt;
 
+use bwmap::ParsedChk;
 use sha1::digest;
 
 pub const SEED_MAP_ID: u8 = 97;
@@ -31,6 +32,36 @@ pub(crate) fn sanitize_sc_string(s: &str) -> String {
     } else {
         strings[0].chars().filter(|&x| x >= ' ').collect()
     }
+}
+
+/// The (scenario name, description) shown to users, extracted from a parsed CHK:
+/// `sanitize_sc_string` applied, with the same placeholders the map pages use.
+/// Shared by the `/map` SSR handler and the `map_meta` endpoint.
+pub(crate) fn scenario_and_description(parsed_chk: &ParsedChk) -> (String, String) {
+    let Ok(sprp) = &parsed_chk.sprp else {
+        return (
+            "<<Could not get scenario name>>".to_owned(),
+            "<<Could not get scenario description>>".to_owned(),
+        );
+    };
+
+    let scenario = if sprp.scenario_name_string_number == 0 {
+        "Untitled Scenario".to_string()
+    } else if let Ok(s) = parsed_chk.get_string(sprp.scenario_name_string_number as usize) {
+        sanitize_sc_string(s.as_str())
+    } else {
+        "<<Could not get scenario name>>".to_owned()
+    };
+
+    let description = if sprp.description_string_number == 0 {
+        String::new()
+    } else if let Ok(s) = parsed_chk.get_string(sprp.description_string_number as usize) {
+        sanitize_sc_string(s.as_str())
+    } else {
+        "<<Could not get scenario description>>".to_owned()
+    };
+
+    (scenario, description)
 }
 
 // pub fn calculate_hash_of_object(object: impl AsRef<[u8]>) -> String {

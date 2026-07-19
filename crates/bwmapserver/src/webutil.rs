@@ -17,13 +17,31 @@ pub type Pool = bb8_postgres::bb8::Pool<
     bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
 >;
 
-/// Best-effort real client IP, mirroring actix's `realip_remote_addr()`:
-/// prefer the left-most `X-Forwarded-For` entry (set by our reverse proxy),
-/// then the `Forwarded` header's `for=`, then the raw peer address.
+/// Best-effort real client IP. Behind Cloudflare the true client is carried in
+/// `CF-Connecting-IP`, so it wins; otherwise fall back (mirroring actix's
+/// `realip_remote_addr()`) to the left-most `X-Forwarded-For` entry, then the
+/// `Forwarded` header's `for=`, then the raw peer address. Requests over the
+/// WireGuard backdoor (CI/e2e) carry no `CF-Connecting-IP` and resolve via the
+/// fallbacks.
+///
+/// Trusting `CF-Connecting-IP` is sound only because the origin is reachable
+/// solely via the Cloudflare Tunnel and the WireGuard subnet (see the Cloudflare
+/// migration runbook) — a publicly-reachable origin would let clients forge it.
 ///
 /// The returned string may or may not include a port; callers that need a bare
-/// address should strip it (`split(':').next()`), matching the old code.
+/// address (e.g. as a stable per-client key) should use [`ip_only`], which is
+/// IPv6-safe — do NOT hand-strip with `split(':')`, which mangles IPv6.
 pub fn realip(headers: &HeaderMap, peer: Option<SocketAddr>) -> Option<String> {
+    if let Some(cf) = headers
+        .get("cf-connecting-ip")
+        .and_then(|v| v.to_str().ok())
+    {
+        let cf = cf.trim();
+        if !cf.is_empty() {
+            return Some(cf.to_owned());
+        }
+    }
+
     if let Some(xff) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
         if let Some(first) = xff.split(',').next() {
             let first = first.trim();
@@ -47,6 +65,17 @@ pub fn realip(headers: &HeaderMap, peer: Option<SocketAddr>) -> Option<String> {
     }
 
     peer.map(|addr| addr.to_string())
+}
+
+/// The bare IP from a [`realip`] string that may be `ip`, `ip:port`, or
+/// `[ipv6]:port`. Parses off a port only when one is really present, so a bare
+/// IPv6 address is returned intact — unlike `split(':').next()`, which would
+/// truncate `2606:4700::1111` to `2606`.
+pub fn ip_only(s: &str) -> String {
+    match s.parse::<SocketAddr>() {
+        Ok(sa) => sa.ip().to_string(),
+        Err(_) => s.to_owned(),
+    }
 }
 
 /// Extractor for the optional logged-in user. The `UserSessionTransformer`
@@ -125,6 +154,30 @@ mod tests {
     }
 
     #[test]
+    fn realip_prefers_cf_connecting_ip() {
+        // Behind Cloudflare, CF-Connecting-IP is the true client and wins over an
+        // X-Forwarded-For that Cloudflare (or anyone upstream) may also have set.
+        let h = headers(&[
+            ("cf-connecting-ip", "198.51.100.9"),
+            ("x-forwarded-for", "203.0.113.7, 70.41.3.18"),
+        ]);
+        assert_eq!(
+            realip(&h, peer("10.0.0.1:5000")).as_deref(),
+            Some("198.51.100.9")
+        );
+    }
+
+    #[test]
+    fn realip_blank_cf_connecting_ip_falls_through() {
+        // A WireGuard/CI request has no CF-Connecting-IP; a blank one must not win.
+        let h = headers(&[
+            ("cf-connecting-ip", "   "),
+            ("x-forwarded-for", "203.0.113.7"),
+        ]);
+        assert_eq!(realip(&h, None).as_deref(), Some("203.0.113.7"));
+    }
+
+    #[test]
     fn realip_prefers_leftmost_forwarded_for() {
         let h = headers(&[(
             "x-forwarded-for",
@@ -170,6 +223,18 @@ mod tests {
     #[test]
     fn realip_none_when_nothing_available() {
         assert_eq!(realip(&headers(&[]), None), None);
+    }
+
+    #[test]
+    fn ip_only_strips_port_but_keeps_ipv6_intact() {
+        // IPv4, with and without a port.
+        assert_eq!(ip_only("1.2.3.4:5000"), "1.2.3.4");
+        assert_eq!(ip_only("1.2.3.4"), "1.2.3.4");
+        // Bracketed IPv6 with a port collapses to the bare address.
+        assert_eq!(ip_only("[2606:4700::1111]:443"), "2606:4700::1111");
+        // A bare IPv6 (what CF-Connecting-IP yields) must NOT be truncated — this is
+        // the `split(':').next()` bug the helper exists to avoid.
+        assert_eq!(ip_only("2606:4700::1111"), "2606:4700::1111");
     }
 
     #[tokio::test]

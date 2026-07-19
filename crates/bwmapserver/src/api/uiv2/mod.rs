@@ -2,6 +2,7 @@ pub mod filenames;
 pub mod filenames2;
 pub mod logout;
 pub mod map_info;
+pub mod map_meta;
 pub mod replays;
 pub mod search;
 pub mod timestamps;
