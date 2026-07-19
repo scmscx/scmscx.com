@@ -11,7 +11,7 @@ name: Deploy PPE (Cloudflare Pages)
 
 on:
   push:
-    branches: [ppe]
+    branches: [main]
     paths:
       - "app/**"
       - "functions/**"
