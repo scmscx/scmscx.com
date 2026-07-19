@@ -3,6 +3,27 @@ name: CI-and-push
 on:
   push:
     branches: [main]
+    # Only rebuild/redeploy the Rust image when Rust-relevant files change. A
+    # frontend-only push to main deploys via deploy-ppe.yml instead. The nightly
+    # `schedule` (below) and `workflow_dispatch` ignore `paths`, so the image is
+    # still refreshed daily even during frontend-only stretches.
+    # KEEP IN SYNC WITH pr-ci.yaml's `changes` job `rust` filter.
+    paths:
+      - "crates/**"
+      - "bwrender/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/**"
+      - "rust-toolchain.toml"
+      - "rustfmt.toml"
+      - "Makefile"
+      - "Dockerfile"
+      - "bwrender.Dockerfile"
+      - ".dockerignore"
+      - "postgres/**"
+      - ".gitmodules"
+      - ".github/workflows/ci.yaml"
+      - ".github/actions/**"
   workflow_dispatch:
   schedule: [cron: "0 8 * * *"] # at 4am EST, 8am UTC
 

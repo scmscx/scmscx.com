@@ -48,8 +48,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Run from the repo root so wrangler also compiles ./functions into the
-          # deployment. No --branch: on the `ppe` push wrangler infers branch `ppe`,
-          # which is scmscx-ppe's production branch -> a production deployment that
-          # ppe.scmscx.com serves. ORIGIN_BASE is set on the Pages project, not here.
-          command: pages deploy dist/pages --project-name=scmscx-ppe
+          command: pages deploy dist/pages --project-name=scmscx

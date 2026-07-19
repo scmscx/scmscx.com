@@ -7,9 +7,47 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
+  # Detect whether this PR touches anything that affects the Rust build/test/mutants.
+  # Frontend-only PRs (app/, functions/, docs, wrangler.toml, …) skip the heavy Cargo
+  # job below. KEEP THE `rust` FILTER IN SYNC WITH ci.yaml's `on.push.paths`.
+  changes:
+    runs-on: self-hosted
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            rust:
+              - 'crates/**'
+              - 'bwrender/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.cargo/**'
+              - 'rust-toolchain.toml'
+              - 'rustfmt.toml'
+              - 'Makefile'
+              - 'Dockerfile'
+              - 'bwrender.Dockerfile'
+              - '.dockerignore'
+              - 'postgres/**'
+              - '.gitmodules'
+              - '.github/workflows/pr-ci.yaml'
+              - '.github/actions/**'
+
   test:
+    needs: changes
+    # Run the full Rust CI when Rust-relevant files changed, and ALWAYS on the merge
+    # queue / manual dispatch (the final pre-merge gate must not be skippable). A job
+    # skipped via `if:` still reports its check as "skipped", which branch protection
+    # treats as passing — so a frontend-only PR is not blocked on this required check.
+    if: needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request'
     timeout-minutes: 60
     name: ${{format('Cargo {0}', matrix.rust)}}
     # if: false
