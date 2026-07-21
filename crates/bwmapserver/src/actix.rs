@@ -1078,10 +1078,6 @@ pub(crate) async fn start() -> Result<()> {
             get(api::uiv2::map_info::map_info),
         )
         .route(
-            "/api/uiv2/map_meta/{map_id}",
-            get(api::uiv2::map_meta::map_meta),
-        )
-        .route(
             "/api/uiv2/filenames/{map_id}",
             get(api::uiv2::filenames::filenames),
         )
@@ -1103,10 +1099,6 @@ pub(crate) async fn start() -> Result<()> {
             get(api::uiv2::search::search_query),
         )
         .route("/api/uiv2/search", get(api::uiv2::search::search))
-        .route(
-            "/api/uiv2/search_count/{query}",
-            get(api::uiv2::search::search_count),
-        )
         .route("/api/uiv2/img/{map_id}", get(api::uiv2::get_map_image))
         .route("/api/uiv2/random/{query}", get(api::random::handler))
         .route("/api/uiv2/random", get(api::random::handler_noquery))

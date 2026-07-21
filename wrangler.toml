@@ -1,9 +1,0 @@
-name = "scmscx-ppe"
-compatibility_date = "2024-11-01"
-pages_build_output_dir = "dist/pages"
-
-[vars]
-ORIGIN_BASE = "https://api.scmscx.com"
-
-[env.preview.vars]
-ORIGIN_BASE = "https://api.scmscx.com"

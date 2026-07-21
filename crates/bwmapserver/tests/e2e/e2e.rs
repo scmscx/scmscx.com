@@ -150,52 +150,6 @@ async fn search_accepts_every_sort_order() {
     );
 }
 
-/// The count-only endpoint (`/api/uiv2/search_count/{query}`) backing the Cloudflare
-/// Pages `/search/:query` OG preview. It must return the total as `{"count": N}` — a
-/// real numeric body, not an empty/default response — and reject an unrecognized sort
-/// up front, exactly like the full search handler.
-#[tokio::test]
-async fn search_count_reports_total_and_validates_sort() {
-    let h = Harness::start().await;
-    let c = harness::client();
-
-    // A valid request (default `sort=relevancy`) returns 200 with a numeric `count`
-    // (0 against the empty DB) — asserting the body shape, not just the status.
-    let resp = c
-        .get(h.url("/api/uiv2/search_count/keyword"))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = json_body(resp).await;
-    assert!(
-        body["count"].is_number(),
-        "search_count returns {{\"count\": N}}, got {body}"
-    );
-
-    // A valid sort is accepted by the allowlist (not rejected)...
-    assert_eq!(
-        c.get(h.url("/api/uiv2/search_count/keyword?sort=timeuploadednew"))
-            .send()
-            .await
-            .unwrap()
-            .status(),
-        StatusCode::OK,
-        "a valid sort is accepted"
-    );
-
-    // ...and an unrecognized sort is a 400, before it ever reaches the DB.
-    assert_eq!(
-        c.get(h.url("/api/uiv2/search_count/keyword?sort=nonsense"))
-            .send()
-            .await
-            .unwrap()
-            .status(),
-        StatusCode::BAD_REQUEST,
-        "an unrecognized sort is a 400"
-    );
-}
-
 #[tokio::test]
 async fn unknown_route_is_404() {
     let h = Harness::start().await;
