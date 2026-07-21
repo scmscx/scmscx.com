@@ -6,7 +6,6 @@
     "start": "npx vite",
     "dev": "npx vite",
     "build": "npx vite build",
-    "build:pages": "npx vite build --config vite.pages.config.ts",
     "serve": "npx vite preview",
     "lint": "eslint ./src",
     "icons": "pwa-assets-generator --preset minimal-2023 src/assets/favicon.svg"

@@ -36,7 +36,7 @@ pub(crate) fn sanitize_sc_string(s: &str) -> String {
 
 /// The (scenario name, description) shown to users, extracted from a parsed CHK:
 /// `sanitize_sc_string` applied, with the same placeholders the map pages use.
-/// Shared by the `/map` SSR handler and the `map_meta` endpoint.
+/// Used by the `/map` SSR handler.
 pub(crate) fn scenario_and_description(parsed_chk: &ParsedChk) -> (String, String) {
     let Ok(sprp) = &parsed_chk.sprp else {
         return (
