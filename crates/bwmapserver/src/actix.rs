@@ -1038,6 +1038,7 @@ pub(crate) async fn start() -> Result<()> {
         .route("/api/chk/mbrf/{map_id}", get(api::chk::get_chk_mbrf_json))
         .route("/api/chk/eups/{map_id}", get(api::chk::get_eups))
         .route("/api/chk/{chk_hash}", get(api::chk::download_chk))
+        .route("/api/chk/{chk_hash}/map_img", get(api::chk::get_map_img))
         .route(
             "/api/similar_maps/{map_id}",
             get(api::similar_maps::handler),
