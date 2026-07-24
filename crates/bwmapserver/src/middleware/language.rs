@@ -49,7 +49,9 @@ pub async fn language(mut req: Request, next: Next) -> Response {
 
     let mut res = next.run(req).await;
 
-    if !is_lang_set {
+    // Don't attach a cookie to a shared-cacheable response: a Set-Cookie makes
+    // Cloudflare bypass its cache (see `response_is_publicly_cacheable`).
+    if !is_lang_set && !crate::middleware::response_is_publicly_cacheable(&res) {
         let cookie = Cookie::build(("lang", lang))
             .path("/")
             .same_site(SameSite::Lax)
@@ -133,6 +135,38 @@ mod tests {
         let res = run(&[]).await;
         assert!(set_cookies(&res).iter().any(|c| c.starts_with("lang=eng")));
         assert_eq!(body(res).await, "English");
+    }
+
+    #[tokio::test]
+    async fn skips_lang_cookie_on_cacheable_response() {
+        // A response that opts into shared caching (immutable Cache-Control) must
+        // not carry a Set-Cookie, or Cloudflare bypasses its cache.
+        let app = Router::new()
+            .route(
+                "/",
+                get(|| async {
+                    (
+                        [(header::CACHE_CONTROL, "public, max-age=31536000, immutable")],
+                        "img",
+                    )
+                }),
+            )
+            .layer(axum::middleware::from_fn(language));
+        let res = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/")
+                    .header("accept-language", "en-US,en;q=0.9")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert!(
+            set_cookies(&res).is_empty(),
+            "no lang Set-Cookie on a cacheable response, got {:?}",
+            set_cookies(&res)
+        );
     }
 
     #[tokio::test]

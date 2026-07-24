@@ -40,7 +40,7 @@ use tracing::{error, info};
 use crate::pumpers::{start_backblaze_pumper, start_gsfs_pumper};
 use crate::ratelimit::UsernameLoginLimiter;
 use crate::util::{finalize_hash_of_hasher, is_dev_mode};
-use crate::webutil::{MaybeUser, Pool};
+use crate::webutil::{minimap_cache_control, MaybeUser, Pool};
 use crate::{api, db, hacks, middleware as mw, static_pages, uiv2};
 
 // Shared, cheaply-cloneable handles injected into handlers as `Extension`s.
@@ -150,7 +150,12 @@ pub async fn get_map(
                 )
                 .inc();
                 return Ok(IntoResponse::into_response((
-                    [(header::CONTENT_TYPE, "application/octet-stream")],
+                    [
+                        (header::CONTENT_TYPE, "application/octet-stream"),
+                        // Each download bumps a counter, so it must reach the origin
+                        // every time — never let a cache serve this.
+                        (header::CACHE_CONTROL, "no-store"),
+                    ],
                     Body::from_stream(async_stream::stream! {
                         use sha2::Digest;
                         let mut hasher = sha2::Sha256::new();
@@ -214,7 +219,11 @@ pub async fn get_map(
                 let mut temp_file = tokio::fs::File::create_new(&temp_filename).await;
 
                 return Ok(IntoResponse::into_response((
-                    [(header::CONTENT_TYPE, "application/octet-stream")],
+                    [
+                        (header::CONTENT_TYPE, "application/octet-stream"),
+                        // Download counter side-effect: must not be cached.
+                        (header::CACHE_CONTROL, "no-store"),
+                    ],
                     Body::from_stream(async_stream::stream! {
                         use sha2::Digest;
                         let mut hasher = sha2::Sha256::new();
@@ -381,7 +390,12 @@ pub async fn recent_activity(Extension(pool): Extension<Pool>) -> Result<Respons
 }
 
 enum ChkAccess {
-    Allowed,
+    /// Access granted. `restricted` is true when any map referencing this chk is
+    /// NSFW or blackholed — i.e. the response was only served because the caller
+    /// is authorized. Callers use it to keep such content out of shared caches.
+    Allowed {
+        restricted: bool,
+    },
     NotFound,
     Unauthorized,
 }
@@ -424,7 +438,9 @@ async fn check_chk_access(
         return Ok(ChkAccess::Unauthorized);
     }
 
-    Ok(ChkAccess::Allowed)
+    Ok(ChkAccess::Allowed {
+        restricted: any_nsfw || any_blackholed,
+    })
 }
 
 pub async fn get_minimap(
@@ -434,7 +450,7 @@ pub async fn get_minimap(
 ) -> Result<Response, MyError> {
     let user_id = user.id();
 
-    match check_chk_access(&pool, &chk_id, user_id).await? {
+    let restricted = match check_chk_access(&pool, &chk_id, user_id).await? {
         ChkAccess::NotFound => {
             return Ok(
                 (StatusCode::NOT_FOUND, [(header::CACHE_CONTROL, "no-cache")]).into_response(),
@@ -447,15 +463,15 @@ pub async fn get_minimap(
             )
                 .into_response());
         }
-        ChkAccess::Allowed => {}
-    }
+        ChkAccess::Allowed { restricted } => restricted,
+    };
 
     let minimap = db::get_minimap(chk_id, pool.clone()).await?.2;
 
     Ok((
         [
             (header::CONTENT_TYPE, "image/png"),
-            (header::CACHE_CONTROL, "public, max-age=60, immutable"),
+            (header::CACHE_CONTROL, minimap_cache_control(restricted)),
         ],
         minimap,
     )
@@ -515,7 +531,10 @@ pub async fn get_search_result_popup(
     Ok(IntoResponse::into_response((
         [
             (header::CONTENT_TYPE, "application/json"),
-            (header::CACHE_CONTROL, "public, max-age=60, immutable"),
+            (
+                header::CACHE_CONTROL,
+                minimap_cache_control(nsfw || blackholed),
+            ),
         ],
         body,
     )))
@@ -528,7 +547,7 @@ pub async fn get_minimap_resized(
 ) -> Result<Response, MyError> {
     let user_id = user.id();
 
-    match check_chk_access(&pool, &chk_id, user_id).await? {
+    let restricted = match check_chk_access(&pool, &chk_id, user_id).await? {
         ChkAccess::NotFound => {
             return Ok(
                 (StatusCode::NOT_FOUND, [(header::CACHE_CONTROL, "no-cache")]).into_response(),
@@ -541,8 +560,8 @@ pub async fn get_minimap_resized(
             )
                 .into_response());
         }
-        ChkAccess::Allowed => {}
-    }
+        ChkAccess::Allowed { restricted } => restricted,
+    };
 
     use image::ImageDecoder;
 
@@ -585,7 +604,7 @@ pub async fn get_minimap_resized(
     Ok(IntoResponse::into_response((
         [
             (header::CONTENT_TYPE, "image/png"),
-            (header::CACHE_CONTROL, "public, max-age=60, immutable"),
+            (header::CACHE_CONTROL, minimap_cache_control(restricted)),
         ],
         png,
     )))
@@ -1100,7 +1119,6 @@ pub(crate) async fn start() -> Result<()> {
             get(api::uiv2::search::search_query),
         )
         .route("/api/uiv2/search", get(api::uiv2::search::search))
-        .route("/api/uiv2/img/{map_id}", get(api::uiv2::get_map_image))
         .route("/api/uiv2/random/{query}", get(api::random::handler))
         .route("/api/uiv2/random", get(api::random::handler_noquery))
         .route("/api/uiv2/upload-map", post(api::uiv2::upload::upload_map))
@@ -1124,7 +1142,6 @@ pub(crate) async fn start() -> Result<()> {
         .route("/replay", get(static_pages::redirect_replay))
         // static assets
         .nest_service("/assets", ServeDir::new("./dist/assets"))
-        .nest_service("/uiv2/assets", ServeDir::new("./dist/assets"))
         // Upload can be large; lift axum's 2 MB default body cap.
         .layer(DefaultBodyLimit::disable());
 
@@ -1159,9 +1176,13 @@ pub(crate) async fn start() -> Result<()> {
                 let pool = db_pool.clone();
                 move |req, next| mw::postgres_logging(pool.clone(), req, next)
             }))
-            .layer(axum::middleware::from_fn(mw::cache_html))
+            .layer(axum::middleware::from_fn(mw::immutable_assets))
             .layer(axum::middleware::from_fn(mw::metrics))
-            .layer(CompressionLayer::new()),
+            .layer(CompressionLayer::new())
+            // Innermost so it runs first on the response: it hashes the handler's
+            // uncompressed HTML for the ETag and can short-circuit to 304 before
+            // compression does any work.
+            .layer(axum::middleware::from_fn(mw::etag)),
     );
 
     // NormalizePath must wrap the router (before routing) so trailing slashes

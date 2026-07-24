@@ -27,7 +27,7 @@ examine_globs = [
     "crates/bwmapserver/src/util.rs",              # parse_map_id
     "crates/bwmapserver/src/ratelimit.rs",         # real-IP key extraction, Retry-After
     "crates/bwmapserver/src/search2.rs",           # SearchParams parsing / sort mapping
-    "crates/bwmapserver/src/middleware/cachehtml.rs",         # Cache-Control on assets
+    "crates/bwmapserver/src/middleware/immutableassets.rs",   # immutable Cache-Control on hashed assets
     "crates/bwmapserver/src/middleware/language.rs",          # Accept-Language negotiation
     "crates/bwmapserver/src/middleware/usersession.rs",       # session validation / logout
     "crates/bwmapserver/src/middleware/traceid.rs",           # trace-id assignment
@@ -90,18 +90,6 @@ exclude_re = [
     # Audited 298 real maps: none exists (normal maps cap owners at 11; EUP maps jump
     # straight to 84/114/255…). No obtainable fixture can distinguish it.
     'chk\.rs:228:33: replace > with >=',
-    # uiv2/mod.rs get_map_image blackhole gate: with GSFS disabled in the harness the
-    # endpoint 404s every image anyway, so `&&`→`||` (which only changes WHICH 404
-    # path is taken) is unobservable here. The same blackhole-gate logic IS covered on
-    # the minimap route (which has a local fallback) by `image_endpoints_gate_access`.
-    'uiv2/mod\.rs:359:\d+: replace && with \|\|',
-    # uiv2/mod.rs get_map_image blackhole gate, the `!=` comparisons (cols 30 and 62):
-    # `user_id != Some(uploaded_by)`→`==` and `user_id != Some(4)`→`==`. Same story as
-    # the `&&` above — with GSFS disabled the endpoint 404s every image regardless of
-    # the gate's decision, so flipping a comparison only changes WHICH 404 path runs.
-    'uiv2/mod\.rs:359:30: replace != with ==',
-    'uiv2/mod\.rs:359:62: replace != with ==',
-
     # traceid.rs trace_id: `if status.is_success() || status.is_redirection()` only
     # SELECTS the log severity (info! vs warn!/error!) for the request-completion line;
     # every arm returns the same response unchanged. Flipping `||`→`&&` (2xx/3xx would
