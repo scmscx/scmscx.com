@@ -14,7 +14,6 @@ use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use bwcommon::MyError;
-use common::gsfs::gsfs_get_map_image;
 use common::gsfs::gsfs_get_minimap;
 use common::gsfs::gsfs_put_minimap;
 use serde::{Deserialize, Serialize};
@@ -24,7 +23,7 @@ use tracing::info;
 use tracing::instrument;
 
 use crate::db;
-use crate::webutil::{MaybeUser, Pool};
+use crate::webutil::{minimap_cache_control, MaybeUser, Pool};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct MapRow {
@@ -257,6 +256,10 @@ pub async fn get_minimap(
         return Ok(StatusCode::NOT_FOUND.into_response());
     }
 
+    // Access-restricted content is served `private` so a shared cache can't keep
+    // serving it past the gate; computed once for both the GSFS and DB paths.
+    let restricted = nsfw || blackholed;
+
     if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
         match tokio::time::timeout(
             std::time::Duration::from_secs(1),
@@ -266,7 +269,10 @@ pub async fn get_minimap(
         {
             Ok(Ok(stream)) => {
                 return Ok((
-                    [(header::CONTENT_TYPE, "application/octet-stream")],
+                    [
+                        (header::CONTENT_TYPE, "application/octet-stream"),
+                        (header::CACHE_CONTROL, minimap_cache_control(restricted)),
+                    ],
                     Body::from_stream(stream),
                 )
                     .into_response());
@@ -301,76 +307,14 @@ pub async fn get_minimap(
         });
     }
 
-    Ok(([(header::CONTENT_TYPE, "image/png")], minimap).into_response())
-}
-
-pub async fn get_map_image(
-    Extension(pool): Extension<Pool>,
-    Extension(reqwest_client): Extension<reqwest::Client>,
-    user: MaybeUser,
-    Path((map_id,)): Path<(String,)>,
-) -> Result<Response, MyError> {
-    let map_id = crate::util::parse_map_id(&map_id)?;
-
-    let (chkblob_hash, uploaded_by, nsfw, blackholed) = {
-        let con = pool.get().await?;
-        let row = con
-            .query_one(
-                "select
-                chkblob,
-                uploaded_by,
-                nsfw,
-                blackholed
-            from
-                map
-            where
-                map.id = $1",
-                &[&map_id],
-            )
-            .await?;
-
-        (
-            row.try_get::<_, String>("chkblob")?,
-            row.try_get("uploaded_by")?,
-            row.try_get("nsfw")?,
-            row.try_get("blackholed")?,
-        )
-    };
-
-    let user_id = user.id();
-
-    if nsfw && user_id.is_none() {
-        return Ok(StatusCode::FORBIDDEN.into_response());
-    }
-
-    if blackholed && user_id != Some(uploaded_by) && user_id != Some(4) {
-        return Ok(StatusCode::NOT_FOUND.into_response());
-    }
-
-    if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
-        match tokio::time::timeout(
-            std::time::Duration::from_secs(1),
-            gsfs_get_map_image(&reqwest_client, &endpoint, chkblob_hash.as_str()),
-        )
-        .await
-        {
-            Ok(Ok(stream)) => {
-                return Ok((
-                    [(header::CONTENT_TYPE, "image/webp")],
-                    Body::from_stream(stream),
-                )
-                    .into_response());
-            }
-            Ok(Err(error)) => {
-                error!("Failed to get mapimg from gsfs: {}", error);
-            }
-            Err(e) => {
-                error!("Timed out trying to get mapimg from gsfs: {}", e);
-            }
-        }
-    }
-
-    Ok(StatusCode::NOT_FOUND.into_response())
+    Ok((
+        [
+            (header::CONTENT_TYPE, "image/png"),
+            (header::CACHE_CONTROL, minimap_cache_control(restricted)),
+        ],
+        minimap,
+    )
+        .into_response())
 }
 
 pub async fn is_session_valid(user: MaybeUser) -> Result<Response, MyError> {

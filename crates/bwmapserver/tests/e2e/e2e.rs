@@ -524,6 +524,66 @@ async fn ssr_pages_render_html_shells() {
     }
 }
 
+/// The SSR pages carry a weak `ETag` and revalidate cheaply: a conditional request
+/// with the matching `If-None-Match` gets a bodyless `304 Not Modified`, while the
+/// page stays dynamic (`Cache-Control: no-cache`). Driven end-to-end so the real
+/// middleware order (ETag inner to compression) is exercised.
+#[tokio::test]
+async fn ssr_html_supports_etag_revalidation() {
+    let h = Harness::start().await;
+    let c = harness::client();
+
+    let resp = c.get(h.url("/")).send().await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get(reqwest::header::CACHE_CONTROL)
+            .and_then(|v| v.to_str().ok()),
+        Some("no-cache"),
+        "SSR pages revalidate every time",
+    );
+    let etag = resp
+        .headers()
+        .get(reqwest::header::ETAG)
+        .and_then(|v| v.to_str().ok())
+        .expect("SSR page carries an ETag")
+        .to_owned();
+    assert!(
+        etag.starts_with("W/\""),
+        "expected a weak etag, got {etag:?}"
+    );
+
+    // Revalidate with the tag we were handed → 304 with no body re-sent.
+    let resp = c
+        .get(h.url("/"))
+        .header(reqwest::header::IF_NONE_MATCH, &etag)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_MODIFIED);
+    assert_eq!(
+        resp.headers()
+            .get(reqwest::header::ETAG)
+            .and_then(|v| v.to_str().ok()),
+        Some(etag.as_str()),
+        "the 304 echoes the ETag",
+    );
+    assert!(
+        resp.bytes().await.unwrap().is_empty(),
+        "a 304 must carry no body"
+    );
+
+    // A stale validator still gets the full document.
+    let resp = c
+        .get(h.url("/"))
+        .header(reqwest::header::IF_NONE_MATCH, "W/\"stale\"")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert!(!resp.bytes().await.unwrap().is_empty());
+}
+
 /// `/search/{query}` renders the live result count into the page server-side (not
 /// in the client bundle), and the query-less `/search` renders the generic
 /// heading — both assertable over plain HTTP.

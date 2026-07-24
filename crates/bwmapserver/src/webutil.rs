@@ -78,6 +78,21 @@ pub fn ip_only(s: &str) -> String {
     }
 }
 
+/// `Cache-Control` for a minimap: addressed by an immutable content id (chk/map)
+/// but whose *availability* is mutable — a map can be flagged NSFW or blackholed at
+/// any time. The short max-age lets such a flag change take effect at the edge
+/// quickly, and access-restricted content is `private` so it never lands in a
+/// shared (CDN) cache that could keep serving it past the gate. (Full-resolution
+/// map images are ungated and cached long/immutable instead — see
+/// `api::chk::get_map_img`.)
+pub fn minimap_cache_control(restricted: bool) -> &'static str {
+    if restricted {
+        "private, max-age=60"
+    } else {
+        "public, max-age=60, immutable"
+    }
+}
+
 /// Extractor for the optional logged-in user. The `UserSessionTransformer`
 /// middleware inserts a `UserSession` into the request extensions when the
 /// request carries a valid session; this yields `None` otherwise.

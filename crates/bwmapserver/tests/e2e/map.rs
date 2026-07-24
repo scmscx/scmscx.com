@@ -361,16 +361,12 @@ async fn map_page_ssr_renders_and_routes() {
     );
 }
 
-/// The image endpoints' access control. `/api/uiv2/img` is GSFS-only (no local
-/// fallback), so with GSFS disabled a viewable map is a 404 — which means an SFW map
-/// served anonymously must be a 404, *not* the 403 an over-eager NSFW gate
-/// (`nsfw && anon` flipped to `||`) would produce. The minimap endpoint has a local
+/// The image endpoints' access control. The chk-hash full-res route
+/// (`/api/chk/{hash}/map_img`) is deliberately ungated, so it takes no part in the
+/// access-control assertions; we only pin that its GSFS-miss 404 is `no-cache` (a
+/// transient miss must not be cached at the edge). The minimap endpoint has a local
 /// fallback, so its blackhole gate is observable on the body: a blackholed map's
 /// minimap is 404 to an anonymous viewer but still served to its owner.
-///
-/// The chk-hash full-res route (`/api/chk/{hash}/map_img`) is deliberately ungated,
-/// so it takes no part in the access-control assertions; we only pin that its
-/// GSFS-miss 404 is `no-cache` (a transient miss must not be cached at the edge).
 #[tokio::test]
 async fn image_endpoints_gate_access() {
     let h = Harness::start().await;
@@ -381,17 +377,6 @@ async fn image_endpoints_gate_access() {
     let chkhash = h
         .db_text("select chkblob from map where id = $1", internal_id)
         .await;
-
-    // SFW map, anonymous: the uiv2 image is a 404 (no GSFS), never a 403.
-    assert_eq!(
-        c.get(h.url(&format!("/api/uiv2/img/{id}")))
-            .send()
-            .await
-            .unwrap()
-            .status(),
-        StatusCode::NOT_FOUND,
-        "an SFW map's image is 404 (not 403) for an anonymous viewer"
-    );
 
     // The chk-hash full-res route is ungated; with GSFS off it 404s. Pin that this
     // transient miss is not cached at the edge — otherwise, once the image is pumped
@@ -1498,7 +1483,9 @@ async fn chk_eups_lists_extended_unit_placements() {
 /// This also pins two deliberate cross-endpoint inconsistencies: an NSFW map
 /// blocks anonymous callers with **403** on the uiv2 route but **401** on the core
 /// route, and an unknown id is **404** on the chk-hash (access-checked) route but
-/// **500** on the map-id (query_one) route.
+/// **500** on the map-id (query_one) route. Finally it pins the cache policy: an
+/// SFW minimap is `public` (CDN-cacheable), while an NSFW one served to its owner
+/// is `private` so it can't leak through a shared cache.
 #[tokio::test]
 async fn minimap_endpoints_serve_png_and_gate_access() {
     let h = Harness::start().await;
@@ -1516,6 +1503,12 @@ async fn minimap_endpoints_serve_png_and_gate_access() {
             .and_then(|v| v.to_str().ok())
             == Some("image/png")
     };
+    let cache_control = |resp: &reqwest::Response| {
+        resp.headers()
+            .get(reqwest::header::CACHE_CONTROL)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned)
+    };
 
     // uiv2 minimap (keyed by map id): 200 PNG for an sfw map, anonymously.
     let resp = c
@@ -1526,7 +1519,8 @@ async fn minimap_endpoints_serve_png_and_gate_access() {
     assert_eq!(resp.status(), StatusCode::OK, "uiv2 minimap is 200");
     assert!(is_png(&resp), "uiv2 minimap is a PNG");
 
-    // core minimap + resized (keyed by chk hash): 200 PNG.
+    // core minimap + resized (keyed by chk hash): 200 PNG, and — being SFW —
+    // shared-cacheable (`public`) so the CDN can serve them.
     for path in [
         format!("/api/minimap/{chkhash}"),
         format!("/api/minimap_resized/{chkhash}"),
@@ -1534,6 +1528,11 @@ async fn minimap_endpoints_serve_png_and_gate_access() {
         let resp = c.get(h.url(&path)).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK, "GET {path}");
         assert!(is_png(&resp), "{path} is a PNG");
+        assert!(
+            cache_control(&resp).is_some_and(|v| v.contains("public")),
+            "an SFW minimap must be public-cacheable, {path} got {:?}",
+            cache_control(&resp)
+        );
     }
 
     // Unknown id: 404 on the access-checked chk route, 500 on the query_one route.
@@ -1585,6 +1584,49 @@ async fn minimap_endpoints_serve_png_and_gate_access() {
             .status(),
         StatusCode::UNAUTHORIZED,
         "core minimap blocks anonymous NSFW with 401"
+    );
+
+    // The NSFW minimap is still served to its logged-in owner, but must be
+    // `private` — never `public` — so a shared CDN can't cache it and serve it on
+    // to anonymous viewers past the gate.
+    let resp = c
+        .get(h.url(&format!("/api/minimap/{chkhash}")))
+        .header("cookie", owner.cookie())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "owner still gets the NSFW minimap"
+    );
+    let cc = cache_control(&resp);
+    assert!(
+        cc.as_deref().is_some_and(|v| v.contains("private"))
+            && !cc.as_deref().is_some_and(|v| v.contains("public")),
+        "an NSFW minimap served to its owner must be private, not public; got {cc:?}"
+    );
+
+    // Same guarantee on the uiv2 (map-id) route, which serves NSFW to any logged-in
+    // caller: private, never public. This also pins the `nsfw || blackholed`
+    // restricted flag in uiv2::get_minimap — under `&&` an NSFW-only map would flip
+    // to public.
+    let resp = c
+        .get(h.url(&format!("/api/uiv2/minimap/{id}")))
+        .header("cookie", owner.cookie())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "logged-in caller gets the NSFW uiv2 minimap"
+    );
+    let cc = cache_control(&resp);
+    assert!(
+        cc.as_deref().is_some_and(|v| v.contains("private"))
+            && !cc.as_deref().is_some_and(|v| v.contains("public")),
+        "the NSFW uiv2 minimap must be private, not public; got {cc:?}"
     );
 }
 

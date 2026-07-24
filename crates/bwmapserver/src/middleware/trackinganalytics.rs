@@ -63,7 +63,10 @@ pub async fn tracking_analytics(mut req: Request, next: Next) -> Response {
 
     let mut res = next.run(req).await;
 
-    if !was_provided_by_request {
+    // Don't attach a per-user cookie to a shared-cacheable response — it would
+    // both defeat CDN caching (Cloudflare bypasses on Set-Cookie) and leak this
+    // visitor's id into the cached copy served to everyone else.
+    if !was_provided_by_request && !crate::middleware::response_is_publicly_cacheable(&res) {
         let cookie = Cookie::build(("tac", tracking_analytics_id))
             .path("/")
             .same_site(SameSite::Lax)
@@ -132,6 +135,38 @@ mod tests {
             "an already-provided tac must not be re-set"
         );
         assert_eq!(body(res).await, "existing-id-123|true");
+    }
+
+    #[tokio::test]
+    async fn skips_tac_cookie_on_cacheable_response() {
+        // A response that opts into shared caching (immutable Cache-Control) must
+        // not carry a Set-Cookie, or Cloudflare bypasses its cache.
+        let app = Router::new()
+            .route(
+                "/",
+                get(|| async {
+                    (
+                        [(header::CACHE_CONTROL, "public, max-age=31536000, immutable")],
+                        "img",
+                    )
+                }),
+            )
+            .layer(axum::middleware::from_fn(tracking_analytics));
+        let res = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/")
+                    .header("user-agent", "UA/1.0")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert!(
+            set_cookies(&res).is_empty(),
+            "no tac Set-Cookie on a cacheable response, got {:?}",
+            set_cookies(&res)
+        );
     }
 
     #[tokio::test]
