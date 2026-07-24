@@ -1165,6 +1165,11 @@ pub(crate) async fn start() -> Result<()> {
             .layer(Extension(manifest))
             .layer(Extension(backblaze_auth))
             .layer(Extension(username_limiter))
+            // Outermost middleware: runs last on the response, after every inner
+            // layer and the handler have set their headers, and defaults any
+            // response still missing a Cache-Control to `no-store` (edge caching is
+            // opt-in — see `default_no_store`).
+            .layer(axum::middleware::from_fn(mw::default_no_store))
             .layer(axum::middleware::from_fn(mw::trace_id))
             .layer(axum::middleware::from_fn(mw::tracking_analytics))
             .layer(axum::middleware::from_fn(mw::language))

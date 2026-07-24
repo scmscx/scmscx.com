@@ -103,6 +103,58 @@ async fn api_endpoints_return_json() {
     );
 }
 
+/// Edge caching is opt-in: any response that doesn't set its own `Cache-Control`
+/// is defaulted to `no-store` by the outermost middleware, while responses that DID
+/// opt in keep their policy. Pins the "default-deny" contract a Cloudflare
+/// "respect origin" cache rule relies on — end-to-end, so the outermost placement
+/// (it must see the header the innermost `etag` layer sets) is exercised.
+#[tokio::test]
+async fn caching_is_opt_in_via_default_no_store() {
+    let h = Harness::start().await;
+    let c = harness::client();
+
+    let cc = |resp: &reqwest::Response| {
+        resp.headers()
+            .get(reqwest::header::CACHE_CONTROL)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned)
+    };
+
+    // A dynamic JSON endpoint sets no Cache-Control of its own → defaulted no-store.
+    let resp = c
+        .get(h.url("/api/uiv2/featured_maps"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        cc(&resp).as_deref(),
+        Some("no-store"),
+        "an unheadered JSON response defaults to no-store"
+    );
+
+    // A per-session endpoint likewise — it must never be shared-cached.
+    let resp = c
+        .get(h.url("/api/uiv2/is_session_valid"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        cc(&resp).as_deref(),
+        Some("no-store"),
+        "the per-session is_session_valid is no-store"
+    );
+
+    // The opt-in stays intact: SSR HTML keeps its `no-cache` (revalidatable), not
+    // downgraded to no-store.
+    let resp = c.get(h.url("/")).send().await.unwrap();
+    assert_eq!(
+        cc(&resp).as_deref(),
+        Some("no-cache"),
+        "SSR HTML keeps no-cache, is not clobbered to no-store"
+    );
+}
+
 /// Every documented `sort` value is accepted (each maps to an `ORDER BY` clause);
 /// an unrecognized one is a hard error. This runs against an empty DB — the point
 /// is that each branch produces valid SQL, not the ordering itself — so a deleted
