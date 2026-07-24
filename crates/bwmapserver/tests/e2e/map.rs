@@ -361,20 +361,28 @@ async fn map_page_ssr_renders_and_routes() {
     );
 }
 
-/// The image endpoints' access control. `get_map_image` (`/api/uiv2/img`) has no
-/// local fallback with GSFS disabled, so a viewable map is a 404 — which means an
-/// SFW map served anonymously must be a 404, *not* the 403 an over-eager NSFW gate
-/// (`nsfw && anon` flipped to `||`) would produce. The minimap endpoint does have a
-/// local fallback, so its blackhole gate is observable: a blackholed map's minimap
-/// is 404 to an anonymous viewer but still served to its owner.
+/// The image endpoints' access control. `/api/uiv2/img` is GSFS-only (no local
+/// fallback), so with GSFS disabled a viewable map is a 404 — which means an SFW map
+/// served anonymously must be a 404, *not* the 403 an over-eager NSFW gate
+/// (`nsfw && anon` flipped to `||`) would produce. The minimap endpoint has a local
+/// fallback, so its blackhole gate is observable on the body: a blackholed map's
+/// minimap is 404 to an anonymous viewer but still served to its owner.
+///
+/// The chk-hash full-res route (`/api/chk/{hash}/map_img`) is deliberately ungated,
+/// so it takes no part in the access-control assertions; we only pin that its
+/// GSFS-miss 404 is `no-cache` (a transient miss must not be cached at the edge).
 #[tokio::test]
 async fn image_endpoints_gate_access() {
     let h = Harness::start().await;
     let c = client();
     let owner = register(&c, &h, "imgowner").await;
     let id = upload_map(&c, &h, Some(&owner), "e2eimg.scx").await;
+    let internal_id = map_internal_id(&c, &h, &id).await;
+    let chkhash = h
+        .db_text("select chkblob from map where id = $1", internal_id)
+        .await;
 
-    // SFW map, anonymous: the image is a 404 (no GSFS), never a 403.
+    // SFW map, anonymous: the uiv2 image is a 404 (no GSFS), never a 403.
     assert_eq!(
         c.get(h.url(&format!("/api/uiv2/img/{id}")))
             .send()
@@ -383,6 +391,28 @@ async fn image_endpoints_gate_access() {
             .status(),
         StatusCode::NOT_FOUND,
         "an SFW map's image is 404 (not 403) for an anonymous viewer"
+    );
+
+    // The chk-hash full-res route is ungated; with GSFS off it 404s. Pin that this
+    // transient miss is not cached at the edge — otherwise, once the image is pumped
+    // to GSFS, the edge would keep serving the stale 404.
+    let map_img_resp = c
+        .get(h.url(&format!("/api/chk/{chkhash}/map_img")))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        map_img_resp.status(),
+        StatusCode::NOT_FOUND,
+        "map_img 404s when GSFS has no object"
+    );
+    assert_eq!(
+        map_img_resp
+            .headers()
+            .get(reqwest::header::CACHE_CONTROL)
+            .and_then(|v| v.to_str().ok()),
+        Some("no-cache"),
+        "a transient GSFS-miss 404 must not be cached"
     );
 
     // Blackhole it, then check the minimap's owner-vs-anonymous gate.

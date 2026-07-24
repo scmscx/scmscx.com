@@ -19,7 +19,7 @@ const useApi = (f: () => string) => {
   });
 };
 
-const useFetchImage = (f: () => string) => {
+const useFetchImage = (f: () => string | undefined) => {
   return createResource(f, async (url: string) => {
     let ret = undefined;
     try {

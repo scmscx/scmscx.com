@@ -763,7 +763,11 @@ export default function (prop: any) {
   const [replays] = useApi(() => `/api/uiv2/replays/${params.mapId}`);
   const [units] = useApi(() => `/api/uiv2/units/${params.mapId}`);
   const [filenames2] = useApi(() => `/api/uiv2/filenames2/${params.mapId}`);
-  const [mapImage] = useFetchImage(() => `/api/uiv2/img/${params.mapId}`);
+  const [mapImage] = useFetchImage(() =>
+    map()?.meta?.chkhash
+      ? `/api/chk/${map().meta.chkhash}/map_img`
+      : undefined
+  );
 
   return (
     <>

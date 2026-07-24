@@ -1,11 +1,14 @@
 use crate::db;
 use crate::webutil::Pool;
+use axum::body::Body;
 use axum::extract::{Extension, Path};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use bwcommon::MyError;
 use bwmap::ParsedChk;
+use common::gsfs::gsfs_get_map_image;
+use tracing::error;
 
 pub async fn get_chk_strings(
     Path((map_id,)): Path<(String,)>,
@@ -190,4 +193,37 @@ pub async fn download_chk(
         chkblob,
     )
         .into_response())
+}
+
+pub async fn get_map_img(
+    Extension(reqwest_client): Extension<reqwest::Client>,
+    Path((chk_hash,)): Path<(String,)>,
+) -> Result<Response, MyError> {
+    if let Ok(endpoint) = std::env::var("GSFSFE_ENDPOINT") {
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            gsfs_get_map_image(&reqwest_client, &endpoint, chk_hash.as_str()),
+        )
+        .await
+        {
+            Ok(Ok(stream)) => {
+                return Ok((
+                    [
+                        (header::CONTENT_TYPE, "image/webp"),
+                        (header::CACHE_CONTROL, "public, max-age=31536000, immutable"),
+                    ],
+                    Body::from_stream(stream),
+                )
+                    .into_response());
+            }
+            Ok(Err(error)) => {
+                error!("Failed to get mapimg from gsfs: {}", error);
+            }
+            Err(e) => {
+                error!("Timed out trying to get mapimg from gsfs: {}", e);
+            }
+        }
+    }
+
+    Ok((StatusCode::NOT_FOUND, [(header::CACHE_CONTROL, "no-cache")]).into_response())
 }
