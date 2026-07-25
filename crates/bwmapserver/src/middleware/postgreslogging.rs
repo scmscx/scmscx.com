@@ -9,8 +9,8 @@ use super::{usersession::UserSession, TraceID};
 use crate::webutil::{realip, Pool, PoolExt};
 
 /// Captures per-request metadata, then (after the handler runs) writes a row to
-/// `userlogs` on a background task. Mirrors the old actix
-/// `PostgresLoggingTransformer`.
+/// `userlogs` on a background task, so request logging never adds latency to the
+/// response.
 pub async fn postgres_logging(pool: Pool, req: Request, next: Next) -> Response {
     let headers = req.headers();
 

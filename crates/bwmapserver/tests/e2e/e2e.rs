@@ -1,11 +1,10 @@
 //! End-to-end tests.
 //!
 //! Each test drives the **compiled `scmscx-com` binary** over HTTP against a real
-//! Postgres. Being black-box, the suite is framework-agnostic: the exact same
-//! tests validate the actix build on `lwm` and the axum build once the refactor
-//! is rebased in — proving the migration didn't change observable behavior. They
-//! cover the DB-backed paths unit tests can't reach: registration, login, session
-//! validation, and rate limiting.
+//! Postgres. Being black-box, the suite asserts on observable behavior only, so it
+//! stays valid across refactors of the web layer. It covers the DB-backed paths
+//! unit tests can't reach: registration, login, session validation, and rate
+//! limiting.
 //!
 //! The per-test [`Harness`](harness::Harness) — an isolated template-copied
 //! database plus its own app process — and the HTTP helpers live in the `harness`

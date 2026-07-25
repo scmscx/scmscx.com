@@ -10,7 +10,6 @@ bwmap = { path = "../bwmap" }
 bwcommon = { path = "../bwcommon" }
 common = { path = "../common" }
 backblaze = { path = "../backblaze" }
-bwminimaprender = { path = "../bwminimaprender" }
 bwmpq = { path = "../bwmpq" }
 
 cached = { version = "0.56.0", features = ["async", "proc_macro"] }
@@ -18,14 +17,12 @@ cached = { version = "0.56.0", features = ["async", "proc_macro"] }
 #itertools = "*"
 base64 = "0.22.1"
 handlebars = { version = "6.3.2", features = ["dir_source"] }
-lazy_static = "1.5.0"
 #lru = "*"
 # rusqlite = "0.24.2"
 # rocket = { version = "" }
 # rocket_contrib = ""
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.143"
-tokio-util = { version = "0.7.16", features = ["codec"] }
 tokio = { version = "1.47.1", features = ["rt-multi-thread","tracing","full"] }
 #tokio = { version = "*", features = ["rt-multi-thread"] }
 #console-subscriber = "*"
@@ -44,7 +41,6 @@ walkdir = "2.5.0"
 image = { version = "0.25.6", default-features = false, features = ["png"] }
 # png = { version = "*", optional = true }
 # nude = ""
-regex = "1.11.2"
 anyhow = "1.0.99"
 # axum stack
 axum = { version = "0.8.9", features = ["macros"] }
@@ -60,12 +56,10 @@ tower-http = { version = "0.7.0", features = [
 ] }
 tower_governor = { version = "0.8.0", default-features = false, features = ["axum"] }
 http = "1"
-http-body-util = "0.1"
 #env_logger = "*"
 #mime = "*"
 # time = "0.2.27"
 reqwest = { version = "0.12.24", default-features = false, features = ["json", "stream", "http2", "rustls-tls"] }
-futures-core = "0.3.31"
 futures-util = "0.3.31"
 bytes = "1.10.1"
 async-stream = "0.3.6"
@@ -86,7 +80,6 @@ prometheus-client = "0.24"
 # hex = "*"
 zstd = "0.13.3"
 
-log = "0.4.27"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["registry", "env-filter"] }
 tracing-log = "0.2.0"

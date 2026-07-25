@@ -334,21 +334,6 @@ pub struct Map {
     uploaded_time: i64,
 }
 
-// pub async fn search(
-//     query: &str,
-//     allow_nsfw: bool,
-//     query_params: &SearchParams,
-//     pool: Data<Pool<PostgresConnectionManager<NoTls>>>,
-// ) -> Result<Vec<Map>, bwcommon::MyError> {
-//     let maps = search_cache(query, allow_nsfw, query_params, (**pool).clone()).await?;
-
-//     if query.len() == 0 {
-//         Ok(maps[0..min(maps.len(), 5000)].to_vec())
-//     } else {
-//         Ok(maps[0..min(maps.len(), 10000)].to_vec())
-//     }
-// }
-
 pub async fn search2(
     query: &str,
     allow_nsfw: bool,

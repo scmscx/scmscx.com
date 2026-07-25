@@ -6,9 +6,9 @@ use bwmap::ParsedChk;
 use tracing::error;
 use tracing::instrument;
 
-use crate::actix::{Handlebars, Manifest};
 use crate::search2;
 use crate::search2::SearchParams;
+use crate::server::{Handlebars, Manifest};
 use crate::util::is_dev_mode;
 use crate::util::scenario_and_description;
 use crate::webutil::{MaybeUser, Pool, PoolExt};
