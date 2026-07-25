@@ -423,5 +423,3 @@ pub async fn map_info(
     }))
     .into_response())
 }
-
-// #[post("/api/uiv2/map_info/{map_id}")]

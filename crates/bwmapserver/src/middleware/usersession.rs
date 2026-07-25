@@ -49,9 +49,9 @@ pub async fn user_session(pool: Pool, mut req: Request, next: Next) -> Response 
         return next.run(req).await;
     };
 
-    // A username cookie without a matching token is a stale/invalid session and
-    // is logged out (matching the pre-axum actix behavior — this branch is a pure
-    // refactor and must not change it).
+    // A username cookie without a matching token is a stale/invalid session, so
+    // clear both cookies rather than silently treating the request as anonymous:
+    // the client would otherwise keep sending a cookie that can never authenticate.
     let Some(cookie_token) = jar.get("token") else {
         return log_out_user();
     };
@@ -168,8 +168,8 @@ mod tests {
     #[tokio::test]
     async fn username_without_token_logs_out_and_clears_cookies() {
         // A `username` cookie without a `token` is a stale session → 301 logout
-        // that clears both cookies. This is DB-free (it returns before the pool
-        // is touched) and matches the actix behavior — parity is the whole point.
+        // that clears both cookies. Asserted against a dead pool to pin that the
+        // branch returns before touching the database.
         let pool = dead_pool();
         let app =
             Router::new()

@@ -83,11 +83,10 @@ impl PoolExt for Pool {
 }
 
 /// Best-effort real client IP. Behind Cloudflare the true client is carried in
-/// `CF-Connecting-IP`, so it wins; otherwise fall back (mirroring actix's
-/// `realip_remote_addr()`) to the left-most `X-Forwarded-For` entry, then the
-/// `Forwarded` header's `for=`, then the raw peer address. Requests over the
-/// WireGuard backdoor (CI/e2e) carry no `CF-Connecting-IP` and resolve via the
-/// fallbacks.
+/// `CF-Connecting-IP`, so it wins; otherwise fall back to the left-most
+/// `X-Forwarded-For` entry, then the `Forwarded` header's `for=`, then the raw
+/// peer address. Requests over the WireGuard backdoor (CI/e2e) carry no
+/// `CF-Connecting-IP` and resolve via the fallbacks.
 ///
 /// Trusting `CF-Connecting-IP` is sound only because the origin is reachable
 /// solely via the Cloudflare Tunnel and the WireGuard subnet (see the Cloudflare
@@ -158,9 +157,11 @@ pub fn minimap_cache_control(restricted: bool) -> &'static str {
     }
 }
 
-/// Extractor for the optional logged-in user. The `UserSessionTransformer`
-/// middleware inserts a `UserSession` into the request extensions when the
-/// request carries a valid session; this yields `None` otherwise.
+/// Extractor for the optional logged-in user. The [`user_session`] middleware
+/// inserts a `UserSession` into the request extensions when the request carries a
+/// valid session; this yields `None` otherwise.
+///
+/// [`user_session`]: crate::middleware::user_session
 pub struct MaybeUser(pub Option<UserSession>);
 
 impl<S: Sync> FromRequestParts<S> for MaybeUser {
@@ -186,7 +187,7 @@ pub fn append_cookie(resp: &mut Response, cookie: Cookie<'static>) {
     );
 }
 
-/// A permanent auth cookie (path=/, SameSite=Lax), matching the old actix cookies.
+/// A permanent auth cookie (path=/, SameSite=Lax).
 pub fn auth_cookie(
     name: &'static str,
     value: String,

@@ -34,7 +34,7 @@ use crate::pumpers::{start_backblaze_pumper, start_gsfs_pumper};
 use crate::ratelimit::UsernameLoginLimiter;
 use crate::util::is_dev_mode;
 use crate::webutil::Pool;
-use crate::{api, hacks, middleware as mw, static_pages, uiv2};
+use crate::{api, middleware as mw, static_pages, uiv2};
 
 // Shared, cheaply-cloneable handles injected into handlers as `Extension`s.
 pub type Manifest = Arc<std::collections::HashMap<String, ManifestChunk>>;
@@ -277,7 +277,7 @@ pub(crate) async fn start() -> Result<()> {
 
     let username_limiter = Arc::new(UsernameLoginLimiter::new());
 
-    // Per-IP rate limits for the auth endpoints (was actix-governor).
+    // Per-IP rate limits for the auth endpoints.
     let login_governor = Arc::new(
         GovernorConfigBuilder::default()
             .key_extractor(SmartIpKeyExtractor)
@@ -457,9 +457,14 @@ pub(crate) async fn start() -> Result<()> {
         .route("/login", get(uiv2::index::login))
         .route("/moderation", get(uiv2::index::moderation))
         .route("/site.webmanifest", get(uiv2::index::webmanifest))
-        // hacks
-        .route("/api/denormalize/{map_id}", get(hacks::denormalize))
-        .route("/api/denormalize_all", get(hacks::denormalize_all))
+        .route(
+            "/api/denormalize/{map_id}",
+            get(api::denormalize::denormalize),
+        )
+        .route(
+            "/api/denormalize_all",
+            get(api::denormalize::denormalize_all),
+        )
         // static pages
         .route("/map", get(static_pages::redirect_map))
         .route("/replay", get(static_pages::redirect_replay))

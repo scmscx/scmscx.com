@@ -1,13 +1,3 @@
-// select map.id as id from (
-//     select distinct map as id
-//     from stringmap2
-//     where $1 <% data and ((scenario_name = true and $3) or (scenario_description = true and $4) or (unit_names = true and $5) or (force_names = true and $6) or (file_names = true and $7))
-// ) as sq
-// join map on map.id = sq.id
-// where ($2 or map.nsfw = false) and outdated = false and unfinished = false and broken = false
-// order by random()
-// limit 1
-
 use crate::search2::{search_cache, SearchParams};
 use crate::webutil::{MaybeUser, Pool};
 use axum::extract::{Extension, Path, Query};

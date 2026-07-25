@@ -18,14 +18,6 @@ use std::env;
 use tokio::io::AsyncWriteExt;
 use tracing::info;
 
-// const url = `/api/uiv2/upload-map?${new URLSearchParams({
-//     filename: file.name,
-//     sha1: sha1hash,
-//     sha256: sha256hash,
-//     lastModified: `${file.lastModified}`,
-//     length: `${file.size}`,
-//   })}`;
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct UploadQuery {
     filename: String,
@@ -78,7 +70,6 @@ pub async fn upload_map(
             file.write_all(&bytes[..]).await?;
         }
 
-        // file.sync_all().await?;
         file.flush().await?;
     }
 
