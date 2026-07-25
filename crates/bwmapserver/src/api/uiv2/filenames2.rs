@@ -3,7 +3,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use bwcommon::MyError;
 
-use crate::webutil::Pool;
+use crate::webutil::{Pool, PoolExt};
 
 pub async fn filenames2(
     Path((map_id,)): Path<(String,)>,
@@ -12,7 +12,7 @@ pub async fn filenames2(
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let pool = pool.clone();
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
 
     #[derive(serde::Deserialize, serde::Serialize)]
     struct Filenames2 {

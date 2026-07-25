@@ -40,7 +40,7 @@ use tracing::{error, info};
 use crate::pumpers::{start_backblaze_pumper, start_gsfs_pumper};
 use crate::ratelimit::UsernameLoginLimiter;
 use crate::util::{finalize_hash_of_hasher, is_dev_mode};
-use crate::webutil::{minimap_cache_control, MaybeUser, Pool};
+use crate::webutil::{minimap_cache_control, MaybeUser, Pool, PoolExt};
 use crate::{api, db, hacks, middleware as mw, static_pages, uiv2};
 
 // Shared, cheaply-cloneable handles injected into handlers as `Extension`s.
@@ -121,7 +121,7 @@ pub async fn get_map(
                         .duration_since(std::time::UNIX_EPOCH)?
                         .as_secs() as i64;
 
-                    let con = pool.get().await?;
+                    let con = pool.acquire().await?;
                     let rows = con.execute(
                             "update map set downloads = downloads + 1, last_downloaded = $1 where mapblob2 = $2", &[&time_since_epoch, &mapblob_hash]).await?;
                     (|| {
@@ -274,7 +274,7 @@ pub async fn get_replay(
     Path((replay_id,)): Path<(i64,)>,
 ) -> Result<Response, MyError> {
     let replay_blob =
-        pool.get().await?
+        pool.acquire().await?
         .query_one("select replayblob.data from replay join replayblob on replayblob.hash = replay.hash where replay.id = $1", &[&replay_id])
         .await?.try_get::<_, Vec<u8>>(0)?;
 
@@ -286,7 +286,7 @@ pub async fn get_replay(
 
 pub async fn recent_activity(Extension(pool): Extension<Pool>) -> Result<Response, MyError> {
     let replay_activity = {
-        let conn = pool.get().await?;
+        let conn = pool.acquire().await?;
         let mut v = Vec::new();
 
         for row in &conn
@@ -318,7 +318,7 @@ pub async fn recent_activity(Extension(pool): Extension<Pool>) -> Result<Respons
 
     let map_activity = {
         let mut v = Vec::new();
-        let conn = pool.get().await?;
+        let conn = pool.acquire().await?;
 
         for row in &conn
             .query(
@@ -488,7 +488,7 @@ pub async fn get_search_result_popup(
     let user_id = user.id();
 
     let (chkhash, scenario, uploaded_by, nsfw, blackholed) = {
-        let con = pool.get().await?;
+        let con = pool.acquire().await?;
         let row = con
             .query_one(
                 "select chkblob, denorm_scenario, uploaded_by, nsfw, blackholed
@@ -627,7 +627,7 @@ pub async fn get_selection_of_random_maps(
 
     let rows = {
         let rows: Result<Vec<_>, MyError> = {
-            let con = pool.get().await?;
+            let con = pool.acquire().await?;
             con.query(
                 "
                select * from (
@@ -678,7 +678,7 @@ pub async fn get_selection_of_random_nsfw_maps(
 
     let rows = {
         let rows: Result<Vec<_>, MyError> = {
-            let con = pool.get().await?;
+            let con = pool.acquire().await?;
             con.query(
                 "
                 select distinct map.id, map.chkblob
@@ -717,7 +717,7 @@ pub async fn get_tags(
 ) -> Result<Response, MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
 
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
     let tags = con
         .query(
             "
@@ -807,17 +807,15 @@ async fn setup_db() -> Result<Pool> {
             .unwrap_or_else(|_| std::env::var("DB_USER").unwrap())
             .as_str(),
     );
+    // Read via the shared helper so the `state="max"` gauge can never drift from
+    // the ceiling the pool was actually built with.
     let manager = bb8_postgres::PostgresConnectionManager::new(
         connection_string.parse()?,
         bb8_postgres::tokio_postgres::NoTls,
     );
 
     let pool = bb8_postgres::bb8::Pool::builder()
-        .max_size(
-            std::env::var("DB_CONNECTIONS")
-                .unwrap_or_else(|_| "16".to_string())
-                .parse::<u32>()?,
-        )
+        .max_size(db_max_connections()?)
         .min_idle(Some(1))
         .max_lifetime(Some(std::time::Duration::from_mins(1)))
         .idle_timeout(Some(std::time::Duration::from_secs(30)))
@@ -826,6 +824,13 @@ async fn setup_db() -> Result<Pool> {
         .await?;
 
     anyhow::Ok(pool)
+}
+
+/// The configured pool ceiling, shared by [`setup_db`] and the telemetry reporter.
+fn db_max_connections() -> Result<u32> {
+    Ok(std::env::var("DB_CONNECTIONS")
+        .unwrap_or_else(|_| "16".to_string())
+        .parse::<u32>()?)
 }
 
 fn register_handlebars() -> Result<Handlebars> {
@@ -919,15 +924,24 @@ pub(crate) async fn start() -> Result<()> {
 
     let db_pool = setup_db().await?;
 
-    // Telemetry: start the background reporter for the DB pool gauges.
+    // Telemetry: start the background reporter for the DB pool gauges and the
+    // cumulative pool statistics bb8 keeps internally.
     {
         let pool = db_pool.clone();
+        let max_size = db_max_connections()?;
         tokio::spawn(async move {
+            // bb8's `Statistics` are cumulative totals; Prometheus counters are
+            // fed deltas, so remember the previous reading and advance by the
+            // difference.
+            let mut prev = [0u64; 8];
             loop {
                 let state = pool.state();
+                let s = &state.statistics;
+
                 for (label, value) in [
                     ("total", state.connections),
                     ("idle", state.idle_connections),
+                    ("max", max_size),
                 ] {
                     register_gauge!(
                         "scmscx",
@@ -937,6 +951,48 @@ pub(crate) async fn start() -> Result<()> {
                     )
                     .set(i64::from(value));
                 }
+
+                let cur = [
+                    s.get_direct,
+                    s.get_waited,
+                    s.get_timed_out,
+                    s.connections_created,
+                    s.connections_closed_broken,
+                    s.connections_closed_invalid,
+                    s.connections_closed_max_lifetime,
+                    s.connections_closed_idle_timeout,
+                ];
+                // Saturating throughout: bb8 never resets these, but a wrap would
+                // otherwise panic in debug and poison the series.
+                for (i, outcome) in ["direct", "waited", "timed_out"].iter().enumerate() {
+                    register_counter!(
+                        "scmscx",
+                        db_pool_gets,
+                        "Connection checkouts from the bb8 pool, by whether they had to wait",
+                        outcome = outcome
+                    )
+                    .inc_by(cur[i].saturating_sub(prev[i]));
+                }
+                register_counter!(
+                    "scmscx",
+                    db_pool_connections_created,
+                    "Postgres connections opened by the bb8 pool"
+                )
+                .inc_by(cur[3].saturating_sub(prev[3]));
+                for (i, reason) in ["broken", "invalid", "max_lifetime", "idle_timeout"]
+                    .iter()
+                    .enumerate()
+                {
+                    register_counter!(
+                        "scmscx",
+                        db_pool_connections_closed,
+                        "Postgres connections retired by the bb8 pool, by reason",
+                        reason = reason
+                    )
+                    .inc_by(cur[4 + i].saturating_sub(prev[4 + i]));
+                }
+
+                prev = cur;
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             }
         });
@@ -1165,7 +1221,11 @@ pub(crate) async fn start() -> Result<()> {
             .layer(Extension(manifest))
             .layer(Extension(backblaze_auth))
             .layer(Extension(username_limiter))
-            // Outermost middleware: runs last on the response, after every inner
+            // Outermost timing layer, so it spans every middleware below it —
+            // including `user_session` and `postgres_logging`, which hit the
+            // database and are invisible to the `metrics` histogram further down.
+            .layer(axum::middleware::from_fn(mw::end_to_end_duration))
+            // Runs last on the response, after every inner
             // layer and the handler have set their headers, and defaults any
             // response still missing a Cache-Control to `no-store` (edge caching is
             // opt-in — see `default_no_store`).

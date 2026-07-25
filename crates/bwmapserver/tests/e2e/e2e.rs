@@ -1178,3 +1178,70 @@ async fn mutation_endpoints_validate_input() {
         "The provided usernames must match",
     );
 }
+
+/// The telemetry added for the connection-pool blind spot must actually reach the
+/// exposition endpoint — registration is lazy (a metric that is never touched is
+/// never exported), so only a live request proves these series exist.
+///
+/// Covers the two gaps that made the July latency regression hard to diagnose:
+/// time spent *waiting* for a pool connection was unattributable, and the request
+/// histogram excluded the outer middleware (`user_session`, `postgres_logging`)
+/// because it is registered further down the stack.
+#[tokio::test]
+async fn telemetry_exports_pool_and_end_to_end_latency_series() {
+    let h = Harness::start().await;
+    let c = harness::client();
+
+    // A DB-backed route, so the request goes through `user_session`,
+    // `postgres_logging` and a handler that checks out a pool connection.
+    let resp = c.get(h.url("/sitemap.txt")).send().await.unwrap();
+    assert!(resp.status().is_success());
+
+    // The pool statistics are published by a 5s background reporter, so give it
+    // one tick to run before scraping.
+    tokio::time::sleep(std::time::Duration::from_secs(6)).await;
+    let m = h.scrape_metrics().await;
+
+    let expected = [
+        // Acquisition wait, the metric that was missing entirely.
+        "scmscx_db_pool_acquire_duration_seconds_bucket",
+        "scmscx_db_pool_acquire_duration_seconds_count",
+        // Full-stack latency, so it can be diffed against the inner histogram.
+        "scmscx_http_request_end_to_end_duration_seconds_bucket",
+        // bb8's own counters: churn, and why connections get retired.
+        "scmscx_db_pool_gets_total",
+        "scmscx_db_pool_connections_created_total",
+        "scmscx_db_pool_connections_closed_total",
+    ];
+    for series in expected {
+        assert!(
+            m.contains(series),
+            "missing `{series}` from the scrape; exported db_pool/http series were:\n{}",
+            m.lines()
+                .filter(|l| !l.starts_with('#')
+                    && (l.contains("db_pool") || l.contains("http_request")))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+    }
+
+    // The pool ceiling is exported alongside the live counts, so a dashboard can
+    // show saturation without hard-coding DB_CONNECTIONS (the harness sets 4).
+    assert!(
+        m.contains(r#"scmscx_db_pool_connections{state="max"} 4"#),
+        "expected the configured pool max to be exported as a gauge",
+    );
+
+    // Both latency histograms must carry the same route label, or they cannot be
+    // subtracted to isolate middleware overhead.
+    for metric in [
+        "scmscx_http_request_duration_seconds_count",
+        "scmscx_http_request_end_to_end_duration_seconds_count",
+    ] {
+        assert!(
+            m.lines()
+                .any(|l| l.starts_with(metric) && l.contains(r#"route="/sitemap.txt""#)),
+            "`{metric}` should be labelled with the matched route",
+        );
+    }
+}

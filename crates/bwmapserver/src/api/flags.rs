@@ -4,7 +4,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use bwcommon::MyError;
 
-use crate::webutil::{MaybeUser, Pool};
+use crate::webutil::{MaybeUser, Pool, PoolExt};
 
 /// Whitelist of flag column names that callers are allowed to read/write.
 /// Returning `&'static str` (the literal, not the caller's borrow) keeps the
@@ -32,7 +32,7 @@ pub async fn get_flag(
         return Ok(StatusCode::NOT_FOUND.into_response());
     };
 
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
     let statement = format!("select {column} from map where map.id = $1");
     let checked: bool = con.query_one(&statement, &[&map_id]).await?.try_get(0)?;
 
@@ -63,7 +63,7 @@ pub async fn set_flag(
         return Ok(StatusCode::NOT_FOUND.into_response());
     };
 
-    let mut con = pool.get().await?;
+    let mut con = pool.acquire().await?;
     let checked = info;
 
     let statement = format!("update map set {column} = $1 where map.id = $2");

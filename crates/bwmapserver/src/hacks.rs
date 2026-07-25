@@ -3,7 +3,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use futures_util::FutureExt;
 
-use crate::webutil::{MaybeUser, Pool};
+use crate::webutil::{MaybeUser, Pool, PoolExt};
 use log::info;
 
 use anyhow::Result;
@@ -265,7 +265,7 @@ pub(crate) async fn denormalize(
 
     let map_id = crate::util::parse_map_id(&map_id)?;
 
-    let mut con = pool.get().await?;
+    let mut con = pool.acquire().await?;
     let mut tx = con.transaction().await?;
 
     bwcommon::denormalize_map_tx(map_id, &mut tx).await?;
@@ -287,7 +287,7 @@ pub(crate) async fn denormalize_all(
         return Ok(StatusCode::NOT_FOUND.into_response());
     }
 
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
 
     let map_ids = con
         .query("Select map.id from map where chkblob is not null", &[])
@@ -302,7 +302,7 @@ pub(crate) async fn denormalize_all(
         128,
         |x, y| info!("Completed: {x}, ret: {y:?}"),
         |(): (), map_id: &i64| async {
-            let mut con = pool.get().await?;
+            let mut con = pool.acquire().await?;
             let mut tx = con.transaction().await?;
             bwcommon::denormalize_map_tx(*map_id, &mut tx).await?;
             tx.commit().await?;
@@ -333,7 +333,7 @@ pub(crate) async fn denormalize_all(
 //         return Ok(actix_web::HttpResponse::NotFound().finish());
 //     }
 
-//     let con = pool.get().await?;
+//     let con = pool.acquire().await?;
 
 //     let chk_hashes = con
 //         .query("Select hash from chkblob", &[])
@@ -464,7 +464,7 @@ pub(crate) async fn denormalize_all(
 //             (Some("Untitled Scenario".to_owned()), None)
 //         };
 
-//         let mut con = pool.get().await?;
+//         let mut con = pool.acquire().await?;
 //         let transaction = con.transaction().await?;
 //         transaction
 //             .execute("delete from chkdenorm where chkblob = $1", &[&chkhash])

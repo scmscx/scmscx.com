@@ -1,5 +1,5 @@
 use crate::api::bulkupload::{insert_parsed_map, parse_map};
-use crate::webutil::{MaybeUser, Pool};
+use crate::webutil::{MaybeUser, Pool, PoolExt};
 use axum::body::Body;
 use axum::extract::{Extension, Query};
 use axum::http::StatusCode;
@@ -96,7 +96,7 @@ pub async fn upload_map(
 
     info!("playlist");
     let playlist_id: i64 = {
-        let con = pool.get().await?;
+        let con = pool.acquire().await?;
 
         if let Some(row) = con
             .query(

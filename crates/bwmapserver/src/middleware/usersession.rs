@@ -5,7 +5,7 @@ use axum::response::Response;
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use tracing::info;
 
-use crate::webutil::Pool;
+use crate::webutil::{Pool, PoolExt};
 
 #[derive(Clone, Debug)]
 pub struct UserSession {
@@ -56,7 +56,7 @@ pub async fn user_session(pool: Pool, mut req: Request, next: Next) -> Response 
         return log_out_user();
     };
 
-    let con = pool.get().await.unwrap();
+    let con = pool.acquire().await.unwrap();
     let row = con
         .query_opt(
             "select id, token, username from account where username = $1",

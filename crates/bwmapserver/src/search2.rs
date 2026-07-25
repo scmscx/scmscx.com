@@ -1,3 +1,4 @@
+use crate::webutil::PoolExt;
 use anyhow::Result;
 use bb8_postgres::{bb8::Pool, tokio_postgres::NoTls, PostgresConnectionManager};
 use cached::proc_macro::cached;
@@ -64,7 +65,7 @@ pub async fn search_cache(
     };
 
     let maps = if query.is_empty() {
-        let con = pool.get().await?;
+        let con = pool.acquire().await?;
 
         let qs = format!("
             select distinct map.id, chkdenorm.scenario_name, uploaded_time, min(filetime.modified_time) as modified_time, uploaded_time, chkdenorm.width, chkdenorm.height, chkdenorm.tileset, chkdenorm.human_players, chkdenorm.computer_players from map
@@ -128,7 +129,7 @@ pub async fn search_cache(
         })
         .collect::<Result<Vec<_>, _>>()?
     } else {
-        let con = pool.get().await?;
+        let con = pool.acquire().await?;
 
         let qs =
                 format!("

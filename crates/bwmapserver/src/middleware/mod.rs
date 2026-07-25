@@ -1,4 +1,5 @@
 mod defaultnostore;
+mod endtoendduration;
 mod etag;
 mod immutableassets;
 mod language;
@@ -31,6 +32,8 @@ pub use traceid::trace_id;
 pub use traceid::TraceID;
 
 pub use trackinganalytics::tracking_analytics;
+
+pub use endtoendduration::end_to_end_duration;
 
 pub use metrics::metrics;
 

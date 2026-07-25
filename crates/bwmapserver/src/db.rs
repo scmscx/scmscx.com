@@ -1,3 +1,4 @@
+use crate::webutil::PoolExt;
 use argon2::Argon2;
 use base64::engine::general_purpose::STANDARD_NO_PAD;
 use base64::Engine as _;
@@ -98,7 +99,7 @@ pub(crate) async fn get_chk(
         bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
     >,
 ) -> Result<Vec<u8>, anyhow::Error> {
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
     let row = con
         .query_one(
             "
@@ -124,7 +125,7 @@ pub(crate) async fn get_minimap(
         bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
     >,
 ) -> Result<(i32, i32, Vec<u8>), anyhow::Error> {
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
     let row = con
         .query_one(
             "
@@ -147,7 +148,7 @@ pub(crate) async fn change_password(
     password: String,
     pool: crate::webutil::Pool,
 ) -> Result<(), anyhow::Error> {
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
     let new = hash_password(&password)?;
     con.execute(
         "UPDATE account set password_algorithm = $1, passwordhash = $2, salt = $3 where id = $4",
@@ -162,7 +163,7 @@ pub(crate) async fn check_password(
     password: String,
     pool: crate::webutil::Pool,
 ) -> Result<bool, anyhow::Error> {
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
     let row = con
         .query_one(
             "select username, password_algorithm, salt, passwordhash from account where id = $1",
@@ -189,7 +190,7 @@ pub(crate) async fn change_username(
     password: String,
     pool: crate::webutil::Pool,
 ) -> Result<(), anyhow::Error> {
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
     // Legacy SHA-256 hashes mix the username into the digest, so changing
     // the username invalidates them. Re-hashing with Argon2id here covers
     // legacy users and opportunistically migrates remaining entries.
@@ -208,7 +209,7 @@ pub(crate) async fn set_tags(
     user_id: i64,
     pool: crate::webutil::Pool,
 ) -> Result<Option<bool>, anyhow::Error> {
-    let mut con = pool.get().await?;
+    let mut con = pool.acquire().await?;
     let tx = con.transaction().await?;
 
     let Some(row) = tx
@@ -251,7 +252,7 @@ pub(crate) async fn add_tags(
     user_id: i64,
     pool: crate::webutil::Pool,
 ) -> Result<Option<bool>, anyhow::Error> {
-    let mut con = pool.get().await?;
+    let mut con = pool.acquire().await?;
     let tx = con.transaction().await?;
 
     let Some(row) = tx
@@ -290,7 +291,7 @@ pub(crate) async fn login(
     password: String,
     pool: crate::webutil::Pool,
 ) -> Result<String, anyhow::Error> {
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
 
     let Some(row) = con
         .query_opt(
@@ -339,7 +340,7 @@ pub(crate) async fn register(
     password: String,
     pool: crate::webutil::Pool,
 ) -> Result<String, anyhow::Error> {
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
 
     let new = hash_password(&password)?;
     let token = uuid::Uuid::new_v4().as_simple().to_string();
@@ -406,7 +407,7 @@ pub(crate) async fn register(
 //         .as_secs() as i64;
 
 //     // db stuff
-//     let mut con = pool.get().await?;
+//     let mut con = pool.acquire().await?;
 
 //     let tx = con.transaction().await?;
 

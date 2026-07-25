@@ -6,7 +6,7 @@ use axum::response::Response;
 use bwcommon::{LoggedError, TrackingAnalytics};
 
 use super::{usersession::UserSession, TraceID};
-use crate::webutil::{realip, Pool};
+use crate::webutil::{realip, Pool, PoolExt};
 
 /// Captures per-request metadata, then (after the handler runs) writes a row to
 /// `userlogs` on a background task. Mirrors the old actix
@@ -69,7 +69,7 @@ pub async fn postgres_logging(pool: Pool, req: Request, next: Next) -> Response 
 
     tokio::spawn(async move {
         let result = async move {
-            let con = pool.get().await?;
+            let con = pool.acquire().await?;
             let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis() as i64;
 
             if let Some(err_string) = error {
