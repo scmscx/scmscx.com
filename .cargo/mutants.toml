@@ -11,6 +11,7 @@ examine_globs = [
     "crates/bwmapserver/src/api/chk.rs",
     "crates/bwmapserver/src/api/similar_maps.rs",
     "crates/bwmapserver/src/api/random.rs",
+    "crates/bwmapserver/src/api/selection.rs",
     "crates/bwmapserver/src/api/uiv2/mod.rs",
     "crates/bwmapserver/src/api/uiv2/map_info.rs",
     "crates/bwmapserver/src/api/uiv2/search.rs",
@@ -24,6 +25,7 @@ examine_globs = [
     "crates/bwmapserver/src/uiv2/index.rs",
     "crates/bwmapserver/src/static_pages.rs",
     # --- Pure-logic modules, caught by unit tests (E2E reaches some too) ---
+    "crates/bwmapserver/src/access.rs",            # admin / blackhole / nsfw visibility rules
     "crates/bwmapserver/src/util.rs",              # parse_map_id
     "crates/bwmapserver/src/ratelimit.rs",         # real-IP key extraction, Retry-After
     "crates/bwmapserver/src/search2.rs",           # SearchParams parsing / sort mapping
@@ -81,17 +83,29 @@ exclude_re = [
     # seconds anyway. Differs only by a per-call leak — behavior-equivalent.
     'replace clock -> &.static DefaultClock with Box::leak',
 
-    # --- Line-anchored equivalents / harness-limited (anchored by line:col because
-    # the mutant text alone doesn't distinguish them from sibling, real mutants;
-    # re-check if these files shift) ---
+    # --- Position-anchored equivalents / harness-limited ---
+    #
+    # These need a position because the mutant text alone doesn't distinguish them
+    # from sibling, REAL mutants on the same construct. Anchor on the COLUMN only
+    # (`:\d+:<col>:`), never the line: a column depends on indentation, so it
+    # survives code being added above or the function moving to another file — a
+    # line number does not. Line-anchoring these is what silently broke them when
+    # handlers were moved out of actix.rs and every one of them reappeared as a
+    # phantom "missed mutant". Prefer a function name (`... in get_eups`) or the
+    # mutant's own text where that is already unambiguous, and fall back to a
+    # column only when it isn't.
     # map_info.rs: the shift here is `1 << 0`, and `1 << 0 == 1 >> 0 == 1` — a true
     # equivalent. (The sibling shifts `1<<1/2/3` ARE real and pinned by the melee
-    # force-properties test, so this must stay line-anchored, not function-wide.)
-    'uiv2/map_info\.rs:165:\d+: replace << with >>',
-    # chk.rs get_eups `owner > 12`→`>= 12` differs only on a unit with owner == 12.
-    # Audited 298 real maps: none exists (normal maps cap owners at 11; EUP maps jump
-    # straight to 84/114/255…). No obtainable fixture can distinguish it.
-    'chk\.rs:228:33: replace > with >=',
+    # force-properties test, so this must stay column-anchored, not function-wide;
+    # the four sit at different columns because the bound names differ in length.)
+    'uiv2/map_info\.rs:\d+:69: replace << with >>',
+    # chk.rs get_eups `x.owner > 12 || x.unit_id > 227`: both `>`→`>=` boundaries
+    # differ only on a unit with owner exactly 12 or type exactly 227. Audited 298
+    # real maps: neither exists (normal maps cap owners at 11; EUP maps jump straight
+    # to 84/114/255…, and no normal fixture places a type-227 unit). These are the
+    # only two `>`→`>=` mutants in the function, so the function name is anchor
+    # enough — the `>`→`==`/`<` and `||` siblings stay live and are caught.
+    'replace > with >= in get_eups',
     # traceid.rs trace_id: `if status.is_success() || status.is_redirection()` only
     # SELECTS the log severity (info! vs warn!/error!) for the request-completion line;
     # every arm returns the same response unchanged. Flipping `||`→`&&` (2xx/3xx would
@@ -105,36 +119,27 @@ exclude_re = [
     # sites (the empty-query and keyword-query branches), one exclusion each.
     'search2\.rs:126:\d+: delete -',
     'search2\.rs:208:\d+: delete -',
-    # chk.rs get_eups `unit_id > 227`→`>= 227` differs only on a placed unit of type
-    # exactly 227 (the last normal id). The unit-id-extended fixture's ids are all
-    # > 227 and no normal fixture places a type-227 unit, so nothing distinguishes it —
-    # the unit-id sibling of the `owner > 12`→`>= 12` boundary excluded above.
-    'chk\.rs:228:51: replace > with >=',
     # map_info.rs eups counter `unit_id > 227 || owner > 27`: the `||`, the `>`→`==`
     # collapses, and the `+=` are pinned by map_info_counts_extended_unit_placements
     # (poker = 39 owner-side, untitled = 7 unit-id-side). Only the `>`→`>=` boundary
     # survives — it differs solely on a placed unit of type exactly 227 or an owner of
     # exactly 27, which no available fixture contains (same boundary logic as the chk
-    # owner==12 / unit_id==227 exclusions above).
-    'uiv2/map_info\.rs:250:29: replace > with >=',
-    'uiv2/map_info\.rs:250:49: replace > with >=',
-    # map_info.rs wav-set match arms for Action::Transmission (line 312) and
-    # MissionBriefingAction::DisplayTransmission (line 334). The wav set is a HashSet;
+    # owner==12 / unit_id==227 exclusion above). Columns 29/49 distinguish these from
+    # the force-property `> 0` checks, whose `>`→`>=` mutants ARE caught.
+    'uiv2/map_info\.rs:\d+:29: replace > with >=',
+    'uiv2/map_info\.rs:\d+:49: replace > with >=',
+    # map_info.rs wav-set match arms for Action::Transmission and
+    # MissionBriefingAction::DisplayTransmission. The arm patterns appear in the
+    # mutant text, so these need no position anchor at all. The wav set is a HashSet;
     # across every fixture the wavs these arms contribute are also referenced by a
     # PlayWav action, so deleting either arm never changes the deduplicated set (the
     # PlayWav arms themselves ARE pinned — the exact 13-wav LotR set in
     # map_info_reports_parsed_chk_structure). Catching these needs a fixture with a wav
     # referenced ONLY by a Transmission, which the suite doesn't have.
-    'uiv2/map_info\.rs:312:\d+: delete match arm',
-    'uiv2/map_info\.rs:334:\d+: delete match arm',
-    # units.rs line 74 is the legacy UNIS-section fallback branch (`else if
-    # parsed_chk.unis`), reached only by maps carrying the old UNIS section without the
-    # modern UNIx one. Every fixture uses UNIx, exercising the identical filter on line
-    # 58 (pinned by units_endpoint_lists_named_units), so the UNIS branch's
-    # `==`/`!=`/`&&` mutants are unobservable without an old-format fixture.
-    'uiv2/units\.rs:74:\d+: replace',
-    # map_info.rs trigger-list counters (`trigger_list_reads`, Deaths conditions at
-    # lines 287-288; `trigger_list_writes`, SetDeaths actions at 305-306) tally EUD
+    'delete match arm bwmap::Action::Transmission\{',
+    'delete match arm bwmap::MissionBriefingAction::DisplayTransmission\{',
+    # map_info.rs trigger-list counters (`trigger_list_reads` on the Deaths condition,
+    # `trigger_list_writes` on the SetDeaths action) tally EUD
     # references that land in the 96-byte window [0x51A280, 0x51A2E0). No fixture has a
     # reference in that exact window, so both counters are 0 everywhere. The
     # range-WIDENING mutants ARE killed — `&&`→`||`, `<`→`>`, and `>=`→`<` on the WRITE
@@ -144,15 +149,16 @@ exclude_re = [
     # `<`→`<=`), the read-side `>=`→`<` (income_wars has no death-read below 0x51A280),
     # and the `+=` increments (never reached, so `-=`/`*=` still yield 0). Killing
     # these needs a trigger-list-manipulation map the suite doesn't have. Anchored by
-    # line:col:replacement so the caught widening siblings on the same lines stay live.
-    'uiv2/map_info\.rs:287:36: replace >= with <',
-    'uiv2/map_info\.rs:287:63: replace < with ==',
-    'uiv2/map_info\.rs:287:63: replace < with <=',
-    'uiv2/map_info\.rs:288:44: replace \+= with',
-    'uiv2/map_info\.rs:305:40: replace >= with <',
-    'uiv2/map_info\.rs:305:67: replace < with ==',
-    'uiv2/map_info\.rs:305:67: replace < with <=',
-    'uiv2/map_info\.rs:306:49: replace \+= with',
+    # column + replacement so the caught widening siblings stay live; the read side
+    # (cols 36/63/44) and the write side (cols 40/67/49) differ only by indentation.
+    'uiv2/map_info\.rs:\d+:36: replace >= with <',
+    'uiv2/map_info\.rs:\d+:63: replace < with ==',
+    'uiv2/map_info\.rs:\d+:63: replace < with <=',
+    'uiv2/map_info\.rs:\d+:44: replace \+= with',
+    'uiv2/map_info\.rs:\d+:40: replace >= with <',
+    'uiv2/map_info\.rs:\d+:67: replace < with ==',
+    'uiv2/map_info\.rs:\d+:67: replace < with <=',
+    'uiv2/map_info\.rs:\d+:49: replace \+= with',
 ]
 
 # Timeouts. Unit tests run in milliseconds; the E2E tests boot a server + clone a

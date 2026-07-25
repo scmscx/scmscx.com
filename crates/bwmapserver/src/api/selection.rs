@@ -1,6 +1,8 @@
 //! Bulk map listings for the minimap-checking tooling:
 //! `/api/get_selection_of_random_maps` and `/api/get_selection_of_random_nsfw_maps`.
-//! Both are restricted to a hard-coded set of user ids.
+//! Both require the moderator role (admins included, since roles are
+//! hierarchical). They used to be gated on two hard-coded lists of account ids
+//! that had drifted out of sync with each other.
 
 use axum::extract::Extension;
 use axum::http::StatusCode;
@@ -9,14 +11,14 @@ use axum::Json;
 use bwcommon::MyError;
 use serde::{Deserialize, Serialize};
 
+use crate::access;
 use crate::webutil::{MaybeUser, Pool, PoolExt};
 
 pub async fn get_selection_of_random_maps(
     Extension(pool): Extension<Pool>,
     user: MaybeUser,
 ) -> Result<Response, MyError> {
-    let user_id = user.id();
-    if !matches!(user_id, Some(4 | 5 | 18 | 24 | 32)) {
+    if !access::can_moderate(user.session()) {
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     }
 
@@ -66,8 +68,7 @@ pub async fn get_selection_of_random_nsfw_maps(
     Extension(pool): Extension<Pool>,
     user: MaybeUser,
 ) -> Result<Response, MyError> {
-    let user_id = user.id();
-    if !matches!(user_id, Some(4 | 18 | 24 | 32)) {
+    if !access::can_moderate(user.session()) {
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     }
 

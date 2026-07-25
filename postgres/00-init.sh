@@ -234,7 +234,9 @@ psql -v ON_ERROR_STOP=1 --username "postgres" -d "bounding.net" <<-'EOSQL'
         isfake bigint DEFAULT '0'::bigint,
         created bigint DEFAULT (date_part('epoch'::text, now()))::bigint NOT NULL,
         default_playlist bigint,
-        password_algorithm text DEFAULT 'sha256-legacy'::text NOT NULL
+        password_algorithm text DEFAULT 'sha256-legacy'::text NOT NULL,
+        role text,
+        CONSTRAINT account_role_check CHECK (role IS NULL OR role IN ('moderator', 'admin'))
     );
 
 
@@ -1626,4 +1628,22 @@ EOSQL
 
 psql -v ON_ERROR_STOP=1 --username "postgres" -d "bounding.net" <<-'EOSQL'
     insert into account (id, username, passwordhash, salt, token, isfake, created, default_playlist) values (10, 'anonymous', null, null, null, 1, extract(epoch from now()), null);
+EOSQL
+
+#
+# The administrator was previously a literal account id compiled into the web
+# server, so granting or revoking it meant a deploy and tests could not cover the
+# privileged paths at all. It is now `account.role`.
+#
+# Only a privilege grant is spelled out. NULL is the ordinary user and is what
+# almost every row holds, so there is no 'user' value to write or to keep in sync
+# with the rows that never had one.
+#
+# Roles are hierarchical rather than orthogonal (an admin can do anything a
+# moderator can), which is why this is one column and not a join table.
+#
+psql -v ON_ERROR_STOP=1 --username "postgres" -d "bounding.net" <<-'EOSQL'
+    -- Carry over the previously hard-coded administrator. A freshly initialised
+    -- dev/e2e database has no account 4, so this is a no-op there.
+    UPDATE public.account SET role = 'admin' WHERE id = 4;
 EOSQL

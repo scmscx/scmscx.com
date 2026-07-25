@@ -5,6 +5,7 @@ use axum::response::Response;
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use tracing::info;
 
+use crate::access::Role;
 use crate::webutil::{Pool, PoolExt};
 
 #[derive(Clone, Debug)]
@@ -12,6 +13,9 @@ pub struct UserSession {
     pub id: i64,
     pub username: String,
     pub token: String,
+    /// Privilege level from `account.role`, read with the session itself.
+    /// [`Role::User`] for an ordinary account, which is almost everyone.
+    pub role: Role,
 }
 
 /// Build a 301 response that logs the user out by clearing the auth cookies.
@@ -59,7 +63,7 @@ pub async fn user_session(pool: Pool, mut req: Request, next: Next) -> Response 
     let con = pool.acquire().await.unwrap();
     let row = con
         .query_opt(
-            "select id, token, username from account where username = $1",
+            "select id, token, username, role from account where username = $1",
             &[&cookie_username.value()],
         )
         .await
@@ -74,6 +78,7 @@ pub async fn user_session(pool: Pool, mut req: Request, next: Next) -> Response 
         row.get::<_, String>(1),
         row.get::<_, String>(2),
     );
+    let role = Role::from_db(row.get::<_, Option<String>>(3).as_deref());
 
     if cookie_token.value() == token.as_str() {
         info!("id: {}, username: {}, token: {}", id, username, token);
@@ -81,6 +86,7 @@ pub async fn user_session(pool: Pool, mut req: Request, next: Next) -> Response 
             id,
             username,
             token,
+            role,
         });
         next.run(req).await
     } else {

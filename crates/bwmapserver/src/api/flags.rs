@@ -4,6 +4,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use bwcommon::MyError;
 
+use crate::access;
 use crate::webutil::{MaybeUser, Pool, PoolExt};
 
 /// Whitelist of flag column names that callers are allowed to read/write.
@@ -22,7 +23,7 @@ fn validate_flag(flag: &str) -> Option<&'static str> {
 }
 
 pub async fn get_flag(
-    _user: MaybeUser,
+    user: MaybeUser,
     Path((map_id, flag)): Path<(String, String)>,
     Extension(pool): Extension<Pool>,
 ) -> Result<Response, MyError> {
@@ -32,11 +33,22 @@ pub async fn get_flag(
         return Ok(StatusCode::NOT_FOUND.into_response());
     };
 
+    // The blackhole gate rides along on the flag read instead of costing a second
+    // checkout via `access::map_is_hidden`: a map page asks for six flags, so the
+    // extra round trip would be paid six times per view. The alias matters —
+    // `blackholed` is itself one of the readable flags, and `select blackholed,
+    // blackholed` would otherwise be ambiguous to `try_get` by name.
     let con = pool.acquire().await?;
-    let statement = format!("select {column} from map where map.id = $1");
-    let checked: bool = con.query_one(&statement, &[&map_id]).await?.try_get(0)?;
+    let statement = format!("select {column} as value, blackholed from map where map.id = $1");
+    let Some(row) = con.query_opt(&statement, &[&map_id]).await? else {
+        return Ok(StatusCode::NOT_FOUND.into_response());
+    };
 
-    Ok(Json(checked).into_response())
+    if access::blackholed_is_hidden_from(row.try_get("blackholed")?, user.session()) {
+        return Ok(StatusCode::NOT_FOUND.into_response());
+    }
+
+    Ok(Json(row.try_get::<_, bool>("value")?).into_response())
 }
 
 pub async fn set_flag(
@@ -53,7 +65,9 @@ pub async fn set_flag(
             .into_response());
     }
 
-    let Some(user_id) = user.id() else {
+    // Anonymous is 401 here rather than the 403 `may_modify_map` would produce
+    // below: "log in" and "you may not touch this map" are different answers.
+    let Some(session) = user.session() else {
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     };
 
@@ -83,7 +97,7 @@ pub async fn set_flag(
         return Ok(StatusCode::NOT_FOUND.into_response());
     };
 
-    if owner != user_id && user_id != 4 {
+    if !access::may_modify_map(owner, Some(session)) {
         return Ok(StatusCode::FORBIDDEN.into_response());
     }
 

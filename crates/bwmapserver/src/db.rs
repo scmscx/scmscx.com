@@ -206,7 +206,7 @@ pub(crate) async fn change_username(
 pub(crate) async fn set_tags(
     map_id: i64,
     map: std::collections::HashMap<String, String>,
-    user_id: i64,
+    user: &crate::middleware::UserSession,
     pool: crate::webutil::Pool,
 ) -> Result<Option<bool>, anyhow::Error> {
     let mut con = pool.acquire().await?;
@@ -220,7 +220,7 @@ pub(crate) async fn set_tags(
     };
     let map_uploader: i64 = row.try_get(0)?;
 
-    if map_uploader != user_id && user_id != 4 {
+    if !crate::access::may_modify_map(map_uploader, Some(user)) {
         return anyhow::Ok(Some(false));
     }
 
@@ -249,7 +249,7 @@ pub(crate) async fn set_tags(
 pub(crate) async fn add_tags(
     map_id: i64,
     map: std::collections::HashMap<String, String>,
-    user_id: i64,
+    user: &crate::middleware::UserSession,
     pool: crate::webutil::Pool,
 ) -> Result<Option<bool>, anyhow::Error> {
     let mut con = pool.acquire().await?;
@@ -263,7 +263,7 @@ pub(crate) async fn add_tags(
     };
     let map_uploader: i64 = row.try_get(0)?;
 
-    if map_uploader != user_id && user_id != 4 {
+    if !crate::access::may_modify_map(map_uploader, Some(user)) {
         return anyhow::Ok(Some(false));
     }
 

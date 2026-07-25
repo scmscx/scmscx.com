@@ -1,92 +1,31 @@
 //! Minimap images keyed by chk hash: `/api/minimap/{chk_id}` and
 //! `/api/minimap_resized/{chk_id}`.
 //!
-//! Both gate on [`check_chk_access`], since a chk is reachable through any map
-//! that references it and inherits the most restrictive flag among them.
+//! Both gate on [`access::check_chk_access`], since a chk is reachable through
+//! any map that references it and inherits the most restrictive flag among them.
 
 use axum::extract::{Extension, Path};
-use axum::http::{header, StatusCode};
+use axum::http::header;
 use axum::response::{IntoResponse, Response};
 use bwcommon::MyError;
 
+use crate::access;
 use crate::db;
-use crate::webutil::{minimap_cache_control, MaybeUser, Pool, PoolExt};
-
-enum ChkAccess {
-    /// Access granted. `restricted` is true when any map referencing this chk is
-    /// NSFW or blackholed — i.e. the response was only served because the caller
-    /// is authorized. Callers use it to keep such content out of shared caches.
-    Allowed {
-        restricted: bool,
-    },
-    NotFound,
-    Unauthorized,
-}
-
-async fn check_chk_access(
-    pool: &Pool,
-    chk_id: &str,
-    user_id: Option<i64>,
-) -> Result<ChkAccess, anyhow::Error> {
-    // A chk inherits the most-restrictive flag of any map that references
-    // it: if even one map is blackholed, treat the whole chk as blackholed;
-    // if any is NSFW, treat the whole chk as NSFW.
-    let row = pool
-        .acquire()
-        .await?
-        .query_one(
-            "select
-                count(*) > 0 as exists_any,
-                coalesce(bool_or(blackholed), false) as any_blackholed,
-                coalesce(bool_or(nsfw), false) as any_nsfw
-             from map
-             where chkblob = $1",
-            &[&chk_id],
-        )
-        .await?;
-
-    let exists_any: bool = row.try_get("exists_any")?;
-    let any_blackholed: bool = row.try_get("any_blackholed")?;
-    let any_nsfw: bool = row.try_get("any_nsfw")?;
-
-    let is_admin = user_id == Some(4);
-
-    if !exists_any {
-        return Ok(ChkAccess::NotFound);
-    }
-    if any_blackholed && !is_admin {
-        return Ok(ChkAccess::NotFound);
-    }
-    if any_nsfw && user_id.is_none() {
-        return Ok(ChkAccess::Unauthorized);
-    }
-
-    Ok(ChkAccess::Allowed {
-        restricted: any_nsfw || any_blackholed,
-    })
-}
+use crate::webutil::{minimap_cache_control, MaybeUser, Pool};
 
 pub async fn get_minimap(
     Extension(pool): Extension<Pool>,
     user: MaybeUser,
     Path((chk_id,)): Path<(String,)>,
 ) -> Result<Response, MyError> {
-    let user_id = user.id();
-
-    let restricted = match check_chk_access(&pool, &chk_id, user_id).await? {
-        ChkAccess::NotFound => {
-            return Ok(
-                (StatusCode::NOT_FOUND, [(header::CACHE_CONTROL, "no-cache")]).into_response(),
-            );
+    let restricted = match access::check_chk_access(&pool, &chk_id, user.session())
+        .await?
+        .restricted_or_refusal()
+    {
+        Ok(restricted) => restricted,
+        Err(status) => {
+            return Ok((status, [(header::CACHE_CONTROL, "no-cache")]).into_response());
         }
-        ChkAccess::Unauthorized => {
-            return Ok((
-                StatusCode::UNAUTHORIZED,
-                [(header::CACHE_CONTROL, "no-cache")],
-            )
-                .into_response());
-        }
-        ChkAccess::Allowed { restricted } => restricted,
     };
 
     let minimap = db::get_minimap(chk_id, pool.clone()).await?.2;
@@ -106,22 +45,14 @@ pub async fn get_minimap_resized(
     user: MaybeUser,
     Path((chk_id,)): Path<(String,)>,
 ) -> Result<Response, MyError> {
-    let user_id = user.id();
-
-    let restricted = match check_chk_access(&pool, &chk_id, user_id).await? {
-        ChkAccess::NotFound => {
-            return Ok(
-                (StatusCode::NOT_FOUND, [(header::CACHE_CONTROL, "no-cache")]).into_response(),
-            );
+    let restricted = match access::check_chk_access(&pool, &chk_id, user.session())
+        .await?
+        .restricted_or_refusal()
+    {
+        Ok(restricted) => restricted,
+        Err(status) => {
+            return Ok((status, [(header::CACHE_CONTROL, "no-cache")]).into_response());
         }
-        ChkAccess::Unauthorized => {
-            return Ok((
-                StatusCode::UNAUTHORIZED,
-                [(header::CACHE_CONTROL, "no-cache")],
-            )
-                .into_response());
-        }
-        ChkAccess::Allowed { restricted } => restricted,
     };
 
     use image::ImageDecoder;

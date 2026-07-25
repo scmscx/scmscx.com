@@ -770,14 +770,17 @@ async fn discovery_endpoints_on_empty_db() {
         );
     }
 
-    // similar_maps uses a plain query, so an unknown id is 200 with an empty list.
-    let resp = c
-        .get(h.url("/api/similar_maps/12345"))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    assert_eq!(json_body(resp).await, serde_json::json!({ "v2": [] }));
+    // An unknown map id is a 404, not an empty 200: the blackhole gate answers 404
+    // for a hidden map, so a missing map must answer the same or the two are
+    // distinguishable and blackholing stops looking like deletion.
+    assert_eq!(
+        c.get(h.url("/api/similar_maps/12345"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NOT_FOUND,
+    );
 
     // random has nothing to choose from → 500 ("no maps found").
     assert_eq!(
@@ -1242,5 +1245,62 @@ async fn telemetry_exports_pool_and_end_to_end_latency_series() {
                 .any(|l| l.starts_with(metric) && l.contains(r#"route="/sitemap.txt""#)),
             "`{metric}` should be labelled with the matched route",
         );
+    }
+}
+
+/// The minimap-checking tooling is gated on the moderator role, and roles are
+/// hierarchical: a moderator gets in, an admin gets in, an ordinary account does
+/// not. These endpoints used to be gated on two hard-coded lists of account ids
+/// which no test could exercise without being one of those accounts.
+#[tokio::test]
+async fn tooling_endpoints_require_the_moderator_role() {
+    let h = Harness::start().await;
+    let c = harness::client();
+
+    let plain = register(&c, &h, "toolplain", "pw").await;
+    let moderator = register(&c, &h, "toolmod", "pw").await;
+    let admin = register(&c, &h, "tooladmin", "pw").await;
+
+    h.db_execute(
+        "update account set role = 'moderator' where username = 'toolmod';
+         update account set role = 'admin' where username = 'tooladmin';",
+    )
+    .await;
+
+    for path in [
+        "/api/get_selection_of_random_maps",
+        "/api/get_selection_of_random_nsfw_maps",
+    ] {
+        // Anonymous and a role-less account are both refused.
+        assert_eq!(
+            c.get(h.url(path)).send().await.unwrap().status(),
+            StatusCode::UNAUTHORIZED,
+            "anonymous on {path}"
+        );
+        assert_eq!(
+            c.get(h.url(path))
+                .header("cookie", auth("toolplain", &plain))
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::UNAUTHORIZED,
+            "a role-less account on {path}"
+        );
+
+        // A moderator is let in, and so is an admin — the hierarchy means the
+        // admin must not be locked out of a moderator-gated route.
+        for (who, token) in [("toolmod", &moderator), ("tooladmin", &admin)] {
+            assert_eq!(
+                c.get(h.url(path))
+                    .header("cookie", auth(who, token))
+                    .send()
+                    .await
+                    .unwrap()
+                    .status(),
+                StatusCode::OK,
+                "{who} on {path}"
+            );
+        }
     }
 }

@@ -6,6 +6,7 @@ use bwmap::ParsedChk;
 use serde::Serialize;
 use serde_json::json;
 
+use crate::access;
 use crate::webutil::{MaybeUser, Pool, PoolExt};
 
 pub async fn map_info(
@@ -21,7 +22,6 @@ pub async fn map_info(
         chk_size,
         mpq_hash,
         mpq_size,
-        uploaded_by,
         uploaded_by_username,
         uploaded_time,
         last_viewed,
@@ -42,7 +42,6 @@ pub async fn map_info(
                     map.mapblob2,
                     map.mapblob_size,
                     uploaded_time,
-                    uploaded_by,
                     account.username,
                     last_viewed,
                     last_downloaded,
@@ -73,7 +72,6 @@ pub async fn map_info(
             length,
             row.try_get::<_, String>("mapblob2")?,
             row.try_get::<_, i64>("mapblob_size")?,
-            row.try_get::<_, i64>("uploaded_by")?,
             row.try_get::<_, String>("username")?,
             row.try_get::<_, i64>("uploaded_time")?,
             row.try_get::<_, Option<i64>>("last_viewed")?,
@@ -85,13 +83,11 @@ pub async fn map_info(
         )
     };
 
-    let user_id = user.id();
-
-    if nsfw && user_id.is_none() {
+    if access::nsfw_requires_login(nsfw, user.session()) {
         return Ok(StatusCode::FORBIDDEN.into_response());
     }
 
-    if blackholed && user_id != Some(uploaded_by) && user_id != Some(4) {
+    if access::blackholed_is_hidden_from(blackholed, user.session()) {
         return Ok(StatusCode::NOT_FOUND.into_response());
     }
 

@@ -428,8 +428,9 @@ async fn image_endpoints_gate_access() {
             .await
             .unwrap()
             .status(),
-        StatusCode::OK,
-        "the owner can still fetch a blackholed map's minimap"
+        StatusCode::NOT_FOUND,
+        "blackholing is a moderation action, so it hides the minimap from the \
+         uploader too — only the admin is exempt"
     );
 }
 
@@ -1408,15 +1409,16 @@ async fn chk_endpoints_serve_the_parsed_map() {
         "download_chk body re-hashes to the requested chk hash"
     );
 
-    // An unknown chk hash is a 500 (query_one, no 404-for-missing mapping).
+    // An unknown chk hash is a 404 — the same answer the access gate gives for a
+    // blackholed chk, so the two cannot be told apart.
     assert_eq!(
         c.get(h.url("/api/chk/deadbeefnope"))
             .send()
             .await
             .unwrap()
             .status(),
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "an unknown chk hash is a 500"
+        StatusCode::NOT_FOUND,
+        "an unknown chk hash is a 404"
     );
 }
 
@@ -1684,12 +1686,14 @@ async fn search_result_popup_returns_scenario_and_minimap() {
     );
 }
 
-/// Blackholing a map hides it from everyone except its owner (and admins): an
-/// anonymous *or* a logged-in non-owner request 404s on the details, the SSR page,
-/// and the popup, while the owner still sees it. Stronger than the NSFW gate,
-/// which only blocks anonymous users.
+/// Blackholing a map hides it from everyone except the admin: anonymous, a
+/// logged-in non-owner, *and the uploader* all 404 on the details, the SSR page
+/// and the popup. It is a moderation action, so the uploader is deliberately not
+/// exempt — that is what makes it stronger than the NSFW gate, which only blocks
+/// anonymous users. (The admin exemption is covered by the unit tests in
+/// `access`; e2e can't easily register the specific admin account id.)
 #[tokio::test]
-async fn blackholed_map_is_hidden_from_non_owners() {
+async fn blackholed_map_is_hidden_from_everyone_but_admin() {
     let h = Harness::start().await;
     let c = client();
     let owner = register(&c, &h, "bhowner").await;
@@ -1719,8 +1723,14 @@ async fn blackholed_map_is_hidden_from_non_owners() {
         StatusCode::OK
     );
 
-    // Anonymous AND a logged-in non-owner now get 404 across every surface.
-    for (label, cookie) in [("anonymous", None), ("non-owner", Some(intruder.cookie()))] {
+    // Anonymous, a logged-in non-owner, and the uploader all get 404 across every
+    // surface. The uploader is in this list on purpose: a moderated map must not
+    // stay visible to the person who uploaded it.
+    for (label, cookie) in [
+        ("anonymous", None),
+        ("non-owner", Some(intruder.cookie())),
+        ("the uploader", Some(owner.cookie())),
+    ] {
         for path in [
             format!("/api/uiv2/map_info/{id}"),
             format!("/map/{id}"),
@@ -1737,18 +1747,6 @@ async fn blackholed_map_is_hidden_from_non_owners() {
             );
         }
     }
-
-    // The owner still sees the details.
-    assert_eq!(
-        c.get(h.url(&format!("/api/uiv2/map_info/{id}")))
-            .header("cookie", owner.cookie())
-            .send()
-            .await
-            .unwrap()
-            .status(),
-        StatusCode::OK,
-        "the owner can still view a blackholed map"
-    );
 }
 
 /// With a matching map present, the random endpoints return that map's web id as a
@@ -1871,4 +1869,154 @@ async fn landing_endpoints_surface_maps_and_replays() {
             .any(|r| r["map_id"].as_str() == Some(id.as_str())),
         "last_uploaded_replays should surface the replay for our map, got {body}"
     );
+}
+
+/// Every surface that can reach a map, probed against a blackholed one.
+///
+/// Blackholing is meant to be indistinguishable from deletion, so this is a list
+/// of *all* the ways a map is addressable rather than a sample: by web id, by chk
+/// hash, and by mapblob hash. It exists because the gate was previously applied
+/// only to endpoints that render a page — the ones that return data (the chk
+/// JSON, the units, and the map download itself) served a blackholed map in full.
+///
+/// Anything added to this list must 404; if a new per-map endpoint is added and
+/// not gated, add it here and it will fail until it is.
+fn every_map_surface(id: &str, chkhash: &str, mapblob: &str) -> Vec<String> {
+    vec![
+        format!("/api/uiv2/map_info/{id}"),
+        format!("/map/{id}"),
+        format!("/api/search_result_popup/{id}"),
+        format!("/api/uiv2/minimap/{id}"),
+        format!("/api/minimap/{chkhash}"),
+        format!("/api/minimap_resized/{chkhash}"),
+        format!("/api/uiv2/units/{id}"),
+        format!("/api/uiv2/timestamps/{id}"),
+        format!("/api/uiv2/replays/{id}"),
+        format!("/api/uiv2/filenames/{id}"),
+        format!("/api/uiv2/filenames2/{id}"),
+        format!("/api/tags/{id}"),
+        format!("/api/similar_maps/{id}"),
+        format!("/api/flags/{id}/nsfw"),
+        format!("/api/chk/strings/{id}"),
+        format!("/api/chk/json/{id}"),
+        format!("/api/chk/trig/{id}"),
+        format!("/api/chk/mbrf/{id}"),
+        format!("/api/chk/eups/{id}"),
+        format!("/api/chk/riff_chunks/{id}"),
+        format!("/api/chk/{chkhash}"),
+        format!("/api/chk/{chkhash}/map_img"),
+        format!("/api/maps/{mapblob}"),
+    ]
+}
+
+#[tokio::test]
+async fn blackholed_map_is_gone_from_every_surface() {
+    let h = Harness::start().await;
+    let c = client();
+    let owner = register(&c, &h, "bhsurfowner").await;
+    let intruder = register(&c, &h, "bhsurfintruder").await;
+    let id = upload_map(&c, &h, Some(&owner), "e2ebhsurface.scx").await;
+    let internal = map_internal_id(&c, &h, &id).await;
+    let chkhash = h
+        .db_text("select chkblob from map where id = $1", internal)
+        .await;
+    let mapblob = h
+        .db_text("select mapblob2 from map where id = $1", internal)
+        .await;
+
+    // Before blackholing, the blob route must NOT 404. The download backend
+    // (GSFS/Backblaze) is switched off in e2e, so the handler fails *after* the
+    // access gate rather than returning the map — in practice the connection
+    // drops mid-response, which is why a transport error counts as passing here.
+    // That is still distinguishable from the gate's clean 404, and it is the only
+    // thing pinning the gate open: a gate stuck on "hidden" would 404 here and
+    // otherwise look identical to a correctly blackholed map on every other
+    // assertion in this test.
+    let ungated = c.get(h.url(&format!("/api/maps/{mapblob}"))).send().await;
+    assert!(
+        !matches!(&ungated, Ok(r) if r.status() == StatusCode::NOT_FOUND),
+        "a map that is not blackholed must get past the blob gate, got {ungated:?}"
+    );
+
+    assert_eq!(
+        c.post(h.url(&format!("/api/flags/{id}/blackholed")))
+            .header("cookie", owner.cookie())
+            .header("content-type", "application/json")
+            .body("true")
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+
+    // The uploader is in this list on purpose: a moderated map must not stay
+    // visible to the person who uploaded it.
+    for (label, cookie) in [
+        ("anonymous", None),
+        ("non-owner", Some(intruder.cookie())),
+        ("the uploader", Some(owner.cookie())),
+    ] {
+        for path in every_map_surface(&id, &chkhash, &mapblob) {
+            let mut req = c.get(h.url(&path));
+            if let Some(ck) = &cookie {
+                req = req.header("cookie", ck.clone());
+            }
+            let resp = req.send().await.unwrap();
+            let status = resp.status();
+            let len = resp.bytes().await.map(|b| b.len()).unwrap_or(0);
+            assert_eq!(status, StatusCode::NOT_FOUND, "{label} on {path}");
+            assert_eq!(len, 0, "{label} got a non-empty body from {path}");
+        }
+    }
+}
+
+/// The admin exemption, which only became testable once privilege moved out of a
+/// compiled-in account id and into `account.role`: an account granted `admin`
+/// still sees a blackholed map on the surfaces that serve one.
+#[tokio::test]
+async fn admin_still_sees_a_blackholed_map() {
+    let h = Harness::start().await;
+    let c = client();
+    let owner = register(&c, &h, "bhadminowner").await;
+    let admin = register(&c, &h, "bhadmin").await;
+    let id = upload_map(&c, &h, Some(&owner), "e2ebhadmin.scx").await;
+
+    h.db_execute(&format!(
+        "update account set role = 'admin' where username = '{}';",
+        admin.username
+    ))
+    .await;
+
+    assert_eq!(
+        c.post(h.url(&format!("/api/flags/{id}/blackholed")))
+            .header("cookie", owner.cookie())
+            .header("content-type", "application/json")
+            .body("true")
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+
+    // Sanity: the grant is what makes the difference, so the same requests must
+    // 404 without it (covered exhaustively by the sibling test) and 200 with it.
+    for path in [
+        format!("/api/uiv2/map_info/{id}"),
+        format!("/api/chk/strings/{id}"),
+        format!("/api/uiv2/timestamps/{id}"),
+        format!("/api/tags/{id}"),
+    ] {
+        assert_eq!(
+            c.get(h.url(&path))
+                .header("cookie", admin.cookie())
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK,
+            "an admin should still see {path}"
+        );
+    }
 }
