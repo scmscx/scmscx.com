@@ -6,7 +6,7 @@ use bwmap::ParsedChk;
 use serde::Serialize;
 use serde_json::json;
 
-use crate::webutil::{MaybeUser, Pool};
+use crate::webutil::{MaybeUser, Pool, PoolExt};
 
 pub async fn map_info(
     user: MaybeUser,
@@ -31,7 +31,7 @@ pub async fn map_info(
         nsfw,
         blackholed,
     ) = {
-        let con = pool.get().await?;
+        let con = pool.acquire().await?;
         let row = con
             .query_one(
                 "select
@@ -368,7 +368,7 @@ pub async fn map_info(
             .as_secs() as i64;
 
         let pool = pool.clone();
-        let con = pool.get().await?;
+        let con = pool.acquire().await?;
         let rows = con
             .execute(
                 "update map set views = views + 1, last_viewed = $1 where map.id = $2",

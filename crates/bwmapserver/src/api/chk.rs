@@ -1,5 +1,5 @@
 use crate::db;
-use crate::webutil::Pool;
+use crate::webutil::{Pool, PoolExt};
 use axum::body::Body;
 use axum::extract::{Extension, Path};
 use axum::http::{header, StatusCode};
@@ -17,7 +17,7 @@ pub async fn get_chk_strings(
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
-        let con = pool.get().await?;
+        let con = pool.acquire().await?;
         let row = con
             .query_one(
                 "select map.chkblob from map
@@ -54,7 +54,7 @@ pub async fn get_chk_riff_chunks(
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
-        let con = pool.get().await?;
+        let con = pool.acquire().await?;
         let row = con
             .query_one(
                 "select map.chkblob from map
@@ -80,7 +80,7 @@ pub async fn get_chk_json(
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
-        let con = pool.get().await?;
+        let con = pool.acquire().await?;
         let row = con
             .query_one(
                 "select map.chkblob from map
@@ -104,7 +104,7 @@ pub async fn get_chk_trig_json(
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
-        let con = pool.get().await?;
+        let con = pool.acquire().await?;
         let row = con
             .query_one(
                 "select map.chkblob from map
@@ -130,7 +130,7 @@ pub async fn get_chk_mbrf_json(
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
-        let con = pool.get().await?;
+        let con = pool.acquire().await?;
         let row = con
             .query_one(
                 "select map.chkblob from map
@@ -156,7 +156,7 @@ pub async fn get_eups(
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let chkhash = {
-        let con = pool.get().await?;
+        let con = pool.acquire().await?;
         let row = con
             .query_one(
                 "select map.chkblob from map

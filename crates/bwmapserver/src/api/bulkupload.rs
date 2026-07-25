@@ -1,3 +1,4 @@
+use crate::webutil::PoolExt;
 use anyhow::Result;
 use bb8_postgres::tokio_postgres::IsolationLevel;
 use bwmap::ParsedChk;
@@ -136,7 +137,7 @@ pub(crate) async fn insert_parsed_map(
     }
 
     let f = || async {
-        let mut con = pool.get().await?;
+        let mut con = pool.acquire().await?;
         let mut tx = con
             .build_transaction()
             .isolation_level(IsolationLevel::Serializable)

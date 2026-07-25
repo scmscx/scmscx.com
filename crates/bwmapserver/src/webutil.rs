@@ -6,6 +6,8 @@ use std::net::SocketAddr;
 use axum::extract::FromRequestParts;
 use axum::response::Response;
 use axum_extra::extract::cookie::{Cookie, SameSite};
+use bb8_postgres::bb8::RunError;
+use common::register_histogram;
 use http::request::Parts;
 use http::HeaderMap;
 
@@ -16,6 +18,69 @@ use crate::middleware::UserSession;
 pub type Pool = bb8_postgres::bb8::Pool<
     bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>,
 >;
+
+/// The bb8 manager behind [`Pool`].
+pub type PoolManager = bb8_postgres::PostgresConnectionManager<bb8_postgres::tokio_postgres::NoTls>;
+
+/// A connection checked out of [`Pool`].
+pub type PooledCon<'a> = bb8_postgres::bb8::PooledConnection<'a, PoolManager>;
+
+/// Adds [`PoolExt::acquire`], an instrumented stand-in for bb8's `Pool::get`.
+///
+/// Waiting for a connection is invisible in every other metric we export: a
+/// request parked in `get()` burns no CPU, holds no connection (so it does not
+/// show up in `scmscx_db_pool_connections{state="total"}` minus `idle`), and is
+/// indistinguishable from a slow query in the request histogram. That blind spot
+/// is exactly where a pool that has gone cold — bb8 reaps on `idle_timeout` and
+/// `max_lifetime`, so connections must be re-established under load — shows up as
+/// latency. Prefer this over `get()` everywhere a request can reach.
+///
+/// The `outcome` label separates a satisfied wait from `connection_timeout`
+/// expiring (`timeout`) and the manager failing to hand back a usable connection
+/// (`error`), so a saturated pool reads differently from an unreachable database.
+pub trait PoolExt {
+    /// Acquire a pooled connection, recording the wait in
+    /// `scmscx_db_pool_acquire_duration_seconds`.
+    // Spelled out rather than as `async fn` so the `Send` bound is explicit:
+    // these futures are awaited inside axum handlers, which must be `Send`, and
+    // `async fn` in a public trait cannot state that bound.
+    #[allow(clippy::manual_async_fn)]
+    fn acquire(
+        &self,
+    ) -> impl std::future::Future<
+        Output = Result<PooledCon<'_>, RunError<bb8_postgres::tokio_postgres::Error>>,
+    > + Send;
+}
+
+impl PoolExt for Pool {
+    #[allow(clippy::manual_async_fn)]
+    fn acquire(
+        &self,
+    ) -> impl std::future::Future<
+        Output = Result<PooledCon<'_>, RunError<bb8_postgres::tokio_postgres::Error>>,
+    > + Send {
+        async move {
+            let start = std::time::Instant::now();
+            let res = self.get().await;
+            // Observe before returning so timed-out and failed waits — the ones
+            // that cost the most and are hardest to see — are recorded too.
+            let outcome = match &res {
+                Ok(_) => "ok",
+                Err(RunError::TimedOut) => "timeout",
+                Err(RunError::User(_)) => "error",
+            };
+            register_histogram!(
+                "scmscx",
+                db_pool_acquire_duration_seconds,
+                "Time spent waiting for a bb8 pool connection, by outcome",
+                common::telemetry::latency_buckets(),
+                outcome = outcome
+            )
+            .observe(start.elapsed().as_secs_f64());
+            res
+        }
+    }
+}
 
 /// Best-effort real client IP. Behind Cloudflare the true client is carried in
 /// `CF-Connecting-IP`, so it wins; otherwise fall back (mirroring actix's
@@ -152,6 +217,47 @@ pub fn removal_cookie(name: &'static str) -> Cookie<'static> {
 mod tests {
     use super::*;
     use axum::body::Body;
+
+    /// Drives [`PoolExt::acquire`] against a pool that can never connect (port 1
+    /// is closed), which exercises the instrumentation without needing Postgres.
+    /// Pins the exported series name and the failure-path `outcome` label: a
+    /// wait that ends in a timeout is exactly the sample we most need recorded,
+    /// and it is the easiest one to accidentally drop by observing only on `Ok`.
+    #[tokio::test]
+    async fn acquire_records_a_labelled_observation_when_it_cannot_connect() {
+        let manager = bb8_postgres::PostgresConnectionManager::new(
+            "host=127.0.0.1 port=1 user=nobody connect_timeout=1"
+                .parse()
+                .expect("valid libpq connection string"),
+            bb8_postgres::tokio_postgres::NoTls,
+        );
+        let pool: Pool = bb8_postgres::bb8::Pool::builder()
+            .connection_timeout(std::time::Duration::from_millis(250))
+            .build_unchecked(manager);
+
+        assert!(
+            pool.acquire().await.is_err(),
+            "sanity: connecting to a closed port must not succeed",
+        );
+
+        let scraped = common::telemetry::encode_metrics();
+        assert!(
+            scraped.contains("scmscx_db_pool_acquire_duration_seconds"),
+            "the acquire histogram should be registered under the scmscx prefix",
+        );
+        // bb8 surfaces a refused connection either as its own timeout or as the
+        // manager's error, depending on how the retry lands inside the window;
+        // both are failures and both must be observed rather than silently skipped.
+        assert!(
+            scraped.contains("outcome=\"timeout\"") || scraped.contains("outcome=\"error\""),
+            "a failed acquisition must still be observed, with a non-ok outcome:\n{}",
+            scraped
+                .lines()
+                .filter(|l| l.contains("db_pool_acquire"))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+    }
 
     fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
         let mut h = HeaderMap::new();

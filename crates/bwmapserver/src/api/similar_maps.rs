@@ -8,7 +8,7 @@ use serde_json::json;
 
 use tracing::instrument;
 
-use crate::webutil::Pool;
+use crate::webutil::{Pool, PoolExt};
 
 // type KdTree = kiddo::KdTree<f32, i64, 256>;
 
@@ -21,7 +21,7 @@ use crate::webutil::Pool;
 // ) -> Result<Arc<KdTree>> {
 //     let mut tree: KdTree = KdTree::new();
 
-//     let con = pool.get().await?;
+//     let con = pool.acquire().await?;
 
 //     let rows = con
 //         .query(
@@ -65,7 +65,7 @@ pub async fn handler(
 ) -> Result<Response, bwcommon::MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
 
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
     // let len: i64 = con
     //     .query_one("select count(*) from minimap", &[])
     //     .instrument(tracing::info_span!("len").or_current())
@@ -186,7 +186,7 @@ pub async fn handler(
 
     // let mut ret = {
     //     let pool = (**pool).clone();
-    //     let con = pool.get().await?;
+    //     let con = pool.acquire().await?;
 
     //     #[rustfmt::skip]
     //     let row = con.query("

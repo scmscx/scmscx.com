@@ -23,7 +23,7 @@ use tracing::info;
 use tracing::instrument;
 
 use crate::db;
-use crate::webutil::{minimap_cache_control, MaybeUser, Pool};
+use crate::webutil::{minimap_cache_control, MaybeUser, Pool, PoolExt};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct MapRow {
@@ -54,7 +54,7 @@ pub(crate) struct FeaturedMap {
 pub async fn featured_maps(
     Extension(pool): Extension<Pool>,
 ) -> Result<Json<Vec<FeaturedMap>>, MyError> {
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
 
     let ret: Vec<_> = con
         .query(
@@ -81,7 +81,7 @@ pub async fn featured_maps(
 pub async fn last_viewed_maps(
     Extension(pool): Extension<Pool>,
 ) -> Result<Json<Vec<MapRow>>, MyError> {
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
 
     let ret: Vec<_> = con.query(
         "select id, denorm_scenario, uploaded_time, views, downloads, last_viewed, last_downloaded
@@ -104,7 +104,7 @@ pub async fn last_viewed_maps(
 pub async fn last_downloaded_maps(
     Extension(pool): Extension<Pool>,
 ) -> Result<Json<Vec<MapRow>>, MyError> {
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
 
     let ret: Vec<_> = con.query(
         "select id, denorm_scenario, uploaded_time, views, downloads, last_viewed, last_downloaded
@@ -127,7 +127,7 @@ pub async fn last_downloaded_maps(
 pub async fn last_uploaded_maps(
     Extension(pool): Extension<Pool>,
 ) -> Result<Json<Vec<MapRow>>, MyError> {
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
 
     let ret: Vec<_> = con.query(
         "select id, denorm_scenario, uploaded_time, views, downloads, last_viewed, last_downloaded
@@ -150,7 +150,7 @@ pub async fn last_uploaded_maps(
 pub async fn last_uploaded_replays(
     Extension(pool): Extension<Pool>,
 ) -> Result<Json<Vec<ReplayRow>>, MyError> {
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
 
     let ret: Vec<_> = con.query(
             "select replay.id, map.denorm_scenario, replay.uploaded_time, map.id
@@ -171,7 +171,7 @@ pub async fn last_uploaded_replays(
 pub async fn most_viewed_maps(
     Extension(pool): Extension<Pool>,
 ) -> Result<Json<Vec<MapRow>>, MyError> {
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
 
     let ret: Vec<_> = con.query(
         "select id, denorm_scenario, uploaded_time, views, downloads, last_viewed, last_downloaded
@@ -194,7 +194,7 @@ pub async fn most_viewed_maps(
 pub async fn most_downloaded_maps(
     Extension(pool): Extension<Pool>,
 ) -> Result<Json<Vec<MapRow>>, MyError> {
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
 
     let ret: Vec<_> = con.query(
         "select id, denorm_scenario, uploaded_time, views, downloads, last_viewed, last_downloaded
@@ -222,7 +222,7 @@ pub async fn get_minimap(
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let (chkblob_hash, uploaded_by, nsfw, blackholed) = {
-        let con = pool.get().await?;
+        let con = pool.acquire().await?;
         let row = con
             .query_one(
                 "select

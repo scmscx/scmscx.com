@@ -5,7 +5,7 @@ use bwcommon::MyError;
 use bwmap::ParsedChk;
 use serde_json::json;
 
-use crate::webutil::Pool;
+use crate::webutil::{Pool, PoolExt};
 
 pub async fn units(
     Path((map_id,)): Path<(String,)>,
@@ -14,7 +14,7 @@ pub async fn units(
     let map_id = crate::util::parse_map_id(&map_id)?;
 
     let (chkblob, spoiler_unit_names) = {
-        let con = pool.get().await?;
+        let con = pool.acquire().await?;
         let row = con
             .query_one(
                 "select length, ver, data, spoiler_unit_names

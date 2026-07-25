@@ -11,7 +11,7 @@ use crate::search2;
 use crate::search2::SearchParams;
 use crate::util::is_dev_mode;
 use crate::util::scenario_and_description;
-use crate::webutil::{MaybeUser, Pool};
+use crate::webutil::{MaybeUser, Pool, PoolExt};
 
 fn html(body: String) -> Response {
     ([(header::CONTENT_TYPE, "text/html")], body).into_response()
@@ -178,7 +178,7 @@ pub async fn map(
     };
 
     let (chkblob, uploaded_by, nsfw, blackholed) = {
-        let con = pool.get().await?;
+        let con = pool.acquire().await?;
         let rows = con
             .query(
                 "select

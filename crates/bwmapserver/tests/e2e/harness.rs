@@ -86,6 +86,7 @@ fn unique_db_name() -> String {
 pub struct Harness {
     app: Child,
     base: String,
+    prom_base: String,
     log_path: PathBuf,
     work_dir: PathBuf,
     db: String,
@@ -195,6 +196,7 @@ impl Harness {
         let app_listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let prom_listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let app_port = app_listener.local_addr().unwrap().port();
+        let prom_port = prom_listener.local_addr().unwrap().port();
         let app_fd = app_listener.as_raw_fd();
         let prom_fd = prom_listener.as_raw_fd();
 
@@ -242,6 +244,7 @@ impl Harness {
         drop(prom_listener);
 
         let base = format!("http://127.0.0.1:{app_port}");
+        let prom_base = format!("http://127.0.0.1:{prom_port}");
         let ping = Client::builder()
             .timeout(Duration::from_secs(5))
             .build()
@@ -276,6 +279,7 @@ impl Harness {
         Harness {
             app,
             base,
+            prom_base,
             log_path,
             work_dir,
             db,
@@ -284,6 +288,20 @@ impl Harness {
 
     pub fn url(&self, path: &str) -> String {
         format!("{}{}", self.base, path)
+    }
+
+    /// Scrape the server's Prometheus endpoint, which listens on its own
+    /// inherited socket (`PROMETHEUS_FD`) separate from the app port. Returns the
+    /// raw exposition text so tests can assert on series names and labels.
+    pub async fn scrape_metrics(&self) -> String {
+        client()
+            .get(format!("{}/metrics", self.prom_base))
+            .send()
+            .await
+            .expect("scrape the prometheus endpoint")
+            .text()
+            .await
+            .expect("read the exposition body")
     }
 
     /// The server's cwd-relative `./pending/` blob-staging dir (absolute path),

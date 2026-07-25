@@ -34,6 +34,7 @@ examine_globs = [
     "crates/bwmapserver/src/middleware/traceid.rs",           # trace-id assignment
     "crates/bwmapserver/src/middleware/trackinganalytics.rs", # tac cookie minting
     "crates/bwmapserver/src/middleware/metrics.rs",           # route-label / status metrics
+    "crates/bwmapserver/src/middleware/endtoendduration.rs",  # full-stack latency histogram
     "crates/bwcommon/src/id.rs",                   # web-id <-> db-id obfuscation
 ]
 

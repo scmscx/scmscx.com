@@ -2,7 +2,7 @@ use axum::extract::Extension;
 use axum::http::header;
 use axum::response::{IntoResponse, Response};
 
-use crate::webutil::Pool;
+use crate::webutil::{Pool, PoolExt};
 
 pub async fn handler() -> Result<Response, bwcommon::MyError> {
     let mut s = String::new();
@@ -18,7 +18,7 @@ pub async fn handler() -> Result<Response, bwcommon::MyError> {
 }
 
 pub async fn handlera(Extension(pool): Extension<Pool>) -> Result<Response, bwcommon::MyError> {
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
     let ids: Vec<i64> = con.query(
             "select id from map where nsfw = false and outdated = false and unfinished = false and broken = false and blackholed = false and chkblob is not null order by id limit 50000 OFFSET 0",
             &[],
@@ -42,7 +42,7 @@ pub async fn handlera(Extension(pool): Extension<Pool>) -> Result<Response, bwco
 }
 
 pub async fn handlerb(Extension(pool): Extension<Pool>) -> Result<Response, bwcommon::MyError> {
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
     let ids: Vec<i64> = con.query(
             "select id from map where nsfw = false and outdated = false and unfinished = false and broken = false and blackholed = false and chkblob is not null order by id limit 50000 OFFSET 50000",
             &[],
@@ -66,7 +66,7 @@ pub async fn handlerb(Extension(pool): Extension<Pool>) -> Result<Response, bwco
 }
 
 pub async fn handlerc(Extension(pool): Extension<Pool>) -> Result<Response, bwcommon::MyError> {
-    let con = pool.get().await?;
+    let con = pool.acquire().await?;
     let ids: Vec<i64> = con.query(
             "select id from map where nsfw = false and outdated = false and unfinished = false and broken = false and blackholed = false and chkblob is not null order by id limit 50000 OFFSET 100000",
             &[],
