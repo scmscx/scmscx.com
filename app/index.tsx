@@ -36,6 +36,15 @@ if (import.meta.env.DEV && !(root instanceof HTMLElement)) {
 
 const NotFound = (props: any) => <>NotFound</>;
 
+// The browser's automatic restore cannot work here: every page paints empty and
+// fills in from fetches, so at popstate time the document is one viewport tall
+// and the saved offset is clamped away. Worse, it would fight any page that
+// restores its own position. Pages that care do it themselves once their
+// content is back — see pages/Search.tsx.
+if ("scrollRestoration" in history) {
+  history.scrollRestoration = "manual";
+}
+
 render(
   () => (
     <LangProvider>
