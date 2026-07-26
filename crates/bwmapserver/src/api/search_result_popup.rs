@@ -6,6 +6,7 @@ use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use bwcommon::MyError;
 
+use crate::access;
 use crate::db;
 use crate::webutil::{minimap_cache_control, MaybeUser, Pool, PoolExt};
 
@@ -16,13 +17,11 @@ pub async fn get_search_result_popup(
 ) -> Result<Response, MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
 
-    let user_id = user.id();
-
-    let (chkhash, scenario, uploaded_by, nsfw, blackholed) = {
+    let (chkhash, scenario, nsfw, blackholed) = {
         let con = pool.acquire().await?;
         let row = con
             .query_one(
-                "select chkblob, denorm_scenario, uploaded_by, nsfw, blackholed
+                "select chkblob, denorm_scenario, nsfw, blackholed
                 from map
                 where map.id = $1",
                 &[&map_id],
@@ -32,17 +31,16 @@ pub async fn get_search_result_popup(
         (
             row.try_get::<_, String>("chkblob")?,
             row.try_get::<_, String>("denorm_scenario")?,
-            row.try_get::<_, i64>("uploaded_by")?,
             row.try_get::<_, bool>("nsfw")?,
             row.try_get::<_, bool>("blackholed")?,
         )
     };
 
-    if blackholed && user_id != Some(uploaded_by) && user_id != Some(4) {
+    if access::blackholed_is_hidden_from(blackholed, user.session()) {
         return Ok((StatusCode::NOT_FOUND, [(header::CACHE_CONTROL, "no-cache")]).into_response());
     }
 
-    if nsfw && user_id.is_none() {
+    if access::nsfw_requires_login(nsfw, user.session()) {
         return Ok((
             StatusCode::UNAUTHORIZED,
             [(header::CACHE_CONTROL, "no-cache")],

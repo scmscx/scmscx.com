@@ -146,9 +146,12 @@ pub fn ip_only(s: &str) -> String {
 /// but whose *availability* is mutable — a map can be flagged NSFW or blackholed at
 /// any time. The short max-age lets such a flag change take effect at the edge
 /// quickly, and access-restricted content is `private` so it never lands in a
-/// shared (CDN) cache that could keep serving it past the gate. (Full-resolution
-/// map images are ungated and cached long/immutable instead — see
-/// `api::chk::get_map_img`.)
+/// shared (CDN) cache that could keep serving it past the gate.
+///
+/// Minimaps get this treatment and full-resolution map images deliberately do
+/// not (see `api::chk::get_map_img`): minimaps are rendered into search results
+/// and listings, so a shared copy of a restricted one is what would put it in
+/// front of people who never asked for it.
 pub fn minimap_cache_control(restricted: bool) -> &'static str {
     if restricted {
         "private, max-age=60"
@@ -176,6 +179,11 @@ impl MaybeUser {
     /// Convenience: the user id, if logged in.
     pub fn id(&self) -> Option<i64> {
         self.0.as_ref().map(|u| u.id)
+    }
+
+    /// The session itself, as the access predicates in [`crate::access`] take it.
+    pub fn session(&self) -> Option<&UserSession> {
+        self.0.as_ref()
     }
 }
 
@@ -218,6 +226,19 @@ pub fn removal_cookie(name: &'static str) -> Cookie<'static> {
 mod tests {
     use super::*;
     use axum::body::Body;
+
+    /// A restricted minimap never gets a `public` directive: it is served only
+    /// because the caller is authorized, and minimaps are rendered into search
+    /// results and listings, so a shared copy would put it in front of everyone
+    /// else.
+    ///
+    /// Minimap-only on purpose. Full-resolution map images stay publicly
+    /// cacheable whatever their flags — see `api::chk::get_map_img`.
+    #[test]
+    fn a_restricted_minimap_never_goes_into_a_shared_cache() {
+        assert!(minimap_cache_control(true).starts_with("private"));
+        assert!(minimap_cache_control(false).starts_with("public"));
+    }
 
     /// Drives [`PoolExt::acquire`] against a pool that can never connect (port 1
     /// is closed), which exercises the instrumentation without needing Postgres.
@@ -373,6 +394,7 @@ mod tests {
             id: 99,
             username: "trinity".to_string(),
             token: "tok".to_string(),
+            role: crate::access::Role::User,
         });
         let user = MaybeUser::from_request_parts(&mut parts, &())
             .await

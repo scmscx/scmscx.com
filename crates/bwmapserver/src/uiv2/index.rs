@@ -6,6 +6,7 @@ use bwmap::ParsedChk;
 use tracing::error;
 use tracing::instrument;
 
+use crate::access;
 use crate::search2;
 use crate::search2::SearchParams;
 use crate::server::{Handlebars, Manifest};
@@ -161,8 +162,6 @@ pub async fn map(
     Extension(manifest): Extension<Manifest>,
     Path(map_id): Path<String>,
 ) -> Result<Response, MyError> {
-    let user_id = user.id();
-
     let map_id = if map_id.chars().all(char::is_numeric) && map_id.len() < 8 {
         return Ok(Redirect::permanent(&format!(
             "/map/{}",
@@ -177,12 +176,11 @@ pub async fn map(
         return Ok(StatusCode::NOT_FOUND.into_response());
     };
 
-    let (chkblob, uploaded_by, nsfw, blackholed) = {
+    let (chkblob, nsfw, blackholed) = {
         let con = pool.acquire().await?;
         let rows = con
             .query(
                 "select
-                    uploaded_by,
                     nsfw,
                     blackholed,
                     length,
@@ -217,7 +215,6 @@ pub async fn map(
 
         (
             chkblob,
-            rows[0].try_get::<_, i64>("uploaded_by")?,
             rows[0].try_get::<_, bool>("nsfw")?,
             rows[0].try_get::<_, bool>("blackholed")?,
         )
@@ -226,11 +223,11 @@ pub async fn map(
     let parsed_chk = ParsedChk::from_bytes(chkblob.as_slice());
     let (scenario, description) = scenario_and_description(&parsed_chk);
 
-    if nsfw && user_id.is_none() {
+    if access::nsfw_requires_login(nsfw, user.session()) {
         return Ok(StatusCode::FORBIDDEN.into_response());
     }
 
-    if blackholed && user_id != Some(uploaded_by) && user_id != Some(4) {
+    if access::blackholed_is_hidden_from(blackholed, user.session()) {
         return Ok(StatusCode::NOT_FOUND.into_response());
     }
 

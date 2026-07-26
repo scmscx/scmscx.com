@@ -14,21 +14,15 @@ use axum::response::{IntoResponse, Response};
 use futures_util::FutureExt;
 use tracing::info;
 
+use crate::access;
 use crate::webutil::{MaybeUser, Pool, PoolExt};
-
-/// The only account allowed to run these.
-const ADMIN_USER_ID: i64 = 4;
 
 pub(crate) async fn denormalize(
     user: MaybeUser,
     Extension(pool): Extension<Pool>,
     Path((map_id,)): Path<(String,)>,
 ) -> Result<Response, bwcommon::MyError> {
-    let Some(session) = user.0 else {
-        return Ok(StatusCode::NOT_FOUND.into_response());
-    };
-
-    if session.id != ADMIN_USER_ID {
+    if !access::is_admin(user.session()) {
         return Ok(StatusCode::NOT_FOUND.into_response());
     }
 
@@ -48,11 +42,7 @@ pub(crate) async fn denormalize_all(
     user: MaybeUser,
     Extension(pool): Extension<Pool>,
 ) -> Result<Response, bwcommon::MyError> {
-    let Some(session) = user.0 else {
-        return Ok(StatusCode::NOT_FOUND.into_response());
-    };
-
-    if session.id != ADMIN_USER_ID {
+    if !access::is_admin(user.session()) {
         return Ok(StatusCode::NOT_FOUND.into_response());
     }
 

@@ -21,8 +21,9 @@ use reqwest::Client;
 use tokio::io::AsyncWriteExt;
 use tracing::error;
 
+use crate::access;
 use crate::util::finalize_hash_of_hasher;
-use crate::webutil::{Pool, PoolExt};
+use crate::webutil::{MaybeUser, Pool, PoolExt};
 
 pub type BackblazeAuthState = Arc<Mutex<BackblazeAuth>>;
 
@@ -76,7 +77,15 @@ pub async fn get_map(
     Extension(reqwest_client): Extension<reqwest::Client>,
     headers: HeaderMap,
     Path((mapblob_hash,)): Path<(String,)>,
+    user: MaybeUser,
 ) -> Result<Response, MyError> {
+    // The download is the whole point of blackholing: without this gate the map
+    // file stays fetchable by hash to anyone who saved the URL, which is exactly
+    // what a re-uploader has.
+    if access::mapblob_is_hidden(&pool, &mapblob_hash, user.session()).await? {
+        return Ok((StatusCode::NOT_FOUND, [(header::CACHE_CONTROL, "no-store")]).into_response());
+    }
+
     {
         let mapblob_hash = mapblob_hash.clone();
         if let Some(useragent) = headers.get("user-agent") {

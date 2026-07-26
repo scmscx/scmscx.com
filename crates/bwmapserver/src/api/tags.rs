@@ -18,10 +18,14 @@ pub(crate) struct TagPost {
 
 pub async fn get_tags(
     Extension(pool): Extension<Pool>,
-    _user: MaybeUser,
+    user: MaybeUser,
     Path((map_id,)): Path<(String,)>,
 ) -> Result<Response, MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
+
+    if crate::access::map_is_hidden(&pool, map_id, user.session()).await? {
+        return Ok(StatusCode::NOT_FOUND.into_response());
+    }
 
     let con = pool.acquire().await?;
     let tags = con
@@ -54,7 +58,7 @@ pub async fn set_tags(
 ) -> Result<Response, MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
 
-    let Some(user_id) = user.id() else {
+    let Some(session) = user.session() else {
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     };
 
@@ -64,7 +68,7 @@ pub async fn set_tags(
         map.insert(t.key, t.value);
     }
 
-    let outcome = db::set_tags(map_id, map, user_id, pool).await?;
+    let outcome = db::set_tags(map_id, map, session, pool).await?;
 
     match outcome {
         None => Ok(StatusCode::NOT_FOUND.into_response()),
@@ -81,7 +85,7 @@ pub async fn add_tags(
 ) -> Result<Response, MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
 
-    let Some(user_id) = user.id() else {
+    let Some(session) = user.session() else {
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     };
 
@@ -91,7 +95,7 @@ pub async fn add_tags(
         map.insert(t.key, t.value);
     }
 
-    let outcome = db::add_tags(map_id, map, user_id, pool).await?;
+    let outcome = db::add_tags(map_id, map, session, pool).await?;
 
     match outcome {
         None => Ok(StatusCode::NOT_FOUND.into_response()),

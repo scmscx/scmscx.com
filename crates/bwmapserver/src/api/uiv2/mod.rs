@@ -22,6 +22,7 @@ use tracing::error;
 use tracing::info;
 use tracing::instrument;
 
+use crate::access;
 use crate::db;
 use crate::webutil::{minimap_cache_control, MaybeUser, Pool, PoolExt};
 
@@ -61,6 +62,7 @@ pub async fn featured_maps(
             "select map.id, map.denorm_scenario
         from featuredmaps
         join map on featuredmaps.map_id = map.id
+        where map.blackholed = false
         order by rank desc",
             &[],
         )
@@ -221,13 +223,12 @@ pub async fn get_minimap(
 ) -> Result<Response, MyError> {
     let map_id = crate::util::parse_map_id(&map_id)?;
 
-    let (chkblob_hash, uploaded_by, nsfw, blackholed) = {
+    let (chkblob_hash, nsfw, blackholed) = {
         let con = pool.acquire().await?;
         let row = con
             .query_one(
                 "select
                 chkblob,
-                uploaded_by,
                 nsfw,
                 blackholed
             from
@@ -240,19 +241,16 @@ pub async fn get_minimap(
 
         (
             row.try_get::<_, String>("chkblob")?,
-            row.try_get("uploaded_by")?,
             row.try_get("nsfw")?,
             row.try_get("blackholed")?,
         )
     };
 
-    let user_id = user.id();
-
-    if nsfw && user_id.is_none() {
+    if access::nsfw_requires_login(nsfw, user.session()) {
         return Ok(StatusCode::FORBIDDEN.into_response());
     }
 
-    if blackholed && user_id != Some(uploaded_by) && user_id != Some(4) {
+    if access::blackholed_is_hidden_from(blackholed, user.session()) {
         return Ok(StatusCode::NOT_FOUND.into_response());
     }
 

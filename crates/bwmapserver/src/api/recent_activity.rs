@@ -50,7 +50,7 @@ pub async fn recent_activity(Extension(pool): Extension<Pool>) -> Result<Respons
             select map.id, denorm_scenario, account.username, uploaded_time
             from map
             join account on account.id = uploaded_by
-            where uploaded_by != 10 and nsfw = false and unfinished = false
+            where uploaded_by != 10 and nsfw = false and blackholed = false and unfinished = false
             order by uploaded_time desc
             limit 3000",
                 &[],
