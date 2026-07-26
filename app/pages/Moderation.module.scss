@@ -32,7 +32,7 @@
   display: block;
   width: 100%;
   height: 32px;
-  background-color: transparent;
+  background-color: $menu-panel-fill;
   color: $menu-green;
   margin-top: 4px;
   font-size: 12px;
@@ -44,7 +44,7 @@
   display: block;
   width: 50%;
   margin: 4px auto;
-  background-color: transparent;
+  background-color: $menu-panel-fill;
   color: $menu-green;
   height: 48px;
 }
@@ -79,7 +79,7 @@
 .login {
   @extend .standard-panel;
   @extend .space-font;
-  background: transparent;
+  background: $menu-panel-fill;
   color: $menu-green;
   font-size: 24px;
   margin: 18px 0px;

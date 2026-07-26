@@ -90,18 +90,33 @@
   // table-layout: fixed;
 }
 
+// A results grid, not a list of field/value pairs, so it follows the map
+// archive pages rather than the lobby: white column headers over rows of
+// blue-lavender data (classic.battle.net/scc drew its map tables with
+// text="#aeaedd" and <font color="#ffffff"><b> headings).
+//
+// This is the opposite assignment to the property tables on the map page, and
+// deliberately so -- there the value is the thing you came to read and the
+// field name is subordinate, here the header titles the column. Both follow
+// the same rule underneath: whatever carries the emphasis is white.
 .table th {
   @extend .menu-font;
+  color: $menu-white;
   text-align: left;
   word-break: keep-all;
   white-space: pre;
   // overflow: visible;
   border-right-color: $menu_dark_red;
-  padding-right: 8px;
+
+  // Set the header row off from the results, so it reads as a heading over the
+  // rows rather than as the first of them. The gap has to beat the 4px the
+  // rows are spaced by to register as a break rather than as loose spacing.
+  padding: 0px 8px 14px 0px;
 }
 
 .table td {
   @extend .menu-font;
+  color: $menu-cyan;
   text-wrap: nowrap;
   padding: 4px 12px 4px 0px;
 }
@@ -113,7 +128,7 @@
 .search {
   @extend .standard-panel;
   @extend .menu-font;
-  background: transparent;
+  background: $menu-panel-fill;
   color: $menu-white;
   font-size: 16px;
   display: block;
@@ -139,7 +154,7 @@
   color: $menu-green;
   text-decoration: none;
   display: inline-block;
-  background-color: transparent;
+  background-color: $menu-panel-fill;
   margin: 16px 16px 0px 0px;
   cursor: pointer;
 }
@@ -220,7 +235,7 @@
 
 .search-filter-textbox input {
   @extend .standard-panel;
-  background: transparent;
+  background: $menu-panel-fill;
   color: $menu-white;
   width: 100%;
 }

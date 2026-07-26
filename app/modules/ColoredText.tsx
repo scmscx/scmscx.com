@@ -132,17 +132,53 @@ const parse = function (
   return output;
 };
 
+// Relative luminance (WCAG), used only to spot colours that would vanish.
+const luminance = (hex: string): number => {
+  const n = parseInt(hex.slice(1), 16);
+  const c = [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff].map((v) => v / 255);
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+};
+
+// Black is a colour a mapper can pick (0x08 in the menu palette), and on a
+// panel it renders as nothing at all -- the name is simply missing a word.
+//
+// Rather than substitute a lighter colour, which would misreport what the
+// mapper actually chose, outline the glyphs: the fill stays the true colour
+// and the shape becomes readable. paint-order puts the stroke behind the fill
+// so the letterform is not eaten into.
+//
+// The threshold only has to separate black from every real palette entry. The
+// darkest genuine colours in either table sit at ~0.21 (menu red #fc0000,
+// ingame brown #703014 at 0.23), so 0.15 catches #000000 and nothing else.
+const LUMINANCE_FLOOR = 0.15;
+
+// Deliberately invisible runs (0x0B, 0x14 and 0x0C all normalise to 0x0B in
+// the parser). These are meant to be unreadable -- the text is kept in the DOM
+// only so it stays selectable -- so they must not be outlined.
+const INVISIBLE_COLOR = 0x0b;
+
+const OUTLINE = "#707070";
+
+const styleFor = (color: number, table: string[]): string => {
+  if (!(color in table)) {
+    return "";
+  }
+
+  const hex = table[color];
+  const css = `color:${hex}`;
+
+  if (color === INVISIBLE_COLOR || luminance(hex) >= LUMINANCE_FLOOR) {
+    return css;
+  }
+
+  return `${css};-webkit-text-stroke:1px ${OUTLINE};paint-order:stroke fill`;
+};
+
 const ColoredTextInternal = (props: any) => {
   return (
     <For each={parse(props.text)}>
       {(map, _i) => (
-        <span
-          style={
-            map.color in props.table ? `color:${props.table[map.color]}` : ""
-          }
-        >
-          {map.character}
-        </span>
+        <span style={styleFor(map.color, props.table)}>{map.character}</span>
       )}
     </For>
   );

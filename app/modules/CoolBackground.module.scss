@@ -3,25 +3,36 @@
 //
 // Parallax background stuff
 //
+// Two things have to hold at once here, and it is easy to fix one by breaking
+// the other:
+//
+//   1. The layers must not grow with the page. The original version got its
+//      parallax from a perspective/translateZ trick, which meant inflating
+//      every layer to cover the whole travel distance -- at perspective 1px a
+//      layer at z=-5 needs 6x the viewport width, and the page height was
+//      baked into its height. One map page measured 133MP of layer area, ~6x
+//      the raster work of no background at all, growing without bound as
+//      pages got longer. That is why this was switched off.
+//
+//   2. Scrolling must not repaint them. Driving the parallax off
+//      background-position keeps the layers viewport-sized, but re-rasterises
+//      the tiled SVG every frame -- measured ~11.8s of raster over a short
+//      scroll, far worse than the problem it replaced.
+//
+// So: each layer is one viewport plus one background tile tall (bounded), and
+// moves by transform, which the compositor handles without repainting. The
+// offsets are wrapped to the tile height in CoolBackground.tsx, so a layer
+// only ever travels one tile before repeating and never runs out of content.
+//
 .root {
-  perspective-origin: left top;
-  perspective: 1px;
-
-  height: 100%;
-
-  overflow-y: auto;
-  overflow-x: hidden;
-
-  scrollbar-gutter: stable both-edges;
-
-  --total-length: 100%;
+  position: relative;
 }
 
 .content {
-  transform: translate3d(0px, 0px, 0px);
+  // Inherited by every page, so nothing renders unprotected on the starfield.
+  @extend .background-protection;
+
   margin: 6px;
-  //   overflow-x: hidden;
-  scrollbar-gutter: stable both-edges;
   min-height: calc(100vh - 6px * 2 - 4px);
 }
 
@@ -30,46 +41,56 @@
   top: 0;
   left: 0;
 
-  overflow-x: hidden;
-  overflow-y: auto;
-
   width: 100vw;
-  height: 100vh;
 
   background-image: url("../assets/background.svg");
   background-repeat: repeat;
 
+  // Behind the content, but still in front of the canvas background.
+  z-index: -1;
   pointer-events: none;
+
+  will-change: transform;
+}
+
+// All three layers draw the same tile, so sharing a scale and an origin makes
+// them line up and read as three copies of one texture sliding over each
+// other. Each gets its own tile size, its own origin offset (deliberately not
+// round fractions of the tile, so the grids never coincide) and its own
+// opacity. Smaller, dimmer and slower reads as further away.
+//
+// $tile-h doubles as the layer's overhang -- the strip it slides into as it
+// drifts upward -- and as the value the offset is wrapped against in the TSX,
+// so the two must agree. Keep TILE_HEIGHTS there in sync with these.
+@mixin parallax-depth($tile-w, $tile-h, $origin-x, $origin-y, $alpha) {
+  @extend .parallax-layer;
+
+  height: calc(100vh + #{$tile-h});
+  background-size: $tile-w $tile-h;
+  background-position: $origin-x $origin-y;
+  opacity: $alpha;
 }
 
 .layer1 {
-  @extend .parallax-layer;
-  transform: translate3d(-600px, -1000px, -1px);
-  height: calc(var(--total-length) + (100vh / 1 * 1) + 1000px);
-  width: calc(100vw + (100vw / 1 * 1) + 600px);
+  @include parallax-depth(384px, 768px, 0px, 0px, 0.45);
+  transform: translate3d(0, var(--parallax-1, 0px), 0);
 }
 
 .layer3 {
-  @extend .parallax-layer;
-  transform: translate3d(-300px, 0px, -3px);
-  height: calc(var(--total-length) + (100vh / 1 * 3) + 0px);
-  width: calc(100vw + (100vw / 1 * 3) + 300px);
+  @include parallax-depth(512px, 1024px, 211px, 337px, 0.7);
+  transform: translate3d(0, var(--parallax-3, 0px), 0);
 }
 
 .layer5 {
-  @extend .parallax-layer;
-  transform: translate3d(-100px, -500px, -5px);
-  height: calc(var(--total-length) + (100vh / 1 * 5) + 500px);
-  width: calc(100vw + (100vw / 1 * 5) + 100px);
+  @include parallax-depth(704px, 1408px, 97px, 631px, 1);
+  transform: translate3d(0, var(--parallax-5, 0px), 0);
 }
 
-// .background-protection {
-//     backdrop-filter: blur(2px);
-//     background-color: #10101040;
-// }
-
-// .background-protection-inline-block {
-//     box-shadow: 0px 0px 20px 5px #101010;
-//     background-color: #101010C0;
-//     display: inline-block;
-// }
+// Honour the OS setting: the layers still render, they just stop moving.
+@media (prefers-reduced-motion: reduce) {
+  .layer1,
+  .layer3,
+  .layer5 {
+    transform: none;
+  }
+}

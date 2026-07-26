@@ -108,8 +108,11 @@
 //   // text-overflow: ellipsis;
 // }
 
+// Label/value split, as the lobby draws it: the field name in menu cyan, the
+// value it resolves to in white.
 .table th {
   @extend .menu-font;
+  color: $menu-cyan;
   text-align: left;
   word-break: keep-all;
   white-space: pre;
@@ -120,6 +123,7 @@
 
 .table td {
   @extend .menu-font;
+  color: $menu-white;
   text-wrap: nowrap;
 }
 
