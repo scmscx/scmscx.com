@@ -9,6 +9,8 @@ export default function (props: any) {
           <I18nSpan text="About" />
         </h1>
 
+        <div class={style.prose}>
+
         <h2 class={style.h2}>
           <I18nSpan text="Frequently Asked Questions" />
         </h2>
@@ -483,6 +485,7 @@ export default function (props: any) {
           Launched the website under the domain name bounding.net at 11:23pm
           PST. This was version 1.0.
         </p> */}
+        </div>
       </div>
     </>
   );

@@ -42,3 +42,19 @@
   @extend .menu-font;
   color: $menu-cyan;
 }
+
+// The lobby puts running text on a plate rather than straight onto the
+// background art, and a page this long needs one: the inherited halo keeps
+// individual words legible, but forty paragraphs of prose read over a moving
+// starfield is still tiring. The headings stay outside so they keep reading as
+// section breaks rather than rows in a table.
+.prose {
+  @extend .standard-panel;
+  padding: 8px 24px 24px 24px;
+}
+
+// The first heading's top margin used to collapse out of the page; inside a
+// padded panel it does not, and shows up as dead space above the first line.
+.prose > :first-child {
+  margin-top: 0;
+}

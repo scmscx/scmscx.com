@@ -136,7 +136,7 @@
 .login {
   @extend .standard-panel;
   @extend .space-font;
-  background: transparent;
+  background: $menu-panel-fill;
   color: $menu-green;
   font-size: 24px;
   margin: 18px 0px;
@@ -150,7 +150,7 @@
 .upload {
   @extend .standard-panel;
   @extend .space-font;
-  background-color: transparent;
+  background-color: $menu-panel-fill;
   color: $menu-green;
   margin: 16px 0px;
   cursor: pointer;
@@ -178,7 +178,7 @@
 .completed-page-buttons {
   @extend .standard-panel;
   @extend .space-font;
-  background-color: transparent;
+  background-color: $menu-panel-fill;
   color: $menu-green;
   margin: 4px 4px;
   cursor: pointer;
@@ -193,7 +193,7 @@
 .completed-page-display {
   @extend .standard-panel;
   @extend .space-font;
-  background-color: transparent;
+  background-color: $menu-panel-fill;
   color: $menu-green;
   margin: 4px 4px;
   display: inline-block;
@@ -205,7 +205,7 @@
 .completed-page-buttons-disabled {
   @extend .standard-panel-disabled;
   @extend .space-font;
-  background-color: transparent;
+  background-color: $menu-panel-fill;
   color: $menu-grey;
   margin: 4px 4px;
   cursor: pointer;

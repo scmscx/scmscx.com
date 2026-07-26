@@ -22,7 +22,7 @@
   @extend .space-font;
   @extend .standard-panel;
 
-  background: transparent;
+  background: $menu-panel-fill;
   color: $menu-green;
   font-size: 24px;
   margin: 8px 0px;
@@ -53,7 +53,7 @@
 .login {
   @extend .standard-panel;
   @extend .space-font;
-  background: transparent;
+  background: $menu-panel-fill;
   color: $menu-green;
   font-size: 24px;
   margin: 18px 0px;

@@ -66,9 +66,38 @@
   filter: invert(100%);
 }
 
+// Left to the UA this renders as a white system combobox, which is the one
+// element on the site that ignores the lobby language entirely. Drop the
+// native chrome and draw it like the lobby's dropdowns: dark plate, green
+// label, and a menu-yellow caret sitting where the native arrow was.
 .select {
+  @extend .space-font;
+
+  appearance: none;
   display: inline-block;
   cursor: pointer;
+
+  border: none;
+  background-color: transparent;
+  color: $menu-green;
+
+  padding-right: 18px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath fill='%23adbf39' d='M0 0h10L5 6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right center;
+  background-size: 10px 6px;
+}
+
+// The popup list is drawn by the OS, so it only honours plain colors.
+.select option {
+  background-color: $menu-black;
+  color: $menu-green;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .select:hover {
+    color: $menu-light-green;
+  }
 }
 
 // .language-icon-container {

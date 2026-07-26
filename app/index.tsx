@@ -49,17 +49,19 @@ render(
   () => (
     <LangProvider>
       <SessionProvider>
-        <Router root={Navbar}>
-          <Route path="/about" component={About} />
-          <Route path="/login" component={Login} />
-          <Route path={["/search", "/search/:query"]} component={Search} />
-          <Route path="/map/:mapId" component={Map} />
-          <Route path="/user/:userName" component={User} />
-          <Route path="/upload" component={Upload} />
-          <Route path="/moderation" component={Moderation} />
-          <Route path="/" component={Home} />
-          <Route path="*paramName" component={NotFound} />
-        </Router>
+        <CoolBackground>
+          <Router root={Navbar}>
+            <Route path="/about" component={About} />
+            <Route path="/login" component={Login} />
+            <Route path={["/search", "/search/:query"]} component={Search} />
+            <Route path="/map/:mapId" component={Map} />
+            <Route path="/user/:userName" component={User} />
+            <Route path="/upload" component={Upload} />
+            <Route path="/moderation" component={Moderation} />
+            <Route path="/" component={Home} />
+            <Route path="*paramName" component={NotFound} />
+          </Router>
+        </CoolBackground>
       </SessionProvider>
     </LangProvider>
   ),
