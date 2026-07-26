@@ -1,8 +1,6 @@
-import { For, Suspense, createEffect, onCleanup, onMount } from "solid-js";
+import { For, createEffect, onCleanup, onMount } from "solid-js";
 import {
   A,
-  BeforeLeaveEventArgs,
-  Params,
   useBeforeLeave,
   useLocation,
   useNavigate,
@@ -12,7 +10,7 @@ import {
 
 import { autofocus } from "@solid-primitives/autofocus";
 
-import { createSignal, createResource, Switch, Match, Show } from "solid-js";
+import { createSignal, Switch, Match, Show } from "solid-js";
 
 import style from "./Search.module.scss";
 
@@ -198,18 +196,69 @@ const getSearchUrl = (
   return apiUrl;
 };
 
+/** A search page as the user last saw it, including how far down it they were. */
+type CachedSearch = {
+  results: any[];
+  numResults: number;
+  dontRequestMore: boolean;
+  scrollY: number;
+};
+
+// Clicking a result unmounts this component and disposes every signal in it, so
+// coming back would otherwise refetch offset 0: whatever infinite scroll had
+// loaded is dropped, and the document is left too short to restore a scroll
+// position into even if one had been saved. Parking the results here instead
+// lets the remount render the same page the user left.
+//
+// Keyed by the full search URL so an unrelated search never reads these
+// results, and deliberately memory-only — this is for the back button, not for
+// reloads or new tabs.
+const searchCache = new Map<string, CachedSearch>();
+
+// Deep enough to cover backing out of a few searches in a row without letting a
+// long browsing session accumulate result sets forever.
+const SEARCH_CACHE_ENTRIES = 10;
+
+const rememberSearch = (key: string, entry: CachedSearch) => {
+  // Re-insert rather than overwrite, so Map iteration order stays
+  // least-recently-used first and the eviction below drops the right entry.
+  searchCache.delete(key);
+  searchCache.set(key, entry);
+
+  while (searchCache.size > SEARCH_CACHE_ENTRIES) {
+    const oldest = searchCache.keys().next();
+    if (oldest.done) break;
+    searchCache.delete(oldest.value);
+  }
+};
+
 export default function (prop: any) {
   const [lang, _] = useLang();
   const [session] = useSession();
   const location = useLocation();
   const params = useParams();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+
+  // Read live rather than captured once: `doNavigate` changes the URL without
+  // remounting, so a key captured at setup would file the next save under the
+  // previous search.
+  const cacheKey = () => location.pathname + location.search;
+  const restored = searchCache.get(cacheKey());
+
   const [currentQuery, setCurrentQuery] = createSignal("");
   const [currentPendingQuery, setCurrentPendingQuery] = createSignal("");
-  const [numSearchResults, setNumSearchResults] = createSignal(0);
-  const [dontRequestMore, setDontRequestMore] = createSignal(false);
-  const [searchResults, setSearchResults] = createSignal<any[]>([]);
+  const [numSearchResults, setNumSearchResults] = createSignal(
+    restored?.numResults ?? 0
+  );
+  const [dontRequestMore, setDontRequestMore] = createSignal(
+    restored?.dontRequestMore ?? false
+  );
+  const [searchResults, setSearchResults] = createSignal<any[]>(
+    // Seeded here rather than in `onMount` so the rows exist in the DOM by the
+    // first paint — otherwise the scroll restore below has nothing to land on.
+    restored?.results ?? []
+  );
 
   const [targetsShown, setTargetsShown] = createSignal(
     searchParams.unit_names != undefined ||
@@ -250,8 +299,6 @@ export default function (prop: any) {
   const [sortShown, setSortShown] = createSignal(
     searchParams.sort != undefined
   );
-
-  const [sorting, setSorting] = createSignal("relevancy");
 
   const [formData, setFormData] = createSignal({
     sort: mapSort(searchParams.sort),
@@ -396,17 +443,38 @@ export default function (prop: any) {
     }
   };
 
-  onMount(async () => {
+  onMount(() => {
+    if (restored) {
+      window.scrollTo(0, restored.scrollY);
+      return;
+    }
+
     fetchData();
+  });
+
+  // Fires on the way out of any navigation, including the click on a result
+  // that unmounts this component and the programmatic one in `doNavigate`. In
+  // both cases the router has not moved yet, so `cacheKey()` still names the
+  // page these results belong to.
+  useBeforeLeave(() => {
+    // Leaving before the first page lands would otherwise cache an empty list,
+    // and the remount would restore that and skip the fetch — a search stuck
+    // blank forever. An empty result set is cheap to fetch again, so just don't
+    // record one. A page-2 fetch in flight is fine: page 1 is already here.
+    if (searchResults().length === 0) {
+      return;
+    }
+
+    rememberSearch(cacheKey(), {
+      results: searchResults(),
+      numResults: numSearchResults(),
+      dontRequestMore: dontRequestMore(),
+      scrollY: window.scrollY,
+    });
   });
 
   createEffect(() => {
     const handleScroll = (e: any) => {
-      console.log(
-        window.innerHeight + document.documentElement.scrollTop,
-        document.documentElement.offsetHeight
-      );
-
       if (!isLoading()) {
         if (
           document.documentElement.offsetHeight <
@@ -465,9 +533,12 @@ export default function (prop: any) {
           }
         }}
       >
+        {/* Focusing the box scrolls it into view, and it sits at the top of the
+            page — on a restored search that would undo the scroll restore, so
+            the box is left unfocused there. */}
         <input
           use:autofocus
-          autofocus={window.screen.height < window.screen.width}
+          autofocus={!restored && window.screen.height < window.screen.width}
           class={style.search}
           value={currentQuery()}
           placeholder={i18n_internal(lang(), "Query")}
