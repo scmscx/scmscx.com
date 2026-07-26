@@ -10,16 +10,38 @@ import style from "./CoolBackground.module.scss";
 // to each layer in CoolBackground.module.scss; wrapping against the wrong one
 // would make the layer jump instead of repeating seamlessly.
 const LAYERS = [
-  { name: "--parallax-1", rate: 0.12, tileHeight: 768 },
-  { name: "--parallax-3", rate: 0.28, tileHeight: 1024 },
-  { name: "--parallax-5", rate: 0.5, tileHeight: 1408 },
+  { name: "--parallax-1", cycles: "--parallax-cycles-1", rate: 0.12, tileHeight: 768 },
+  { name: "--parallax-3", cycles: "--parallax-cycles-3", rate: 0.28, tileHeight: 1024 },
+  { name: "--parallax-5", cycles: "--parallax-cycles-5", rate: 0.5, tileHeight: 1408 },
 ] as const;
+
+// Where the browser can drive a scroll-timeline animation, the drift belongs on
+// the compositor -- see the @supports block in the stylesheet for why. Then the
+// only thing left for JS is how many tile-sized iterations span the page, which
+// changes when the page does, not when it scrolls.
+const SCROLL_DRIVEN =
+  typeof CSS !== "undefined" &&
+  CSS.supports &&
+  CSS.supports("animation-timeline: scroll()");
 
 export default function (props: any) {
   onMount(() => {
-    let queued = false;
+    const root = document.documentElement;
 
-    const publish = () => {
+    // --- compositor path: recompute iteration counts when the page resizes ---
+    const publishCycles = () => {
+      const scrollable = root.scrollHeight - window.innerHeight;
+      for (const { cycles, rate, tileHeight } of LAYERS) {
+        // One iteration drifts one tile, so this is the drift the layer would
+        // have accumulated over the whole page, expressed in tiles.
+        const n = Math.max(0, (scrollable * rate) / tileHeight);
+        root.style.setProperty(cycles, `${n}`);
+      }
+    };
+
+    // --- fallback path: write the wrapped offset each frame ---
+    let queued = false;
+    const publishOffsets = () => {
       queued = false;
       const y = window.scrollY;
       for (const { name, rate, tileHeight } of LAYERS) {
@@ -28,23 +50,37 @@ export default function (props: any) {
         // is what lets the layer stay a fixed height instead of having to span
         // the whole page.
         const offset = -((y * rate) % tileHeight);
-        document.documentElement.style.setProperty(name, `${offset}px`);
+        root.style.setProperty(name, `${offset}px`);
       }
     };
-
     const onScroll = () => {
       if (queued) return;
       queued = true;
-      requestAnimationFrame(publish);
+      requestAnimationFrame(publishOffsets);
     };
 
-    publish();
-    window.addEventListener("scroll", onScroll, { passive: true });
+    let observer: ResizeObserver | undefined;
+
+    if (SCROLL_DRIVEN) {
+      publishCycles();
+      // Pages fill in from fetches long after mount, so the scrollable height
+      // is not known until the content settles -- watch it rather than sample
+      // it once.
+      observer = new ResizeObserver(publishCycles);
+      observer.observe(document.body);
+      window.addEventListener("resize", publishCycles, { passive: true });
+    } else {
+      publishOffsets();
+      window.addEventListener("scroll", onScroll, { passive: true });
+    }
 
     onCleanup(() => {
+      observer?.disconnect();
+      window.removeEventListener("resize", publishCycles);
       window.removeEventListener("scroll", onScroll);
-      for (const { name } of LAYERS) {
-        document.documentElement.style.removeProperty(name);
+      for (const { name, cycles } of LAYERS) {
+        root.style.removeProperty(name);
+        root.style.removeProperty(cycles);
       }
     });
   });
