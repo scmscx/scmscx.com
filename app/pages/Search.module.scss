@@ -59,9 +59,22 @@
   color: $menu-white;
 }
 
+// The clipping lives here rather than on the cell, and that placement is the
+// whole point. overflow clips to the *padding* box, so with overflow on the
+// cell an over-long name renders straight through the cell's padding to its
+// edge and sits flush against the next column -- the gutter is there, but
+// nothing stops the text entering it. This link is a block filling the cell's
+// content box, which ends where the padding begins, so clipping here leaves
+// the gutter actually empty.
 .map-link {
   display: block;
   text-decoration: none;
+
+  // Cut flat, no ellipsis -- the clip edge is inset from the next column by the
+  // cell's gutter, so an over-long name reads as running out of room rather
+  // than as colliding with the timestamp.
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .table-container {
@@ -90,18 +103,17 @@
   // table-layout: fixed;
 }
 
-// A results grid, not a list of field/value pairs, so it follows the map
-// archive pages rather than the lobby: white column headers over rows of
-// blue-lavender data (classic.battle.net/scc drew its map tables with
-// text="#aeaedd" and <font color="#ffffff"><b> headings).
+// Same split as the property tables on the map page, and as the lobby itself:
+// the thing naming a column is menu cyan, the data under it is white.
 //
-// This is the opposite assignment to the property tables on the map page, and
-// deliberately so -- there the value is the thing you came to read and the
-// field name is subordinate, here the header titles the column. Both follow
-// the same rule underneath: whatever carries the emphasis is white.
+// An earlier version had these the other way round, following how the old
+// classic.battle.net map-archive pages coloured their tables. Those are web
+// pages about Brood War rather than Brood War's own UI, and the lobby is what
+// this site takes its language from -- so the site now colours every table the
+// same way regardless of whether the label sits beside the value or above it.
 .table th {
   @extend .menu-font;
-  color: $menu-white;
+  color: $menu-cyan;
   text-align: left;
   word-break: keep-all;
   white-space: pre;
@@ -118,13 +130,12 @@
 
 .table td {
   @extend .menu-font;
-  color: $menu-cyan;
+  color: $menu-white;
   text-wrap: nowrap;
 
-  // The gutter has to be generous here: scenario names are clipped flat at
-  // .scenario-name's max-width with no ellipsis, so a long name ends at the
-  // column edge and the padding is the only thing separating it from the date
-  // in the next column.
+  // The gutter has to be generous here: scenario names are cut flat with no
+  // ellipsis, so a long name ends at the clip edge and this padding is the
+  // only thing separating it from the date in the next column.
   padding: 4px 28px 4px 0px;
 }
 
@@ -253,5 +264,4 @@
 
 .scenario-name {
   max-width: 200px;
-  overflow: hidden;
 }

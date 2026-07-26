@@ -6,6 +6,25 @@ use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::time::Duration;
 
+/// Public entry point. In dev mode this goes straight to the database.
+///
+/// The cache below holds a result for an hour, which is the right call in
+/// production but makes local work confusing: upload a map, search for it, and
+/// it is missing until the entry expires -- the same query keeps answering from
+/// before the upload with no sign that it is doing so.
+pub async fn search_cache(
+    query: &str,
+    allow_nsfw: bool,
+    query_params: &SearchParams,
+    pool: Pool<PostgresConnectionManager<NoTls>>,
+) -> Result<Vec<Map>> {
+    if crate::util::is_dev_mode() {
+        search_uncached(query, allow_nsfw, query_params, pool).await
+    } else {
+        search_cached(query, allow_nsfw, query_params, pool).await
+    }
+}
+
 #[cached(
     size = 100,
     time = 3600,
@@ -13,7 +32,16 @@ use std::time::Duration;
     key = "(String, bool, SearchParams)",
     convert = r#"{ (query.to_owned(), allow_nsfw, { let mut qp = query_params.clone(); qp.offset = 0; qp }) }"#
 )]
-pub async fn search_cache(
+async fn search_cached(
+    query: &str,
+    allow_nsfw: bool,
+    query_params: &SearchParams,
+    pool: Pool<PostgresConnectionManager<NoTls>>,
+) -> Result<Vec<Map>> {
+    search_uncached(query, allow_nsfw, query_params, pool).await
+}
+
+async fn search_uncached(
     query: &str,
     allow_nsfw: bool,
     query_params: &SearchParams,
