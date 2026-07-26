@@ -108,17 +108,24 @@
   // overflow: visible;
   border-right-color: $menu_dark_red;
 
-  // Set the header row off from the results, so it reads as a heading over the
-  // rows rather than as the first of them. The gap has to beat the 4px the
-  // rows are spaced by to register as a break rather than as loose spacing.
-  padding: 0px 8px 14px 0px;
+  // Bottom padding sets the header row off from the results, so it reads as a
+  // heading over the rows rather than as the first of them -- it has to beat
+  // the 4px the rows are spaced by to register as a break rather than as loose
+  // spacing. Right padding is the column gutter, and must match the cells
+  // below so the columns line up.
+  padding: 0px 28px 14px 0px;
 }
 
 .table td {
   @extend .menu-font;
   color: $menu-cyan;
   text-wrap: nowrap;
-  padding: 4px 12px 4px 0px;
+
+  // The gutter has to be generous here: scenario names are clipped flat at
+  // .scenario-name's max-width with no ellipsis, so a long name ends at the
+  // column edge and the padding is the only thing separating it from the date
+  // in the next column.
+  padding: 4px 28px 4px 0px;
 }
 
 .monospace {

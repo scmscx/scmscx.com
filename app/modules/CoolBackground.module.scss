@@ -33,7 +33,17 @@
   @extend .background-protection;
 
   margin: 6px;
+
+  // svh, not vh. This exists to stop a short page floating in the middle of an
+  // empty screen, so it wants the *smallest* the viewport gets. Sized to vh --
+  // which is the largest -- a page with little content ends up taller than the
+  // screen by roughly the height of a mobile browser's toolbar: enough to
+  // scroll, which hides the toolbar, which removes the overflow, which brings
+  // it back. Sizing to svh means such a page simply fits, and the toolbar stops
+  // appearing and disappearing. The vh line is the fallback for browsers
+  // without the newer units.
   min-height: calc(100vh - 6px * 2 - 4px);
+  min-height: calc(100svh - 6px * 2 - 4px);
 }
 
 .parallax-layer {
@@ -65,10 +75,19 @@
 @mixin parallax-depth($tile-w, $tile-h, $origin-x, $origin-y, $alpha) {
   @extend .parallax-layer;
 
+  // lvh, not vh: on mobile the toolbar shows and hides as you scroll, and a
+  // layer sized to the dynamic viewport would resize underneath the effect
+  // every time it did. lvh is the tallest the viewport ever gets, so the layer
+  // is sized once and simply extends under the toolbar when it is showing.
   height: calc(100vh + #{$tile-h});
+  height: calc(100lvh + #{$tile-h});
+
   background-size: $tile-w $tile-h;
   background-position: $origin-x $origin-y;
   opacity: $alpha;
+
+  // Read by the scroll-driven path below, and by the TSX fallback.
+  --parallax-tile: #{$tile-h};
 }
 
 .layer1 {
@@ -86,11 +105,60 @@
   transform: translate3d(0, var(--parallax-5, 0px), 0);
 }
 
+// Hand the drift to the compositor where the browser can do it.
+//
+// The fallback above is a transform fed from a scroll listener, which is fine
+// on desktop but visibly wrong on mobile: touch scrolling runs on the
+// compositor thread, so a main-thread listener lands its updates late and the
+// layers sit still through a fling and then snap when it ends. A scroll-driven
+// animation is evaluated by the compositor alongside the scroll itself.
+//
+// The awkward part is that a scroll timeline runs 0..1 over the whole page,
+// whereas the drift wants to be a fixed *rate* -- so much movement per pixel
+// scrolled, independent of how long the page happens to be. Iterations bridge
+// the two: one iteration drifts exactly one tile, and since the background
+// repeats on that tile, the snap back to 0 between iterations is invisible.
+// That keeps the layer one tile tall no matter how long the page is, exactly
+// as the wrapped offset did. The iteration count is the only page-dependent
+// number, and the TSX recomputes it on resize rather than per frame.
+@supports (animation-timeline: scroll()) {
+  @keyframes parallax-drift {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+
+    to {
+      transform: translate3d(0, calc(-1 * var(--parallax-tile)), 0);
+    }
+  }
+
+  .layer1,
+  .layer3,
+  .layer5 {
+    transform: none;
+    animation: parallax-drift linear both;
+    animation-timeline: scroll(root block);
+  }
+
+  .layer1 {
+    animation-iteration-count: var(--parallax-cycles-1, 0);
+  }
+
+  .layer3 {
+    animation-iteration-count: var(--parallax-cycles-3, 0);
+  }
+
+  .layer5 {
+    animation-iteration-count: var(--parallax-cycles-5, 0);
+  }
+}
+
 // Honour the OS setting: the layers still render, they just stop moving.
 @media (prefers-reduced-motion: reduce) {
   .layer1,
   .layer3,
   .layer5 {
     transform: none;
+    animation: none;
   }
 }
