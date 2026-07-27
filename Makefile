@@ -1,4 +1,7 @@
-RUST_SOURCE = Cargo.toml Cargo.lock $(shell find crates/ -name "*.rs" -or -name "*.toml" -or -name "*.cpp" -or -name "*.h" | sed 's/ /\\ /g')
+# i18n/ is in here because the string table is include_str!'d into the binary:
+# without it, a translation-only change leaves make thinking the binary is up
+# to date and the old strings ship.
+RUST_SOURCE = Cargo.toml Cargo.lock $(shell find crates/ i18n/ -name "*.rs" -or -name "*.toml" -or -name "*.cpp" -or -name "*.h" -or -name "*.json" | sed 's/ /\\ /g')
 RUST_TARGET_DIR := target/x86_64-unknown-linux-gnu
 
 
@@ -21,7 +24,10 @@ package-lock.json node_modules &: package.json
 	touch node_modules
 	touch package-lock.json
 
-dist/vite: node_modules vite.config.ts tsconfig.json $(shell find app | sed 's/ /\\ /g')
+# i18n/strings.json for the same reason it is in RUST_SOURCE: app/modules/language.tsx
+# imports it, so a translation-only change has to rebuild the bundle too. Without it
+# make rebuilds only the binary and the client ships the old strings.
+dist/vite: node_modules vite.config.ts tsconfig.json i18n/strings.json $(shell find app | sed 's/ /\\ /g')
 	mkdir -p dist/vite
 	npm run build
 	touch $@
@@ -89,7 +95,13 @@ fmt: $(RUST_SOURCE)
 clippy: $(RUST_SOURCE)
 	cargo clippy --workspace --all-targets -- -D warnings
 
-ci: fmt clippy test e2e scmscx.com-image-debug
+# Every string key must carry all seven languages, be referenced somewhere, and
+# have a value for each slot it interpolates. There is no English fallback at
+# runtime, so a gap is a build failure here rather than a blank on the page.
+i18n:
+	node tools/check-i18n.mjs
+
+ci: fmt clippy i18n test e2e scmscx.com-image-debug
 
 # Mutation testing — measures how well the tests pin down behavior. Scope and
 # rationale live in .cargo/mutants.toml. Requires cargo-mutants
@@ -145,4 +157,4 @@ deploy:
 	ssh -i~/.ssh/stan -C root@10.70.23.1 podman pull registry.zxcv.io/scmscx.com
 	ssh -i~/.ssh/stan -C root@10.70.23.1 systemctl restart scmscx.com
 
-.PHONY: .phony check build test e2e mutants fmt clippy ci run push dev deploy scmscx.com-image-debug scmscx.com-image bwrender-image-debug bwrender-image postgres-image
+.PHONY: .phony check build test e2e mutants fmt clippy i18n ci run push dev deploy scmscx.com-image-debug scmscx.com-image bwrender-image-debug bwrender-image postgres-image

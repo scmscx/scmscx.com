@@ -1,0 +1,53 @@
+@use "../variables.scss" as *;
+
+// The address carries no href until the reader interacts with it, and `:link`
+// only matches an anchor that has one -- so without this the address would
+// render unstyled and then change colour under the cursor. Matches what
+// About.module.scss gives a real link.
+.link {
+  color: $menu-dark-cyan;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.link:visited {
+  color: $menu-pink;
+}
+
+// Segment classes for the "CSS Display none" technique (see Email.tsx).
+//
+// Every segment of the address carries one of these, real and decoy alike, and
+// only half of them hide. That is the point: if the decoys were the only spans
+// with a class attribute, then the class attribute itself would be the tell and
+// a harvester could strip them without reading any CSS at all. Split across
+// interchangeable-looking names, it has to resolve the stylesheet to know which
+// segments are real. CSS modules hashes all of these anyway.
+//
+// `display: none` is load-bearing and is not interchangeable with a visual-only
+// hide such as a zero font size or an off-screen position: it is what keeps the
+// decoys out of the accessibility tree and out of the text selection, so a
+// screen reader and a copy-paste both get the real address rather than the
+// decoyed one.
+.s1 {
+  display: none;
+}
+
+.s2 {
+  display: inline;
+}
+
+.s3 {
+  display: none;
+}
+
+.s4 {
+  display: inline;
+}
+
+.s5 {
+  display: none;
+}
+
+.s6 {
+  display: inline;
+}

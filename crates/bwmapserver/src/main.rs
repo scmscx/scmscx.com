@@ -1,6 +1,7 @@
 mod access;
 mod api;
 mod db;
+mod i18n;
 mod middleware;
 mod pumpers;
 mod ratelimit;

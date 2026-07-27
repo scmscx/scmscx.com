@@ -519,7 +519,7 @@ export default function (prop: any) {
   return (
     <div class={style["vertical-container"]}>
       <h1 class={style.h1}>
-        <I18nSpan text="Search" />
+        <I18nSpan text="common.search_2" />
       </h1>
 
       <form
@@ -541,14 +541,14 @@ export default function (prop: any) {
           autofocus={!restored && window.screen.height < window.screen.width}
           class={style.search}
           value={currentQuery()}
-          placeholder={i18n_internal(lang(), "Query")}
+          placeholder={i18n_internal(lang(), "search.query")}
           onInput={(evt) => setCurrentQuery(evt.target.value)}
         />
         <button class={style["search-button"]} name="search" type="submit">
-          <I18nSpan text="Search-formaction" />
+          <I18nSpan text="search.submit" />
         </button>
         <button class={style["search-button"]} name="random" type="submit">
-          <I18nSpan text="Random" />
+          <I18nSpan text="search.random" />
         </button>
 
         <h4
@@ -557,7 +557,7 @@ export default function (prop: any) {
             setTargetsShown(!targetsShown());
           }}
         >
-          <I18nSpan text="Targets" />
+          <I18nSpan text="search.targets" />
           <span
             classList={{
               [style["dropdown-arrow"]]: !targetsShown(),
@@ -585,7 +585,7 @@ export default function (prop: any) {
                       });
                     }}
                   />
-                  <I18nSpan text="Units" />
+                  <I18nSpan text="common.units" />
                 </label>
               </div>
               <div class={style["search-flag"]}>
@@ -602,7 +602,7 @@ export default function (prop: any) {
                       });
                     }}
                   />
-                  <I18nSpan text="Forces" />
+                  <I18nSpan text="common.forces" />
                 </label>
               </div>
               <div class={style["search-flag"]}>
@@ -619,7 +619,7 @@ export default function (prop: any) {
                       });
                     }}
                   />
-                  <I18nSpan text="Filenames" />
+                  <I18nSpan text="search.filenames" />
                 </label>
               </div>
               <div class={style["search-flag"]}>
@@ -638,7 +638,7 @@ export default function (prop: any) {
                       });
                     }}
                   />
-                  <I18nSpan text="Scenarios" />
+                  <I18nSpan text="search.scenarios" />
                 </label>
               </div>
               <div class={style["search-flag"]}>
@@ -657,7 +657,7 @@ export default function (prop: any) {
                       });
                     }}
                   />
-                  <I18nSpan text="Scenario Descriptions" />
+                  <I18nSpan text="search.scenario_descriptions" />
                 </label>
               </div>
             </div>
@@ -670,7 +670,7 @@ export default function (prop: any) {
             setFiltersShown(!filtersShown());
           }}
         >
-          <I18nSpan text="Filters" />
+          <I18nSpan text="search.filters" />
           <span
             classList={{
               [style["dropdown-arrow"]]: !filtersShown(),
@@ -700,7 +700,7 @@ export default function (prop: any) {
                       });
                     }}
                   />
-                  <I18nSpan text="Badlands" />
+                  <I18nSpan text="common.tileset_badlands" />
                 </label>
               </div>
               <div class={style["search-flag"]}>
@@ -719,7 +719,7 @@ export default function (prop: any) {
                       });
                     }}
                   />
-                  <I18nSpan text="Space" />
+                  <I18nSpan text="common.tileset_space" />
                 </label>
               </div>
               <div class={style["search-flag"]}>
@@ -738,7 +738,7 @@ export default function (prop: any) {
                       });
                     }}
                   />
-                  <I18nSpan text="Installation" />
+                  <I18nSpan text="common.tileset_installation" />
                 </label>
               </div>
               <div class={style["search-flag"]}>
@@ -757,7 +757,7 @@ export default function (prop: any) {
                       });
                     }}
                   />
-                  <I18nSpan text="Ashworld" />
+                  <I18nSpan text="common.tileset_ashworld" />
                 </label>
               </div>
               <div class={style["search-flag"]}>
@@ -776,7 +776,7 @@ export default function (prop: any) {
                       });
                     }}
                   />
-                  <I18nSpan text="Jungle" />
+                  <I18nSpan text="common.tileset_jungle" />
                 </label>
               </div>
               <div class={style["search-flag"]}>
@@ -795,7 +795,7 @@ export default function (prop: any) {
                       });
                     }}
                   />
-                  <I18nSpan text="Desert" />
+                  <I18nSpan text="common.tileset_desert" />
                 </label>
               </div>
               <div class={style["search-flag"]}>
@@ -812,7 +812,7 @@ export default function (prop: any) {
                       });
                     }}
                   />
-                  <I18nSpan text="Ice" />
+                  <I18nSpan text="common.tileset_ice" />
                 </label>
               </div>
               <div class={style["search-flag"]}>
@@ -831,7 +831,7 @@ export default function (prop: any) {
                       });
                     }}
                   />
-                  <I18nSpan text="Twilight" />
+                  <I18nSpan text="common.tileset_twilight" />
                 </label>
               </div>
             </div>
@@ -839,7 +839,7 @@ export default function (prop: any) {
             <div class={style.flexbox}>
               <div class={style["search-filter-textbox"]}>
                 <label for="minimumMapWidth">
-                  <I18nSpan text="Minimum Map Width" />
+                  <I18nSpan text="search.minimum_map_width" />
                   <br />
                   <input
                     type="number"
@@ -859,7 +859,7 @@ export default function (prop: any) {
 
               <div class={style["search-filter-textbox"]}>
                 <label for="maximumMapWidth">
-                  <I18nSpan text="Maximum Map Width" />
+                  <I18nSpan text="search.maximum_map_width" />
                   <br />
                   <input
                     type="number"
@@ -879,7 +879,7 @@ export default function (prop: any) {
 
               <div class={style["search-filter-textbox"]}>
                 <label for="minimumMapHeight">
-                  <I18nSpan text="Minimum Map Height" />
+                  <I18nSpan text="search.minimum_map_height" />
                   <br />
                   <input
                     type="number"
@@ -899,7 +899,7 @@ export default function (prop: any) {
 
               <div class={style["search-filter-textbox"]}>
                 <label for="maximumMapHeight">
-                  <I18nSpan text="Maximum Map Height" />
+                  <I18nSpan text="search.maximum_map_height" />
                   <br />
                   <input
                     type="number"
@@ -921,7 +921,7 @@ export default function (prop: any) {
             <div class={style.flexbox}>
               <div class={style["search-filter-textbox"]}>
                 <label for="minimumHumanPlayers">
-                  <I18nSpan text="Minimum Human Players" />
+                  <I18nSpan text="search.minimum_human_players" />
                   <br />
                   <input
                     type="number"
@@ -941,7 +941,7 @@ export default function (prop: any) {
 
               <div class={style["search-filter-textbox"]}>
                 <label for="maximumHumanPlayers">
-                  <I18nSpan text="Maximum Human Players" />
+                  <I18nSpan text="search.maximum_human_players" />
                   <br />
                   <input
                     type="number"
@@ -964,7 +964,7 @@ export default function (prop: any) {
 
               <div class={style["search-filter-textbox"]}>
                 <label for="minimumComputerPlayers">
-                  <I18nSpan text="Minimum Computer Players" />
+                  <I18nSpan text="search.minimum_computer_players" />
                   <br />
                   <input
                     type="number"
@@ -987,7 +987,7 @@ export default function (prop: any) {
 
               <div class={style["search-filter-textbox"]}>
                 <label for="maximumComputerPlayers">
-                  <I18nSpan text="Maximum Computer Players" />
+                  <I18nSpan text="search.maximum_computer_players" />
                   <br />
                   <input
                     type="number"
@@ -1012,7 +1012,7 @@ export default function (prop: any) {
             <div class={style.flexbox}>
               <div class={style["search-filter-textbox"]}>
                 <label for="lastModifiedAfter">
-                  <I18nSpan text="Last Modified After" />
+                  <I18nSpan text="search.last_modified_after" />
                   <br />
                   <input
                     type="date"
@@ -1034,7 +1034,7 @@ export default function (prop: any) {
 
               <div class={style["search-filter-textbox"]}>
                 <label for="lastModifiedBefore">
-                  <I18nSpan text="Last Modified Before" />
+                  <I18nSpan text="search.last_modified_before" />
                   <br />
                   <input
                     type="date"
@@ -1056,7 +1056,7 @@ export default function (prop: any) {
 
               <div class={style["search-filter-textbox"]}>
                 <label for="uploadedAfter">
-                  <I18nSpan text="Time Uploaded After" />
+                  <I18nSpan text="search.time_uploaded_after" />
                   <br />
                   <input
                     type="date"
@@ -1078,7 +1078,7 @@ export default function (prop: any) {
 
               <div class={style["search-filter-textbox"]}>
                 <label for="uploadedBefore">
-                  <I18nSpan text="Time Uploaded Before" />
+                  <I18nSpan text="search.time_uploaded_before" />
                   <br />
                   <input
                     type="date"
@@ -1102,12 +1102,12 @@ export default function (prop: any) {
             <div class={style.flexbox}>
               <div class={style["search-filter-textbox"]}>
                 <label for="uploadedBy">
-                  <I18nSpan text="Uploaded By" />
+                  <I18nSpan text="search.uploaded_by" />
                   <br />
                   <input
                     type="text"
                     id="uploadedBy"
-                    placeholder={i18n_internal(lang(), "Username")}
+                    placeholder={i18n_internal(lang(), "common.username")}
                     value={formData().uploaded_by}
                     onInput={(evt) => {
                       setFormData({
@@ -1135,7 +1135,7 @@ export default function (prop: any) {
                       });
                     }}
                   />
-                  <I18nSpan text="Include Broken" />
+                  <I18nSpan text="search.include_broken" />
                 </label>
               </div>
               <div class={style["search-flag"]}>
@@ -1152,7 +1152,7 @@ export default function (prop: any) {
                       });
                     }}
                   />
-                  <I18nSpan text="Include Outdated" />
+                  <I18nSpan text="search.include_outdated" />
                 </label>
               </div>
               <div class={style["search-flag"]}>
@@ -1169,7 +1169,7 @@ export default function (prop: any) {
                       });
                     }}
                   />
-                  <I18nSpan text="Include Unfinished" />
+                  <I18nSpan text="search.include_unfinished" />
                 </label>
               </div>
               <Show when={session()}>
@@ -1187,7 +1187,7 @@ export default function (prop: any) {
                         });
                       }}
                     />
-                    <I18nSpan text="Include NSFW" />
+                    <I18nSpan text="search.include_nsfw" />
                   </label>
                 </div>
               </Show>
@@ -1202,7 +1202,7 @@ export default function (prop: any) {
           setSortShown(!sortShown());
         }}
       >
-        <I18nSpan text="Sorting" />
+        <I18nSpan text="search.sorting" />
         <span
           classList={{
             [style["dropdown-arrow"]]: !sortShown(),
@@ -1229,7 +1229,7 @@ export default function (prop: any) {
                   });
                 }}
               />
-              <I18nSpan text="Relevancy" />
+              <I18nSpan text="search.relevancy" />
             </label>
           </div>
           <div class={style["sort-flag"]}>
@@ -1247,7 +1247,7 @@ export default function (prop: any) {
                   });
                 }}
               />
-              <I18nSpan text="Scenario" />
+              <I18nSpan text="search.scenario" />
             </label>
           </div>
           <div class={style["sort-flag"]}>
@@ -1265,7 +1265,7 @@ export default function (prop: any) {
                   });
                 }}
               />
-              <I18nSpan text="Last Modified (Oldest First)" />
+              <I18nSpan text="search.last_modified_oldest_first" />
             </label>
           </div>
           <div class={style["sort-flag"]}>
@@ -1283,7 +1283,7 @@ export default function (prop: any) {
                   });
                 }}
               />
-              <I18nSpan text="Last Modified (Newest First)" />
+              <I18nSpan text="search.last_modified_newest_first" />
             </label>
           </div>
           <div class={style["sort-flag"]}>
@@ -1301,7 +1301,7 @@ export default function (prop: any) {
                   });
                 }}
               />
-              <I18nSpan text="Time Uploaded (Oldest First)" />
+              <I18nSpan text="search.time_uploaded_oldest_first" />
             </label>
           </div>
           <div class={style["sort-flag"]}>
@@ -1319,14 +1319,14 @@ export default function (prop: any) {
                   });
                 }}
               />
-              <I18nSpan text="Time Uploaded (Newest First)" />
+              <I18nSpan text="search.time_uploaded_newest_first" />
             </label>
           </div>
         </div>
       </Show>
 
       <h4 class={style.h4}>
-        <I18nSpan text="Results" />
+        <I18nSpan text="search.results" />
         <span>
           : {isLoading() ? "" : numSearchResults() ? numSearchResults() : 0}
         </span>
@@ -1351,7 +1351,7 @@ export default function (prop: any) {
                       doNavigate(false);
                     }}
                   >
-                    <I18nSpan text="Scenario" />
+                    <I18nSpan text="search.scenario" />
                     <Switch>
                       <Match when={formData().sort === "scenario"}>▼</Match>
                     </Switch>
@@ -1372,7 +1372,7 @@ export default function (prop: any) {
                       doNavigate(false);
                     }}
                   >
-                    <I18nSpan text="Last Modified" />
+                    <I18nSpan text="common.last_modified" />
                     <Switch>
                       <Match when={formData().sort === "lastmodifiedold"}>
                         ▲
@@ -1398,7 +1398,7 @@ export default function (prop: any) {
                       doNavigate(false);
                     }}
                   >
-                    <I18nSpan text="Time Uploaded" />
+                    <I18nSpan text="search.time_uploaded" />
                     <Switch>
                       <Match when={formData().sort === "timeuploadedold"}>
                         ▲

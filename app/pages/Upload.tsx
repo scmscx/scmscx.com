@@ -264,20 +264,20 @@ export default function (props: any) {
     <>
       <div class={style["vertical-container"]}>
         <h1 class={style.h1}>
-          <I18nSpan text="Upload" />
+          <I18nSpan text="common.upload" />
         </h1>
 
         <p class={style.p}>
-          <I18nSpan text="If you want to upload one or more .scm/.scx files, then choose the top file picker." />
+          <I18nSpan text="upload.if_you_want_to_upload_one" />
         </p>
         <p class={style.p}>
-          <I18nSpan text="If you want to upload entire directories and their sub directories, then choose the bottom file picker." />
+          <I18nSpan text="upload.if_you_want_to_upload_entire" />
         </p>
         <p class={style.p}>
-          <I18nSpan text="Don't worry about corrupt, broken, unfinished, testing, duplicate, or outdated maps. The website will handle all of this and many of them are important parts of StarCraft map making history. Even uploading the exact same maps multiple times is no concern. So, upload everything you have and let the site do the filtering and processing." />
+          <I18nSpan text="upload.don_t_worry_about_corrupt_broken" />
         </p>
         <p class={style.p}>
-          <I18nSpan text="Try uploading your entire StarCraft map directory, it can commonly be found at:" />
+          <I18nSpan text="upload.try_uploading_your_entire_starcraft_map" />
           <br />
           <span class={style.mono}>
             &lt;USER_HOME&gt;\My Documents\StarCraft
@@ -286,7 +286,7 @@ export default function (props: any) {
 
         <form class={style.uploader} onSubmit={submit}>
           <label for="file">
-            <I18nSpan text=".scm/.scx file upload" />
+            <I18nSpan text="upload.scm_scx_file_upload" />
           </label>
           <input
             autofocus
@@ -297,12 +297,12 @@ export default function (props: any) {
             multiple
           />
           <button class={style.upload}>
-            <I18nSpan text="Upload" />
+            <I18nSpan text="common.upload" />
           </button>
         </form>
         <form class={style.uploader} onSubmit={submit}>
           <label for="directory">
-            <I18nSpan text="Directory (and sub directories) upload" />
+            <I18nSpan text="upload.directory_and_sub_directories_upload" />
           </label>
           <input
             type="file"
@@ -313,28 +313,28 @@ export default function (props: any) {
           />
 
           <button class={style.upload} type="submit">
-            <I18nSpan text="Upload" />
+            <I18nSpan text="common.upload" />
           </button>
         </form>
 
         <h3 class={style.h3}>
-          <I18nSpan text="In Progress" />
+          <I18nSpan text="upload.in_progress" />
         </h3>
         <div class={style.files}>
           <table class={style.table}>
             <thead>
               <tr>
                 <th>
-                  <I18nSpan text="Filename" />
+                  <I18nSpan text="common.filename" />
                 </th>
                 <th>
-                  <I18nSpan text="Progress" />
+                  <I18nSpan text="upload.progress" />
                 </th>
                 <th>
-                  <I18nSpan text="Size" />
+                  <I18nSpan text="upload.size" />
                 </th>
                 <th>
-                  <I18nSpan text="Last Modified" />
+                  <I18nSpan text="common.last_modified" />
                 </th>
               </tr>
             </thead>
@@ -363,7 +363,7 @@ export default function (props: any) {
         </div>
 
         <h3 class={style.h3}>
-          <I18nSpan text="Pending" />{" "}
+          <I18nSpan text="upload.pending" />{" "}
           <Show when={pendingUploads().length > 0}>
             <span>({pendingUploads().length})</span>
           </Show>
@@ -373,13 +373,13 @@ export default function (props: any) {
             <thead>
               <tr>
                 <th>
-                  <I18nSpan text="Filename" />
+                  <I18nSpan text="common.filename" />
                 </th>
                 <th>
-                  <I18nSpan text="Size" />
+                  <I18nSpan text="upload.size" />
                 </th>
                 <th>
-                  <I18nSpan text="Last Modified" />
+                  <I18nSpan text="common.last_modified" />
                 </th>
               </tr>
             </thead>
@@ -399,7 +399,7 @@ export default function (props: any) {
           </table>
         </div>
         <h3 class={style.h3}>
-          <I18nSpan text="Failed" />{" "}
+          <I18nSpan text="upload.failed" />{" "}
           <Show when={failedUploads().length > 0}>
             <span>({failedUploads().length})</span>
           </Show>
@@ -418,20 +418,20 @@ export default function (props: any) {
             tickScheduler();
           }}
         >
-          <I18nSpan text="Retry All" />
+          <I18nSpan text="upload.retry_all" />
         </button>
         <div class={style.files}>
           <table class={style.table}>
             <thead>
               <tr>
                 <th>
-                  <I18nSpan text="Filename" />
+                  <I18nSpan text="common.filename" />
                 </th>
                 <th>
-                  <I18nSpan text="Retry" />
+                  <I18nSpan text="upload.retry" />
                 </th>
                 <th>
-                  <I18nSpan text="Reason" />
+                  <I18nSpan text="upload.reason" />
                 </th>
               </tr>
             </thead>
@@ -451,7 +451,7 @@ export default function (props: any) {
                             tickScheduler();
                           }}
                         >
-                          <I18nSpan text="Retry" />
+                          <I18nSpan text="upload.retry" />
                         </a>
                       </td>
                       <td>{e.error}</td>
@@ -464,7 +464,7 @@ export default function (props: any) {
         </div>
 
         <h3 class={style.h3}>
-          <I18nSpan text="Completed" />{" "}
+          <I18nSpan text="upload.completed" />{" "}
           <Show when={completedUploads().length > 0}>
             <span>({completedUploads().length})</span>
           </Show>
@@ -517,16 +517,16 @@ export default function (props: any) {
             <thead>
               <tr>
                 <th>
-                  <I18nSpan text="Filename" />
+                  <I18nSpan text="common.filename" />
                 </th>
                 <th>
-                  <I18nSpan text="Link" />
+                  <I18nSpan text="upload.link" />
                 </th>
                 <th>
-                  <I18nSpan text="Size" />
+                  <I18nSpan text="upload.size" />
                 </th>
                 <th>
-                  <I18nSpan text="Last Modified" />
+                  <I18nSpan text="common.last_modified" />
                 </th>
               </tr>
             </thead>

@@ -2,41 +2,10 @@
 @use "./michroma.css" as *;
 @use "./nanum_gothic.css" as *;
 
-// Actual color codes that you can use in-game, in the lobby menu.
-$menu-cyan: #a4b4f8;
-$menu-green: #4cc428;
-$menu-light-green: #b4fc74;
-$menu-grey: #585858;
-$menu-white: #ffffff;
-$menu-red: #fc0000;
-$menu-black: #000000;
-
-// from a picture on the internet of the non-highlighted red borders of the lobby ui
-$menu-dark-red: #780000;
-$menu-yellow: #adbf39;
-
-// New colors introduced because I need them for UI stuff.
-$menu-pink: rgb(169, 123, 131);
-$menu-dark-cyan: #93a6ff;
-
-// Pure black rather than a near-black grey, so the starfield gets the most
-// contrast the display can give it. The stars are the backdrop's whole point;
-// lifting this even to #1c1c1c visibly flattens them.
-// $menu-background: #202020;
-$menu-background: #000;
-
-// Panel plate fill -- a touch lighter than the page, so panels read as plates
-// laid on top of the view rather than holes cut into it. It used to be darker
-// than the background, which inverted that. Measured on the home page (darkest
-// pixel in each region, ignoring stars): panel surface sits at luminance 22
-// against a 0 background, where the old pairing gave 4 against 16.
-//
-// The alpha is what lets the starfield still read faintly through a panel, so
-// changing the tint rather than the alpha keeps that intact. Tune to taste --
-// everything on the site that draws a panel goes through this one value.
-$menu-panel-fill: rgba(31, 31, 31, 0.72);
-// $menu-background-transparent: #202020c0;
-// $menu-background-transparent: #202020c0;
+// Design tokens live in _variables.scss; forwarded so that files which
+// `@use "./global.scss" as *` keep seeing them unchanged.
+@forward "./variables.scss";
+@use "./variables.scss" as *;
 
 // Global defaults
 .space-font {

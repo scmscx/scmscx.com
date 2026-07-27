@@ -21,43 +21,214 @@ use reqwest::StatusCode;
 // run in parallel and can be read and extended independently.
 // ---------------------------------------------------------------------------
 
-/// The language and `tac` middleware run on every request and set their cookies
-/// exactly once, honoring `Accept-Language` and existing cookies.
+/// The `tac` middleware runs on every request and sets its cookie exactly once,
+/// respecting one the caller already holds.
 #[tokio::test]
-async fn middleware_sets_language_and_tac_cookies() {
+async fn middleware_sets_tac_cookie() {
     let h = Harness::start().await;
     let c = harness::client();
 
-    // Fresh request → both cookies minted; language defaults to english.
+    // Fresh request → cookie minted.
     let resp = c.get(h.url("/sitemap.txt")).send().await.unwrap();
     assert!(resp.status().is_success());
-    assert_eq!(cookie_value(&resp, "lang").as_deref(), Some("eng"));
     let tac = cookie_value(&resp, "tac").expect("tac cookie minted");
     assert_eq!(tac.len(), 64, "tac is a sha-256 hex digest");
     assert!(tac.chars().all(|ch| ch.is_ascii_hexdigit()));
 
-    // Accept-Language negotiates korean.
+    // A caller-supplied tac is respected and NOT re-set.
     let resp = c
         .get(h.url("/sitemap.txt"))
-        .header("accept-language", "ko-KR,ko;q=0.9")
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(cookie_value(&resp, "lang").as_deref(), Some("kor"));
-
-    // Caller-supplied cookies are respected and NOT re-set.
-    let resp = c
-        .get(h.url("/sitemap.txt"))
-        .header("cookie", format!("lang=kor; tac={tac}"))
+        .header("cookie", format!("tac={tac}"))
         .send()
         .await
         .unwrap();
     assert!(
-        !set_cookies(&resp)
-            .iter()
-            .any(|c| c.starts_with("lang=") || c.starts_with("tac=")),
-        "existing lang/tac cookies must not be reset, got {:?}",
+        !set_cookies(&resp).iter().any(|c| c.starts_with("tac=")),
+        "an existing tac cookie must not be reset, got {:?}",
         set_cookies(&resp)
+    );
+}
+
+/// Language resolution, over real HTTP: cookie beats `Accept-Language`, which
+/// beats English, and whatever we settle on is written back to `lang2` so the
+/// frontend adopts the same answer instead of guessing separately.
+///
+/// The rendered `<html lang>` is asserted alongside the cookie because that is
+/// the half a user actually feels — it is what a screen reader keys off, and it
+/// is server-rendered, so it is right on first paint rather than after hydration.
+#[tokio::test]
+async fn middleware_resolves_language() {
+    let h = Harness::start().await;
+    let c = harness::client();
+
+    let page = |resp_body: String| harness::attr_after(&resp_body, "<html lang=\"");
+
+    // Nothing to go on → English, and deliberately NOT stored.
+    let resp = c.get(h.url("/about")).send().await.unwrap();
+    assert!(
+        cookie_value(&resp, "lang2").is_none(),
+        "a fallback must not be stored, got {:?}",
+        set_cookies(&resp)
+    );
+    assert_eq!(page(resp.text().await.unwrap()), "en");
+
+    // Accept-Language negotiates, ranked by q-value rather than by position.
+    let resp = c
+        .get(h.url("/about"))
+        .header("accept-language", "en;q=0.3,ko;q=0.9")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(cookie_value(&resp, "lang2").as_deref(), Some("ko"));
+    assert_eq!(page(resp.text().await.unwrap()), "ko");
+
+    // A language we don't carry falls through to English, and is likewise not
+    // stored: pinning a Japanese speaker to English with their own cookie would
+    // mean adding Japanese later never reaches them.
+    let resp = c
+        .get(h.url("/about"))
+        .header("accept-language", "ja,th;q=0.9")
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        cookie_value(&resp, "lang2").is_none(),
+        "an unmatched language must not be stored, got {:?}",
+        set_cookies(&resp)
+    );
+    assert_eq!(page(resp.text().await.unwrap()), "en");
+
+    // An existing cookie wins over the header, and is not re-set.
+    let resp = c
+        .get(h.url("/about"))
+        .header("cookie", "lang2=de")
+        .header("accept-language", "ko")
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        !set_cookies(&resp).iter().any(|c| c.starts_with("lang2=")),
+        "a cookie we honored must not be re-set, got {:?}",
+        set_cookies(&resp)
+    );
+    assert_eq!(page(resp.text().await.unwrap()), "de");
+
+    // A cookie naming a language we don't have is treated as absent.
+    let resp = c
+        .get(h.url("/about"))
+        .header("cookie", "lang2=xx")
+        .header("accept-language", "fr")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(cookie_value(&resp, "lang2").as_deref(), Some("fr"));
+    assert_eq!(page(resp.text().await.unwrap()), "fr");
+}
+
+/// The server-rendered meta tags — the ones link-preview unfurlers and search
+/// engines read — come out in the resolved language, not always English.
+#[tokio::test]
+async fn ssr_meta_tags_are_localized() {
+    let h = Harness::start().await;
+    let c = harness::client();
+
+    let og_title = |body: &str| harness::attr_after(body, r#"<meta property="og:title" content=""#);
+
+    let en = c
+        .get(h.url("/about"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert_eq!(og_title(&en), "About scmscx.com");
+
+    let ko = c
+        .get(h.url("/about"))
+        .header("cookie", "lang2=ko")
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert_ne!(og_title(&ko), og_title(&en), "og:title must be translated");
+    assert!(og_title(&ko).contains("정보"), "got {:?}", og_title(&ko));
+
+    // Every SSR shell, not just About. Asserted on <title> rather than og:title
+    // because every shell has one -- /moderation carries no og: tags.
+    //
+    // The list is checked against the templates on disk, so adding a
+    // uiv2-*.hbs without covering it here fails rather than quietly going
+    // untested, which is what a hand-maintained list of pages tends to do.
+    let shells: &[(&str, Option<&str>)] = &[
+        ("uiv2-about", Some("/about")),
+        ("uiv2-index", Some("/")),
+        ("uiv2-login", Some("/login")),
+        // Titled from the map's scenario name, which is map data rather than a
+        // translated string, and needs a real map id the fresh schema has none of.
+        ("uiv2-map", None),
+        ("uiv2-moderation", Some("/moderation")),
+        ("uiv2-search", Some("/search")),
+        ("uiv2-upload", Some("/upload")),
+        ("uiv2-user", Some("/user/nobody")),
+    ];
+
+    let listed: Vec<String> = shells.iter().map(|(t, _)| (*t).to_string()).collect();
+    assert_eq!(
+        listed,
+        harness::ssr_template_names(),
+        "the SSR shells on disk and the ones covered here have diverged"
+    );
+
+    let title = |body: &str| harness::between(body, "<title>", "</title>");
+
+    for (template, path) in shells {
+        let Some(path) = path else { continue };
+
+        let en = c
+            .get(h.url(path))
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        // Korean rather than German: "Moderation" is spelled the same in
+        // German, so a same-script language cannot tell "translated" from
+        // "fell back to English" on every shell.
+        let ko = c
+            .get(h.url(path))
+            .header("cookie", "lang2=ko")
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        assert_ne!(
+            title(&en),
+            title(&ko),
+            "title not localized on {path} ({template})"
+        );
+        assert!(!ko.contains("{{t "), "unrendered helper on {path}");
+    }
+
+    // The search title is assembled in the server, since it interpolates a count
+    // and the query; the handlebars helper cannot substitute.
+    let de = c
+        .get(h.url("/search/marine"))
+        .header("cookie", "lang2=de")
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(
+        de.contains("Karten gefunden: 0 (marine)"),
+        "search title not localized/interpolated"
     );
 }
 
@@ -665,8 +836,10 @@ async fn ssr_search_page_reports_result_count() {
         .text()
         .await
         .unwrap();
+    // Phrased as a label and a count rather than "0 maps found", so that no
+    // number has to agree with a noun -- see the note in uiv2/pages.rs.
     assert!(
-        body.contains("0 maps found for: zzznomatchmarker"),
+        body.contains("Maps found: 0 (zzznomatchmarker)"),
         "the search page reports the live (zero) count"
     );
 }

@@ -97,18 +97,18 @@ export default function (props: any) {
       {/* prettier-ignore */}
       <>
         <h1 class={style.h1}>
-            <I18nSpan text="Welcome to scmscx.com" />
+            <I18nSpan text="home.welcome_to_scmscx_com" />
         </h1>
         <h2 class={style.h2}>
-            <I18nSpan text="The largest StarCraft: Brood War map database in the universe" />
+            <I18nSpan text="home.the_largest_starcraft_brood_war_map" />
         </h2>
 
         <div class={style["vertical-container"]} >
 
-          <MapBox h4="Featured Maps" url={`/api/uiv2/featured_maps`}/>
-          <MapBox h4="Recently Viewed Maps" url={`/api/uiv2/last_viewed_maps`} />
-          <MapBox h4="Recently Downloaded Maps" url={`/api/uiv2/last_downloaded_maps`} />
-          <MapBox h4="Recently Uploaded Maps" url={`/api/uiv2/last_uploaded_maps`} />
+          <MapBox h4="home.featured_maps" url={`/api/uiv2/featured_maps`}/>
+          <MapBox h4="home.recently_viewed_maps" url={`/api/uiv2/last_viewed_maps`} />
+          <MapBox h4="home.recently_downloaded_maps" url={`/api/uiv2/last_downloaded_maps`} />
+          <MapBox h4="home.recently_uploaded_maps" url={`/api/uiv2/last_uploaded_maps`} />
           {/* <ReplayBox h4="Recently Uploaded Replays" url={`/api/uiv2/last_uploaded_replays`} /> */}
           {/* <MapBox h4="Most Viewed Maps" url={`/api/uiv2/most_viewed_maps`} />
           <MapBox h4="Most Downloaded Maps" url={`/api/uiv2/most_downloaded_maps`} /> */}

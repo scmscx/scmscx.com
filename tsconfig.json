@@ -4,6 +4,12 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "node",
+    // app/modules/language.tsx imports i18n/strings.json directly, so that the
+    // frontend and the server read the same table rather than two that drift.
+    // Without this, that import is a type error -- invisible to `vite build`,
+    // which strips types with esbuild rather than checking them, but not to an
+    // editor or to `tsc`.
+    "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "jsx": "preserve",

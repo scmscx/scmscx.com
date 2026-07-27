@@ -1,8 +1,8 @@
 import type { Component } from "solid-js";
-import { createSignal, Switch, Match, useContext } from "solid-js";
+import { createSignal, Switch, Match, useContext, For } from "solid-js";
 import { A, useNavigate } from "@solidjs/router";
 import { useLang, useSession } from "./context";
-import { I18nSpan } from "./language";
+import { I18nSpan, i18n_internal, SUPPORTED_LANGUAGES } from "./language";
 
 import style from "./Navbar.module.scss";
 
@@ -18,21 +18,21 @@ export default function (props: any) {
       {/* prettier-ignore */}
       <nav class={style.nav}>
             <a class={`${style.a} ${style["hamburger-icon"]}`} onClick={() => setNavHidden(!(navHidden()))}>☰</a>
-            <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href="/"><I18nSpan text="Home" /></A>
-            <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href="/search"><I18nSpan text="Search" /></A>
+            <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href="/"><I18nSpan text="nav.home" /></A>
+            <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href="/search"><I18nSpan text="common.search_2" /></A>
             {/* <A class={style.a} href="/recent"><I18nSpan text="Recent" /></A> */}
-            <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href="/upload"><I18nSpan text="Upload" /></A>
-            <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href="/about"><I18nSpan text="About" /></A>
+            <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href="/upload"><I18nSpan text="common.upload" /></A>
+            <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href="/about"><I18nSpan text="about.title" /></A>
             {/* <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href="/upload-replay"><I18nSpan text="Upload Replay" /></A> */}
             <Switch>
                 <Match when={session() !== null}>
-                    {/* <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href="/change-username"><I18nSpan text="Change Username" /></A> */}
-                    {/* <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href="/change-password"><I18nSpan text="Change Password" /></A> */}
-                    {/* <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href="/api/logout" onClick={logout}><I18nSpan text="Log out" /></A> */}
+                    {/* <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href="/change-username"><I18nSpan text="user.change_username" /></A> */}
+                    {/* <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href="/change-password"><I18nSpan text="user.change_password" /></A> */}
+                    {/* <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href="/api/logout" onClick={logout}><I18nSpan text="user.log_out" /></A> */}
                     <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href={`/user/${session()}`}>{session()}</A>
                 </Match>
                 <Match when={session() === null}>
-                    <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href="/login"><I18nSpan text="Log in" /></A>
+                    <A class={style.a} classList={{ [style["hidden"]]: navHidden() }} href="/login"><I18nSpan text="common.log_in_2" /></A>
                 </Match>
             </Switch>
             {/* classList={{ [style["hidden"]]: navHidden() }} */}
@@ -41,13 +41,16 @@ export default function (props: any) {
               <select class={style.select} value={lang()} onChange={(e) => {
                 setLang(e.target.value);
               }}>
-                <option value="en">English</option>
-                <option value="ko">한국어</option>
-                <option value="zh">中文</option>
-                <option value="es">Español</option>
-                <option value="ru">Русский</option>
-                <option value="fr">Français</option>
-                <option value="de">Deutsch</option>
+                {/* Driven by the table, not a list kept in step by hand: an
+                    option the table does not carry writes a cookie the server
+                    rejects, and a language the table gains but the list misses
+                    is unreachable from the UI. `lang.native` holds each
+                    language's own name for itself, so the label under a code is
+                    the endonym and `make i18n` guarantees every language has
+                    one. */}
+                <For each={SUPPORTED_LANGUAGES}>
+                  {(code) => <option value={code}>{i18n_internal(code, "lang.native")}</option>}
+                </For>
               </select>
             </div>
         </nav >
