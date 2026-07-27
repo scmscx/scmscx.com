@@ -113,12 +113,10 @@ exclude_re = [
     # test can catch it — a logging-only equivalent. Anchored by line:col since
     # sibling mutants on this line would be the same logging-only branch.
     'traceid\.rs:49:\d+: replace \|\| with &&',
-    # search2.rs `unwrap_or(-1)` sentinel for a NULL modified_time. The normal upload
-    # path always writes a filetime row, so the branch is unreachable without a DB
-    # helper to delete it — killable in principle but very low value. Two identical
-    # sites (the empty-query and keyword-query branches), one exclusion each.
-    'search2\.rs:126:\d+: delete -',
-    'search2\.rs:208:\d+: delete -',
+    # (The two search2.rs `unwrap_or(-1)` sentinels used to be excluded here as "needs
+    # a DB helper to delete the filetime row". They are now killed for real by
+    # search_reports_unknown_modified_time_as_minus_one, which does exactly that via
+    # Harness::db_execute.)
     # map_info.rs eups counter `unit_id > 227 || owner > 27`: the `||`, the `>`→`==`
     # collapses, and the `+=` are pinned by map_info_counts_extended_unit_placements
     # (poker = 39 owner-side, untitled = 7 unit-id-side). Only the `>`→`>=` boundary
