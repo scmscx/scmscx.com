@@ -280,6 +280,23 @@ async fn search_ids(c: &Client, h: &Harness, query: &str) -> Vec<String> {
         .collect()
 }
 
+/// The `last_modified` a search reports for map `id`. `path` is the whole search
+/// URL path (with query string), so callers can pick the empty-query or the
+/// keyword branch.
+async fn search_last_modified(c: &Client, h: &Harness, path: &str, id: &str) -> i64 {
+    let resp = c.get(h.url(path)).send().await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK, "search {path}");
+    let body = json_body(resp).await;
+    body["maps"]
+        .as_array()
+        .unwrap_or_else(|| panic!("search {path} returned no maps array: {body}"))
+        .iter()
+        .find(|m| m["id"].as_str() == Some(id))
+        .unwrap_or_else(|| panic!("search {path} did not return map {id}: {body}"))["last_modified"]
+        .as_i64()
+        .expect("last_modified is a number")
+}
+
 /// The numeric internal (DB) id of a map, read back from `map_info`. Needed to
 /// fetch the map's `chkblob` hash via the harness DB helper for the chk-hash-keyed
 /// endpoints.
@@ -1302,6 +1319,65 @@ async fn search_time_bounds_divide_millis_to_seconds() {
             );
         }
     }
+}
+
+/// A search result's `last_modified` is `min(filetime.modified_time)`, which is
+/// NULL for a map with no `filetime` row — both query branches report that as the
+/// sentinel `-1` rather than a real timestamp. Nothing else in the suite ever sees
+/// a map without a file time (upload always writes one), so this deletes the row
+/// to reach the NULL case, and asserts the sentinel's *sign* — the whole point of
+/// it — alongside a control map that still carries its uploaded time.
+#[tokio::test]
+async fn search_reports_unknown_modified_time_as_minus_one() {
+    let h = Harness::start().await;
+    let c = client();
+    let owner = register(&c, &h, "filetimeowner").await;
+
+    // Two different fixtures: the same bytes would dedup into a single map row.
+    let kept = upload_map(&c, &h, Some(&owner), "filetimekeepmarker.scx").await;
+    let missing = upload_fixture(
+        &c,
+        &h,
+        Some(&owner),
+        "filetimedropmarker.scx",
+        FIGHTING_SPIRIT_SHA256,
+        FIGHTING_SPIRIT_LEN,
+    )
+    .await;
+
+    let missing_internal = map_internal_id(&c, &h, &missing).await;
+    h.db_execute(&format!(
+        "delete from filetime where map = {missing_internal}"
+    ))
+    .await;
+
+    // Every search below runs *after* the delete: the harness runs in prod mode,
+    // where a search result is cached for an hour, so searching the same query
+    // beforehand would answer these from a pre-delete cache entry.
+
+    // Empty-query branch — one search covers both maps.
+    assert_eq!(
+        search_last_modified(&c, &h, "/api/uiv2/search", &kept).await,
+        1_700_000_000,
+        "the upload's last_modified (ms) is reported back in seconds"
+    );
+    assert_eq!(
+        search_last_modified(&c, &h, "/api/uiv2/search", &missing).await,
+        -1,
+        "a map with no filetime row reports the -1 sentinel"
+    );
+
+    // Keyword branch — one search per map, so each has its own cache key.
+    assert_eq!(
+        search_last_modified(&c, &h, "/api/uiv2/search/filetimekeepmarker", &kept).await,
+        1_700_000_000,
+        "the upload's last_modified (ms) is reported back in seconds"
+    );
+    assert_eq!(
+        search_last_modified(&c, &h, "/api/uiv2/search/filetimedropmarker", &missing).await,
+        -1,
+        "a map with no filetime row reports the -1 sentinel"
+    );
 }
 
 /// The seven CHK endpoints all serve, purely from Postgres, the map parsed at
