@@ -83,11 +83,11 @@ async fn middleware_resolves_language() {
     assert_eq!(page(resp.text().await.unwrap()), "ko");
 
     // A language we don't carry falls through to English, and is likewise not
-    // stored: pinning a Japanese speaker to English with their own cookie would
-    // mean adding Japanese later never reaches them.
+    // stored: pinning a Thai speaker to English with their own cookie would
+    // mean adding Thai later never reaches them.
     let resp = c
         .get(h.url("/about"))
-        .header("accept-language", "ja,th;q=0.9")
+        .header("accept-language", "th,vi;q=0.9")
         .send()
         .await
         .unwrap();

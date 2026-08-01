@@ -172,6 +172,7 @@ const malformedTags = [];
 const tagMismatches = [];
 const missingSlots = [];
 const unusedSlots = [];
+const decomposed = [];
 for (const [key, values] of Object.entries(strings)) {
   const wantSlots = slots(values.en ?? "");
   const wantTags = tags(values.en ?? "").join(",");
@@ -188,6 +189,12 @@ for (const [key, values] of Object.entries(strings)) {
     if (tags(text).join(",") !== wantTags) {
       tagMismatches.push([key, lang, tags(text).join(","), wantTags]);
     }
+    // A decomposed accent (o + U+0301 rather than a single ó) is invisible in
+    // an editor and wrong on the page: the display font covers the precomposed
+    // letter but not the combining mark, so the base letter and its accent get
+    // drawn by two different fonts and the accent lands badly. Found exactly
+    // this in the Spanish "Razón".
+    if (text !== text.normalize("NFC")) decomposed.push([key, lang]);
     for (const m of text.matchAll(/\{([A-Za-z0-9_]+)\}/g)) referenced.add(m[1]);
     for (const m of text.matchAll(TAG_PAIR)) referenced.add(m[1]);
   }
@@ -257,6 +264,11 @@ report(
   "declared slot(s) no translation references",
   unusedSlots,
   ([k, name]) => `${k}  "slots".${name} is never used`
+);
+report(
+  "translation(s) holding a decomposed accent",
+  decomposed,
+  ([k, l]) => `${k} [${l}]  is not NFC -- the accent renders from a fallback font`
 );
 report(
   "key(s) used from a template but containing placeholders",

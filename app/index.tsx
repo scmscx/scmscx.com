@@ -11,6 +11,21 @@ import Search from "./pages/Search";
 import "./reset.scss";
 import "./global.scss";
 
+// Imported here rather than from global.scss so each lands in the bundle once;
+// see the note there. Two per script: a display face and a readable one, paired
+// up by `--space-font` / `--menu-font` in global.scss and keyed off <html lang>.
+// Nothing here is downloaded until a page's text needs it -- they are all
+// unicode-range subsetted.
+import "./michroma.css"; // display, Latin
+import "./unbounded.css"; // display, Cyrillic
+import "./m_plus_u.css"; // display, Japanese
+import "./nanum_gothic.css"; // display, Korean
+import "./chiron_goround_tc.css"; // display, Chinese
+import "./noto_sans.css"; // readable, Latin and Cyrillic
+import "./noto_sans_jp.css"; // readable, Japanese
+import "./noto_sans_kr.css"; // readable, Korean
+import "./noto_sans_tc.css"; // readable, Chinese
+
 import Navbar from "./modules/Navbar";
 import Login from "./pages/Login";
 import CoolBackground from "./modules/CoolBackground";

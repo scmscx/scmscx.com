@@ -95,7 +95,7 @@ fmt: $(RUST_SOURCE)
 clippy: $(RUST_SOURCE)
 	cargo clippy --workspace --all-targets -- -D warnings
 
-# Every string key must carry all seven languages, be referenced somewhere, and
+# Every string key must carry all eight languages, be referenced somewhere, and
 # have a value for each slot it interpolates. There is no English fallback at
 # runtime, so a gap is a build failure here rather than a blank on the page.
 i18n:

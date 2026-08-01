@@ -66,12 +66,8 @@
   filter: invert(100%);
 }
 
-// Left to the UA this renders as a white system combobox, which is the one
-// element on the site that ignores the lobby language entirely. Drop the
-// native chrome and draw it like the lobby's dropdowns: dark plate, green
-// label, and a menu-yellow caret sitting where the native arrow was.
 .select {
-  @extend .space-font;
+  @extend .menu-font;
 
   appearance: none;
   display: inline-block;

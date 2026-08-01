@@ -1,19 +1,57 @@
 @use "./reset.scss" as *;
-@use "./michroma.css" as *;
-@use "./nanum_gothic.css" as *;
+
+// The @font-face blocks are NOT imported here -- index.tsx imports the four
+// font stylesheets directly, exactly once. They used to live here, and it cost
+// a megabyte: a .module.scss is compiled on its own, so each of the 14 modules
+// that `@use` this file re-emitted every @font-face it dragged in. Nanum
+// Gothic's 120 subsets appeared 1680 times in the built CSS, which was 1.2 MB
+// for what is really ~100 KB of rules. Adding two more CJK families that way
+// would have added ~3 MB. Keep font imports at the entry point, where one
+// import means one copy.
 
 // Design tokens live in _variables.scss; forwarded so that files which
 // `@use "./global.scss" as *` keep seeing them unchanged.
 @forward "./variables.scss";
 @use "./variables.scss" as *;
 
+:root {
+  --menu-font: "Noto Sans", "Helvetica", "Arial", "Noto Sans KR",
+    "Noto Sans JP", "Noto Sans TC", Sans-Serif;
+
+  --space-font: "Michroma", var(--menu-font);
+}
+
+html[lang="ru"] {
+  --space-font: "Unbounded", var(--menu-font);
+}
+
+html[lang="ja"] {
+  --space-font: "M PLUS U", var(--menu-font);
+  --menu-font: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+    "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans CJK JP", "IPAexGothic",
+    "IPAGothic", Sans-Serif;
+}
+
+html[lang="zh"] {
+  --space-font: "Chiron GoRound TC", var(--menu-font);
+  --menu-font: "Noto Sans TC", "PingFang TC", "Hiragino Sans CNS",
+    "Microsoft JhengHei", "Noto Sans CJK TC", "PingFang SC", "Microsoft YaHei",
+    "Noto Sans CJK SC", "WenQuanYi Zen Hei", Sans-Serif;
+}
+
+html[lang="ko"] {
+  --space-font: "Nanum Gothic", var(--menu-font);
+  --menu-font: "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo",
+    "Noto Sans CJK KR", Sans-Serif;
+}
+
 // Global defaults
 .space-font {
-  font-family: "Michroma", "Nanum Gothic", Sans-Serif;
+  font-family: var(--space-font);
 }
 
 .menu-font {
-  font-family: "Helvetica", "Arial", Sans-Serif;
+  font-family: var(--menu-font);
 }
 
 .monospace-font {

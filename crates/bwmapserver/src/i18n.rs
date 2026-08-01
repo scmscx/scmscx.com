@@ -253,7 +253,7 @@ mod tests {
         let s = strings();
         let mut langs = s.languages().to_vec();
         langs.sort();
-        assert_eq!(langs, ["de", "en", "es", "fr", "ko", "ru", "zh"]);
+        assert_eq!(langs, ["de", "en", "es", "fr", "ja", "ko", "ru", "zh"]);
     }
 
     #[test]
@@ -297,10 +297,10 @@ mod tests {
     fn accept_language_skips_languages_we_do_not_have() {
         let s = strings();
         assert_eq!(
-            from_accept_language("ja,th;q=0.9,de;q=0.5", &s).as_deref(),
+            from_accept_language("th,vi;q=0.9,de;q=0.5", &s).as_deref(),
             Some("de")
         );
-        assert_eq!(from_accept_language("ja,th", &s), None);
+        assert_eq!(from_accept_language("th,vi", &s), None);
     }
 
     #[test]
@@ -344,7 +344,7 @@ mod tests {
         let s = strings();
         assert_eq!(resolve(None, None, &s), ("en".to_string(), Source::Default));
         assert_eq!(
-            resolve(None, Some("ja"), &s),
+            resolve(None, Some("th"), &s),
             ("en".to_string(), Source::Default)
         );
     }
@@ -355,14 +355,14 @@ mod tests {
     #[test]
     fn an_unmatched_language_is_not_worth_storing() {
         let s = strings();
-        for header in ["ja", "ja,th;q=0.9", "*"] {
+        for header in ["th", "th,vi;q=0.9", "*"] {
             let (lang, source) = resolve(None, Some(header), &s);
             assert_eq!(lang, "en", "{header}");
             assert_eq!(source, Source::Default, "{header} must not be stored");
         }
 
         // Whereas one we do carry is.
-        let (_, source) = resolve(None, Some("ja,de;q=0.5"), &s);
+        let (_, source) = resolve(None, Some("th,de;q=0.5"), &s);
         assert_eq!(source, Source::AcceptLanguage);
     }
 }
