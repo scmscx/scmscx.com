@@ -40,13 +40,13 @@ export default function (props: any) {
       if (!resp.ok) {
         const text = await resp.text();
 
-        alert(i18n_internal(lang(), "Failed to login") + ": " + text);
+        alert(i18n_internal(lang(), "login.failed_to_login") + ": " + text);
       } else {
         setSession(username());
         navigate(`/user/${username()}`);
       }
     } catch (e) {
-      alert(i18n_internal(lang(), "Failed to login") + ": " + e);
+      alert(i18n_internal(lang(), "login.failed_to_login") + ": " + e);
     }
   };
 
@@ -70,7 +70,7 @@ export default function (props: any) {
         const text = await resp.text();
 
         alert(
-          i18n_internal(lang(), "Failed to register your account") + ": " + text
+          i18n_internal(lang(), "login.failed_to_register") + ": " + text
         );
       } else {
         setSession(usernameRegister());
@@ -78,7 +78,7 @@ export default function (props: any) {
       }
     } catch (e) {
       alert(
-        i18n_internal(lang(), "Failed to register your account") + ": " + e
+        i18n_internal(lang(), "login.failed_to_register") + ": " + e
       );
     }
   };
@@ -87,7 +87,7 @@ export default function (props: any) {
     <>
       <div class={style["vertical-container"]}>
         <h1 class={style.h1}>
-          <I18nSpan text="Log in" />
+          <I18nSpan text="common.log_in_2" />
         </h1>
 
         <form
@@ -98,7 +98,7 @@ export default function (props: any) {
           }}
         >
           <label class={style["input-label"]} for="username">
-            <I18nSpan text="Username" />
+            <I18nSpan text="common.username" />
           </label>
           <input
             type="text"
@@ -109,7 +109,7 @@ export default function (props: any) {
             onChange={(evt) => setUsername(evt.target.value)}
           />
           <label class={style["input-label"]} for="password">
-            <I18nSpan text="Password" />
+            <I18nSpan text="login.password" />
           </label>
           <input
             type="password"
@@ -120,12 +120,12 @@ export default function (props: any) {
             onChange={(evt) => setPassword(evt.target.value)}
           />
           <button class={style.login} type="submit">
-            <I18nSpan text="Log in-formaction" />
+            <I18nSpan text="login.submit" />
           </button>
         </form>
 
         <h1 class={style.h1}>
-          <I18nSpan text="Register" />
+          <I18nSpan text="login.register_2" />
         </h1>
         <form
           class={style.form}
@@ -135,7 +135,7 @@ export default function (props: any) {
           }}
         >
           <label class={style["input-label"]} for="usernameRegister">
-            <I18nSpan text="Username" />
+            <I18nSpan text="common.username" />
           </label>
           <input
             type="text"
@@ -146,7 +146,7 @@ export default function (props: any) {
             onChange={(evt) => setUsernameRegister(evt.target.value)}
           />
           <label class={style["input-label"]} for="passwordRegister">
-            <I18nSpan text="Password" />
+            <I18nSpan text="login.password" />
           </label>
           <input
             type="password"
@@ -157,7 +157,7 @@ export default function (props: any) {
             onChange={(evt) => setPasswordRegister(evt.target.value)}
           />
           <label class={style["input-label"]} for="confirmPasswordRegister">
-            <I18nSpan text="Confirm Password" />
+            <I18nSpan text="login.confirm_password" />
           </label>
           <input
             type="password"
@@ -168,7 +168,7 @@ export default function (props: any) {
             onChange={(evt) => setConfirmPasswordRegister(evt.target.value)}
           />
           <button class={style.login} type="submit">
-            <I18nSpan text="Register-formaction" />
+            <I18nSpan text="login.register_submit" />
           </button>
         </form>
       </div>

@@ -92,8 +92,46 @@ fn db_max_connections() -> Result<u32> {
         .parse::<u32>()?)
 }
 
-fn register_handlebars() -> Result<Handlebars> {
+/// `{{t "some.key"}}` -> the string for that key in the language the request
+/// resolved to.
+///
+/// The language is read from the template context rather than captured at
+/// registration, so one registry serves every request; handlers put it there as
+/// `lang` (see `template_data`).
+struct TranslateHelper(Arc<crate::i18n::Strings>);
+
+impl handlebars::HelperDef for TranslateHelper {
+    fn call<'reg: 'rc, 'rc>(
+        &self,
+        h: &handlebars::Helper<'rc>,
+        _: &'reg handlebars::Handlebars<'reg>,
+        ctx: &'rc handlebars::Context,
+        _: &mut handlebars::RenderContext<'reg, 'rc>,
+        out: &mut dyn handlebars::Output,
+    ) -> handlebars::HelperResult {
+        let key = h
+            .param(0)
+            .and_then(|p| p.value().as_str())
+            .ok_or_else(|| handlebars::RenderErrorReason::Other("t: missing key".into()))?;
+
+        let lang = ctx
+            .data()
+            .get("lang")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or(crate::i18n::DEFAULT_LANG);
+
+        // Escaped explicitly: a helper's `out.write` is raw, unlike `{{expr}}`
+        // expansion, and these strings land inside HTML attributes. A single
+        // double quote in a translation would otherwise close `content="` and
+        // let the rest of the string inject attributes.
+        out.write(&handlebars::html_escape(self.0.get(key, lang)))?;
+        Ok(())
+    }
+}
+
+fn register_handlebars(strings: Arc<crate::i18n::Strings>) -> Result<Handlebars> {
     let mut registry = handlebars::Handlebars::new();
+    registry.register_helper("t", Box::new(TranslateHelper(strings)));
 
     registry.set_strict_mode(true);
 
@@ -257,7 +295,9 @@ pub(crate) async fn start() -> Result<()> {
         });
     }
 
-    let handlebars = register_handlebars()?;
+    let strings = Arc::new(crate::i18n::Strings::load()?);
+    info!("i18n: {} languages", strings.languages().len());
+    let handlebars = register_handlebars(strings.clone())?;
 
     let manifest: Manifest = Arc::new(serde_json::from_str::<
         std::collections::HashMap<String, ManifestChunk>,
@@ -447,16 +487,16 @@ pub(crate) async fn start() -> Result<()> {
         .route("/api/uiv2/upload-map", post(api::uiv2::upload::upload_map))
         .route("/api/uiv2/logout", get(api::uiv2::logout::logout2))
         // uiv2 ssr
-        .route("/", get(uiv2::index::index))
-        .route("/search", get(uiv2::index::search_no_query))
-        .route("/search/{query}", get(uiv2::index::search_query))
-        .route("/map/{map_id}", get(uiv2::index::map))
-        .route("/upload", get(uiv2::index::upload))
-        .route("/about", get(uiv2::index::about))
-        .route("/user/{username}", get(uiv2::index::user))
-        .route("/login", get(uiv2::index::login))
-        .route("/moderation", get(uiv2::index::moderation))
-        .route("/site.webmanifest", get(uiv2::index::webmanifest))
+        .route("/", get(uiv2::pages::index))
+        .route("/search", get(uiv2::pages::search))
+        .route("/search/{query}", get(uiv2::pages::search))
+        .route("/map/{map_id}", get(uiv2::pages::map))
+        .route("/upload", get(uiv2::pages::upload))
+        .route("/about", get(uiv2::pages::about))
+        .route("/user/{username}", get(uiv2::pages::user))
+        .route("/login", get(uiv2::pages::login))
+        .route("/moderation", get(uiv2::pages::moderation))
+        .route("/site.webmanifest", get(uiv2::pages::webmanifest))
         .route(
             "/api/denormalize/{map_id}",
             get(api::denormalize::denormalize),
@@ -490,6 +530,7 @@ pub(crate) async fn start() -> Result<()> {
             .layer(Extension(db_pool.clone()))
             .layer(Extension(reqwest_client.clone()))
             .layer(Extension(handlebars))
+            .layer(Extension(strings.clone()))
             .layer(Extension(manifest))
             .layer(Extension(backblaze_auth))
             .layer(Extension(username_limiter))
@@ -551,6 +592,38 @@ pub(crate) async fn start() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    /// `{{t}}` must escape: a helper's `out.write` is raw, and these strings are
+    /// rendered inside HTML attributes. Before this was escaped, a translation
+    /// containing a double quote closed `content="` and everything after it
+    /// became markup -- and translations come from outside contributors.
+    #[test]
+    fn translate_helper_escapes_its_output() {
+        let strings = Arc::new(crate::i18n::Strings::load().unwrap());
+        let mut hb = handlebars::Handlebars::new();
+        hb.register_helper("t", Box::new(TranslateHelper(strings)));
+        hb.register_template_string("plain", r#"<meta content="{{t "about.title"}}">"#)
+            .unwrap();
+        hb.register_template_string("escaped", r#"{{t "about.faq.how_many.a"}}"#)
+            .unwrap();
+
+        let en = serde_json::json!({ "lang": "en" });
+
+        // A key whose text is plain, to show the normal path is unharmed.
+        assert_eq!(
+            hb.render("plain", &en).unwrap(),
+            r#"<meta content="About">"#
+        );
+
+        // And that the escaping is actually wired up, via a key with a character
+        // HTML-escaping must touch.
+        let out = hb.render("escaped", &en).unwrap();
+        assert!(
+            !out.contains("<emptysearch>"),
+            "angle brackets must be escaped, got {out}"
+        );
+        assert!(out.contains("&lt;emptysearch&gt;"), "got {out}");
+    }
+
     use super::*;
 
     #[test]

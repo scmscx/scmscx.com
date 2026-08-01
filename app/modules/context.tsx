@@ -1,4 +1,11 @@
-import { createSignal, createContext, useContext, Signal } from "solid-js";
+import { DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES } from "./language";
+import {
+  createSignal,
+  createContext,
+  createEffect,
+  useContext,
+  Signal,
+} from "solid-js";
 
 const LanguageContext = createContext();
 
@@ -7,43 +14,27 @@ export function useLang() {
 }
 
 export function LangProvider(props: any) {
-  let preferredLanguage = "en";
-  {
-    const langs = navigator.languages;
-    for (const lang of langs) {
-      const langcode = lang.split("-")[0];
+  // This mirrors the server's resolver in crates/bwmapserver/src/i18n.rs, and
+  // usually does not decide anything: the server resolves first and puts its
+  // answer in the lang2 cookie on the HTML response, which the browser applies
+  // before running any script. This is what happens when it has not.
+  //
+  // navigator.languages is ordered most-preferred first, so the FIRST supported
+  // entry wins. This used to be a for/switch where the `break` left the switch
+  // rather than the loop, so the *last* match won instead -- and since browsers
+  // almost always list English as a trailing fallback, nearly every non-English
+  // visitor was handed English and then had it stored in the cookie below.
+  const matched = Array.from(navigator.languages ?? [])
+    .map((tag) => tag.split("-")[0])
+    .find((code) => SUPPORTED_LANGUAGES.includes(code));
 
-      switch (langcode) {
-        case "en":
-          preferredLanguage = "en";
-          break;
-
-        case "ko":
-          preferredLanguage = "ko";
-          break;
-
-        case "zh":
-          preferredLanguage = "zh";
-          break;
-
-        case "es":
-          preferredLanguage = "es";
-          break;
-
-        case "ru":
-          preferredLanguage = "ru";
-          break;
-
-        case "fr":
-          preferredLanguage = "fr";
-          break;
-
-        case "de":
-          preferredLanguage = "de";
-          break;
-      }
-    }
-  }
+  // A cookie naming a language we no longer carry counts as absent, so a stale
+  // value re-resolves instead of pinning someone to nothing.
+  const cookieLang = readCookie("lang2");
+  const stored =
+    cookieLang !== null && SUPPORTED_LANGUAGES.includes(cookieLang)
+      ? cookieLang
+      : undefined;
 
   const writeLangCookie = (lang: string) => {
     document.cookie = `lang2=${lang};Max-Age=0;path=/map`;
@@ -52,16 +43,28 @@ export function LangProvider(props: any) {
     document.cookie = `lang2=${lang};expires=Fri, 31 Dec 9999 23:59:59 GMT;path=/`;
   };
 
-  let lang;
-  const cookieLang = readCookie("lang2");
-  if (cookieLang === null) {
-    writeLangCookie(preferredLanguage);
-    lang = preferredLanguage;
-  } else {
-    lang = cookieLang;
+  // Only a positive match is stored. Falling back to English is not: someone
+  // browsing in a language we do not carry would otherwise be pinned to English
+  // by their own cookie, and the day we add their language it would never reach
+  // them. Cookie-less means every visit re-resolves. (Choosing English from the
+  // navbar still stores it -- that is a choice, not a fallback.)
+  if (stored === undefined && matched !== undefined) {
+    writeLangCookie(matched);
   }
 
+  const lang = stored ?? matched ?? DEFAULT_LANGUAGE;
+
   const [getLang, setLang] = createSignal(lang);
+
+  // Keep <html lang> in step with what we are actually rendering. The server
+  // already sets it (see uiv2/*.hbs), so this matters for the one case the
+  // server cannot cover: switching language from the navbar, which changes the
+  // page without reloading it. Getting it wrong is not cosmetic -- it tells
+  // screen readers which voice and pronunciation rules to use, which matters
+  // most to exactly the readers who are not reading English.
+  createEffect(() => {
+    document.documentElement.lang = getLang();
+  });
 
   const setLang2 = (str: string) => {
     writeLangCookie(str);

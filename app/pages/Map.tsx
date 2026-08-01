@@ -23,7 +23,7 @@ import { useSession } from "../modules/context";
 import MinimapImg from "../modules/MinimapImg";
 import { unix_time_to_timestamp, useApi, useFetchImage } from "../util/util";
 import {
-  map_era_to_tileset,
+  map_era_to_tileset_key,
   map_player_owners_to_strings,
   map_player_side_to_strings,
   map_ver_to_string,
@@ -49,7 +49,7 @@ const Eud = (props: any) => (
         {/* TODO: replace with actual EUD trigger render and what they actually do. */}
         <tr>
           <th>
-            <I18nSpan text="Is EUD map?" />
+            <I18nSpan text="map.is_eud_map" />
           </th>
           <td>
             <I18nSpan
@@ -63,7 +63,7 @@ const Eud = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="EUPs" />
+            <I18nSpan text="map.eups" />
           </th>
           <td>
             <span>{props.map.properties.eups}</span>
@@ -71,7 +71,7 @@ const Eud = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="Get Death EUDs" />
+            <I18nSpan text="map.get_death_euds" />
           </th>
           <td>
             <span>{props.map.properties.get_death_euds}</span>
@@ -79,7 +79,7 @@ const Eud = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="Set Death EPDs" />
+            <I18nSpan text="map.set_death_epds" />
           </th>
           <td>
             <span>{props.map.properties.set_death_euds}</span>
@@ -87,7 +87,7 @@ const Eud = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="TriggerList reads" />
+            <I18nSpan text="map.triggerlist_reads" />
           </th>
           <td>
             <span>{props.map.properties.trigger_list_reads}</span>
@@ -95,7 +95,7 @@ const Eud = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="TriggerList writes" />
+            <I18nSpan text="map.triggerlist_writes" />
           </th>
           <td>
             <span>{props.map.properties.trigger_list_writes}</span>
@@ -112,7 +112,7 @@ const Wavs = (props: any) => (
       <thead>
         <tr>
           <th>
-            <I18nSpan text="Filename" />
+            <I18nSpan text="common.filename" />
           </th>
         </tr>
       </thead>
@@ -138,7 +138,7 @@ const Meta = (props: any) => (
       <tbody>
         <tr>
           <th>
-            <I18nSpan text="MPQ Hash" />
+            <I18nSpan text="map.mpq_hash" />
           </th>
           <td>
             <span>{props.map.meta.mpq_hash}</span>
@@ -146,7 +146,7 @@ const Meta = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="MPQ Size" />
+            <I18nSpan text="map.mpq_size" />
           </th>
           <td>
             <span>{props.map.meta.mpq_size}</span>
@@ -154,7 +154,7 @@ const Meta = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="CHK Hash" />
+            <I18nSpan text="map.chk_hash" />
           </th>
           <td>
             <span>{props.map.meta.chkhash}</span>
@@ -162,7 +162,7 @@ const Meta = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="CHK Size" />
+            <I18nSpan text="map.chk_size" />
           </th>
           <td>
             <span>{props.map.meta.chk_size}</span>
@@ -170,7 +170,7 @@ const Meta = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="Uploaded by" />
+            <I18nSpan text="map.uploaded_by" />
           </th>
           <td>
             <A href={`/user/${props.map.meta.uploaded_by}`}>
@@ -180,7 +180,7 @@ const Meta = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="Uploaded On" />
+            <I18nSpan text="map.uploaded_on" />
           </th>
           <td>
             <span class={style.monospace}>
@@ -190,7 +190,7 @@ const Meta = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="Last Viewed" />
+            <I18nSpan text="map.last_viewed" />
           </th>
           <td>
             <span class={style.monospace}>
@@ -200,7 +200,7 @@ const Meta = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="Last Downloaded" />
+            <I18nSpan text="map.last_downloaded" />
           </th>
           <td>
             <span class={style.monospace}>
@@ -210,7 +210,7 @@ const Meta = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="Views" />
+            <I18nSpan text="map.views" />
           </th>
           <td>
             <span>{props.map.meta.views}</span>
@@ -218,7 +218,7 @@ const Meta = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="Downloads" />
+            <I18nSpan text="map.downloads" />
           </th>
           <td>
             <span>{props.map.meta.downloads}</span>
@@ -242,13 +242,13 @@ const Forces = (props: any) => (
               <div class={style["force-player"]}>
                 <I18nSpan
                   text={map_player_owners_to_strings(
-                    props.map.player_owners[player_id]
+                    props.map.player_owners[player_id],
                   )}
                 />{" "}
                 (
                 <I18nSpan
                   text={map_player_side_to_strings(
-                    props.map.player_side[player_id]
+                    props.map.player_side[player_id],
                   )}
                 />
                 )
@@ -267,7 +267,7 @@ const KnownFilenames = (props: any) => (
       <thead>
         <tr>
           <th>
-            <I18nSpan text="Filename" />
+            <I18nSpan text="common.filename" />
           </th>
         </tr>
       </thead>
@@ -300,7 +300,7 @@ const KnownFiletimes = (props: any) => (
       <thead>
         <tr>
           <th>
-            <I18nSpan text="Last Modified Time" />
+            <I18nSpan text="map.last_modified_time" />
           </th>
         </tr>
       </thead>
@@ -329,10 +329,10 @@ const KnownFilenames2 = (props: any) => (
       <thead>
         <tr>
           <th>
-            <I18nSpan text="Filename" />
+            <I18nSpan text="common.filename" />
           </th>
           <th>
-            <I18nSpan text="Last Modified Time" />
+            <I18nSpan text="map.last_modified_time" />
           </th>
         </tr>
       </thead>
@@ -370,13 +370,13 @@ const Replays = (props: any) => (
       <thead>
         <tr>
           <th>
-            <I18nSpan text="Duration" />
+            <I18nSpan text="map.duration" />
           </th>
           <th>
-            <I18nSpan text="Time Recorded" />
+            <I18nSpan text="map.time_recorded" />
           </th>
           <th>
-            <I18nSpan text="Creator" />
+            <I18nSpan text="map.creator" />
           </th>
         </tr>
       </thead>
@@ -411,10 +411,10 @@ const Units = (props: any) => (
       <thead>
         <tr>
           <th>
-            <I18nSpan text="Unit" />
+            <I18nSpan text="map.unit" />
           </th>
           <th>
-            <I18nSpan text="Name" />
+            <I18nSpan text="map.name" />
           </th>
         </tr>
       </thead>
@@ -446,7 +446,7 @@ const SimilarMaps = (props: any) => {
   return (
     <Show when={similarMaps()?.v2?.length > 0}>
       <h3 class={style.h3}>
-        <I18nSpan text="Similar Maps" />
+        <I18nSpan text="map.similar_maps" />
       </h3>
       <div class={style["similar-maps"]}>
         <For each={similarMaps().v2}>
@@ -473,7 +473,7 @@ const SimilarMaps = (props: any) => {
                   {map.width}x{map.height}
                 </div>
                 <div class={style["similar-maps-details"]}>
-                  <I18nSpan text={map_era_to_tileset(map.tileset % 8)} />
+                  <I18nSpan text={map_era_to_tileset_key(map.tileset % 8)} />
                 </div>
               </A>
             </>
@@ -490,7 +490,7 @@ const ScenarioProperties = (props: any) => (
       <tbody>
         <tr>
           <th>
-            <I18nSpan text="Version" />
+            <I18nSpan text="map.version" />
           </th>
           <td>
             <I18nSpan text={`${map_ver_to_string(props.map.properties.ver)}`} />
@@ -498,11 +498,11 @@ const ScenarioProperties = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="Tileset" />
+            <I18nSpan text="map.tileset" />
           </th>
           <td>
             <I18nSpan
-              text={`${map_era_to_tileset(props.map.properties.tileset % 8)}`}
+              text={map_era_to_tileset_key(props.map.properties.tileset % 8)}
             />{" "}
             <span>{`(${props.map.properties.tileset} mod 8 = ${
               props.map.properties.tileset % 8
@@ -511,7 +511,7 @@ const ScenarioProperties = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="Dimensions" />
+            <I18nSpan text="map.dimensions" />
           </th>
           <td>
             <span>{`${props.map.properties.width}x${props.map.properties.height}`}</span>
@@ -519,7 +519,7 @@ const ScenarioProperties = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="Locations" />
+            <I18nSpan text="map.locations" />
           </th>
           <td>
             <span>{props.map.properties.locations}</span>
@@ -527,7 +527,7 @@ const ScenarioProperties = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="Units" />
+            <I18nSpan text="common.units" />
           </th>
           <td>
             <span>{props.map.properties.units}</span>
@@ -535,7 +535,7 @@ const ScenarioProperties = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="Doodads" />
+            <I18nSpan text="map.doodads" />
           </th>
           <td>
             <span>{props.map.properties.doodads}</span>
@@ -543,7 +543,7 @@ const ScenarioProperties = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="Sprites" />
+            <I18nSpan text="map.sprites" />
           </th>
           <td>
             <span>{props.map.properties.sprites}</span>
@@ -551,7 +551,7 @@ const ScenarioProperties = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="Triggers" />
+            <I18nSpan text="map.triggers" />
           </th>
           <td>
             <span>{props.map.properties.triggers}</span>
@@ -559,7 +559,7 @@ const ScenarioProperties = (props: any) => (
         </tr>
         <tr>
           <th>
-            <I18nSpan text="Briefing Triggers" />
+            <I18nSpan text="map.briefing_triggers" />
           </th>
           <td>
             <span>{props.map.properties.briefing_triggers}</span>
@@ -578,7 +578,7 @@ const Flags = (props: { mapId: string; uploadedBy: string }) => {
   const [broken] = useApi(() => `/api/flags/${props.mapId}/broken`);
   const [blackholed] = useApi(() => `/api/flags/${props.mapId}/blackholed`);
   const [spoiler_unit_names] = useApi(
-    () => `/api/flags/${props.mapId}/spoiler_unit_names`
+    () => `/api/flags/${props.mapId}/spoiler_unit_names`,
   );
 
   const canModifyFlags = () => {
@@ -600,7 +600,9 @@ const Flags = (props: { mapId: string; uploadedBy: string }) => {
 
   return (
     <Suspense>
-      <div class={`${style.flags} ${!canModifyFlags() ? style["flags-disabled"] : ""}`}>
+      <div
+        class={`${style.flags} ${!canModifyFlags() ? style["flags-disabled"] : ""}`}
+      >
         <div class={style.flag}>
           <label for="checkbox_nsfw">
             <input
@@ -612,7 +614,7 @@ const Flags = (props: { mapId: string; uploadedBy: string }) => {
                 mutate(props.mapId, "nsfw", evt.target.checked);
               }}
             />
-            <I18nSpan text="NSFW" />
+            <I18nSpan text="map.nsfw" />
           </label>
         </div>
         <div class={style.flag}>
@@ -626,7 +628,7 @@ const Flags = (props: { mapId: string; uploadedBy: string }) => {
                 mutate(props.mapId, "unfinished", evt.target.checked);
               }}
             />
-            <I18nSpan text="Unfinished" />
+            <I18nSpan text="map.unfinished" />
           </label>
         </div>
         <div class={style.flag}>
@@ -640,7 +642,7 @@ const Flags = (props: { mapId: string; uploadedBy: string }) => {
                 mutate(props.mapId, "outdated", evt.target.checked);
               }}
             />
-            <I18nSpan text="Outdated" />
+            <I18nSpan text="map.outdated" />
           </label>
         </div>
         <div class={style.flag}>
@@ -654,7 +656,7 @@ const Flags = (props: { mapId: string; uploadedBy: string }) => {
                 mutate(props.mapId, "broken", evt.target.checked);
               }}
             />
-            <I18nSpan text="Broken" />
+            <I18nSpan text="map.broken" />
           </label>
         </div>
         <div class={style.flag}>
@@ -668,7 +670,7 @@ const Flags = (props: { mapId: string; uploadedBy: string }) => {
                 mutate(props.mapId, "blackholed", evt.target.checked);
               }}
             />
-            <I18nSpan text="Black Holed" />
+            <I18nSpan text="map.black_holed" />
           </label>
         </div>
         <div class={style.flag}>
@@ -682,7 +684,7 @@ const Flags = (props: { mapId: string; uploadedBy: string }) => {
                 mutate(props.mapId, "spoiler_unit_names", evt.target.checked);
               }}
             />
-            <I18nSpan text="Spoiler Unit Names" />
+            <I18nSpan text="map.spoiler_unit_names" />
           </label>
         </div>
       </div>
@@ -700,10 +702,10 @@ const Tags = (props: any) => {
           <thead>
             <tr>
               <th>
-                <I18nSpan text="Key" />
+                <I18nSpan text="map.key" />
               </th>
               <th>
-                <I18nSpan text="Value" />
+                <I18nSpan text="map.value" />
               </th>
             </tr>
           </thead>
@@ -736,7 +738,7 @@ const Admin = (props: any) => {
     <Show when={props.map}>
       <Show when={"RagE" === session()}>
         <h3 class={style.h3}>
-          <I18nSpan text="Admin" />
+          <I18nSpan text="map.admin" />
         </h3>
         <button onClick={() => fetch(`/api/denormalize/${props.map_id}`)}>
           Denormalize
@@ -764,9 +766,7 @@ export default function (prop: any) {
   const [units] = useApi(() => `/api/uiv2/units/${params.mapId}`);
   const [filenames2] = useApi(() => `/api/uiv2/filenames2/${params.mapId}`);
   const [mapImage] = useFetchImage(() =>
-    map()?.meta?.chkhash
-      ? `/api/chk/${map().meta.chkhash}/map_img`
-      : undefined
+    map()?.meta?.chkhash ? `/api/chk/${map().meta.chkhash}/map_img` : undefined,
   );
 
   return (
@@ -783,14 +783,14 @@ export default function (prop: any) {
                 await fetch(
                   `/api/uiv2/random/${
                     qq.get("query") ?? ""
-                  }?${location.hash.substring(1)}`
+                  }?${location.hash.substring(1)}`,
                 )
               ).json();
 
               navigate(`/map/${map_id}#${q}`);
             }}
           >
-            <I18nSpan text="Next Random Map" />
+            <I18nSpan text="map.next_random_map" />
           </a>
         </Show>
 
@@ -807,11 +807,12 @@ export default function (prop: any) {
               href={`/api/maps/${map()?.meta.mpq_hash}`}
               download={filenames()[0]}
             >
-              <I18nSpan text="Download" /> ({(map()?.meta.mpq_size / 1024) | 0}
+              <I18nSpan text="map.download" /> (
+              {(map()?.meta.mpq_size / 1024) | 0}
               KB)
             </a>
             <h3 class={style.h3}>
-              <I18nSpan text="Minimap" />
+              <I18nSpan text="map.minimap" />
             </h3>
             <div class={style.minimap}>
               <MinimapImg
@@ -822,71 +823,71 @@ export default function (prop: any) {
             </div>
             <Show when={mapImage()}>
               <h3 class={style.h3}>
-                <I18nSpan text="Map Image" />
+                <I18nSpan text="map.map_image" />
               </h3>
               <div class={style.mapimg}>
                 <MapImg url={mapImage()} />
               </div>
             </Show>
             <h3 class={style.h3}>
-              <I18nSpan text="Scenario Properties" />
+              <I18nSpan text="map.scenario_properties" />
             </h3>
             <ScenarioProperties map={map()} />
             <h3 class={style.h3}>
-              <I18nSpan text="Forces" />
+              <I18nSpan text="common.forces" />
             </h3>
             <Forces map={map()} />
             <Show when={replays()?.length > 0}>
               <h3 class={style.h3}>
-                <I18nSpan text="Replays" />
+                <I18nSpan text="map.replays" />
               </h3>
               <Replays replays={replays()} />
             </Show>
             <h3 class={style.h3}>
-              <I18nSpan text="Known Filenames" />
+              <I18nSpan text="map.known_filenames" />
             </h3>
             <KnownFilenames2
               filenames2={filenames2()}
               mpqHash={map().meta.mpq_hash}
             />
             <h3 class={style.h3}>
-              <I18nSpan text="EUD" />
+              <I18nSpan text="map.eud" />
             </h3>
             <Eud map={map()} />
             <Show when={units()?.length > 0}>
               <h3 class={style.h3}>
-                <I18nSpan text="Units" />
+                <I18nSpan text="common.units" />
               </h3>
               <Units units={units()} />
             </Show>
             <Show when={map().wavs?.length > 0}>
               <h3 class={style.h3}>
-                <I18nSpan text="Wavs" />
+                <I18nSpan text="map.wavs" />
               </h3>
               <Wavs map={map()} />
             </Show>
             <SimilarMaps mapId={params.mapId} />
             <h3 class={style.h3}>
-              <I18nSpan text="Flags" />
+              <I18nSpan text="map.flags" />
             </h3>
             <Flags mapId={params.mapId} uploadedBy={map().meta.uploaded_by} />
             <h3 class={style.h3}>
-              <I18nSpan text="Tags" />
+              <I18nSpan text="map.tags" />
             </h3>
             <Tags mapId={params.mapId} />
             <h3 class={style.h3}>
-              <I18nSpan text="Meta" />
+              <I18nSpan text="map.meta" />
             </h3>
             <Meta map={map()} />
             <h3 class={style.h3}>
-              <I18nSpan text="Known Filenames" />
+              <I18nSpan text="map.known_filenames" />
             </h3>
             <KnownFilenames
               filenames={filenames()}
               mpqHash={map().meta.mpq_hash}
             />
             <h3 class={style.h3}>
-              <I18nSpan text="Known Timestamps" />
+              <I18nSpan text="map.known_timestamps" />
             </h3>
             <KnownFiletimes filetimes={filetimes()} />
             <Admin map={map()} map_id={params.mapId} />

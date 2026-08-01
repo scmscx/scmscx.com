@@ -417,6 +417,41 @@ pub fn cookie_value(resp: &Response, name: &str) -> Option<String> {
     })
 }
 
+/// The text between `start` and the next `end` in an HTML body.
+///
+/// Enough to read one server-rendered value out of a shell without pulling in an
+/// HTML parser, and shared so the SSR tests all scrape the same way.
+pub fn between(body: &str, start: &str, end: &str) -> String {
+    body.split_once(start)
+        .and_then(|(_, rest)| rest.split_once(end).map(|(v, _)| v.to_string()))
+        .unwrap_or_default()
+}
+
+/// The attribute value that follows `prefix`, which must end at the opening
+/// quote -- e.g. `attr_after(body, "<html lang=\"")`.
+pub fn attr_after(body: &str, prefix: &str) -> String {
+    between(body, prefix, "\"")
+}
+
+/// The names of the server-rendered shells that exist on disk (`uiv2-index`,
+/// `uiv2-about`, ...).
+///
+/// Read from the templates rather than listed, so that a test asserting
+/// something about "every shell" can check its own list is still complete
+/// instead of silently skipping a page someone added later.
+pub fn ssr_template_names() -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(repo_root().join("app/web/uiv2"))
+        .expect("app/web/uiv2 is readable")
+        .filter_map(|entry| {
+            let file = entry.ok()?.file_name().into_string().ok()?;
+            let stem = file.strip_suffix(".hbs")?;
+            stem.starts_with("uiv2-").then(|| stem.to_string())
+        })
+        .collect();
+    names.sort();
+    names
+}
+
 pub async fn json_body(resp: Response) -> serde_json::Value {
     let text = resp.text().await.unwrap();
     serde_json::from_str(&text).unwrap_or_else(|e| panic!("expected JSON body, got {text:?}: {e}"))

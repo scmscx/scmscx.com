@@ -43,7 +43,7 @@ export default function (props: any) {
         const text = await resp.text();
 
         alert(
-          i18n_internal(lang(), "Failed to update your username") + ": " + text
+          i18n_internal(lang(), "user.failed_to_update_username") + ": " + text
         );
       } else {
         setSession(newUsername());
@@ -51,10 +51,10 @@ export default function (props: any) {
         setNewUsername("");
         setConfirmNewUsername("");
         setNewUsernamePassword("");
-        alert(i18n_internal(lang(), "Username Updated Successfully"));
+        alert(i18n_internal(lang(), "user.username_updated"));
       }
     } catch (e) {
-      alert(i18n_internal(lang(), "Failed to update your username") + ": " + e);
+      alert(i18n_internal(lang(), "user.failed_to_update_username") + ": " + e);
     }
   };
 
@@ -77,15 +77,15 @@ export default function (props: any) {
         const text = await resp.text();
 
         alert(
-          i18n_internal(lang(), "Failed to update your password") + ": " + text
+          i18n_internal(lang(), "user.failed_to_update_password") + ": " + text
         );
       } else {
         setNewPassword("");
         setConfirmNewPassword("");
-        alert(i18n_internal(lang(), "Password Updated Successfully"));
+        alert(i18n_internal(lang(), "user.password_updated"));
       }
     } catch (e) {
-      alert(i18n_internal(lang(), "Failed to update your password") + ": " + e);
+      alert(i18n_internal(lang(), "user.failed_to_update_password") + ": " + e);
     }
   };
 
@@ -122,20 +122,20 @@ export default function (props: any) {
         <Show when={params.userName === session()}>
           <Show when={"RagE" === session()}>
             <A href="/moderation" class={style["a-button"]}>
-              <I18nSpan text="Moderation" />
+              <I18nSpan text="user.moderation" />
             </A>
           </Show>
 
           <h3 class={style.h3}>
-            <I18nSpan text="Log out" />
+            <I18nSpan text="user.log_out" />
           </h3>
 
           <a class={style["a-button"]} href="/api/uiv2/logout" onClick={logout}>
-            <I18nSpan text="Log out" />
+            <I18nSpan text="user.log_out" />
           </a>
 
           <h3 class={style.h3}>
-            <I18nSpan text="Change Username" />
+            <I18nSpan text="user.change_username" />
           </h3>
           <form
             class={style.form}
@@ -154,7 +154,7 @@ export default function (props: any) {
               style={{ display: "none" }}
             />
             <label class={style["input-label"]} for="newUsername">
-              <I18nSpan text="New Username" />
+              <I18nSpan text="user.new_username" />
             </label>
             <input
               type="text"
@@ -167,7 +167,7 @@ export default function (props: any) {
               data-1p-ignore
             />
             <label class={style["input-label"]} for="confirmNewUsername">
-              <I18nSpan text="Confirm New Username" />
+              <I18nSpan text="user.confirm_new_username" />
             </label>
             <input
               id="confirmNewUsername"
@@ -179,7 +179,7 @@ export default function (props: any) {
               data-1p-ignore
             />
             <label class={style["input-label"]} for="newUsernamePassword">
-              <I18nSpan text="Current Password" />
+              <I18nSpan text="user.current_password" />
             </label>
             <input
               type="password"
@@ -190,12 +190,12 @@ export default function (props: any) {
               onChange={(evt) => setNewUsernamePassword(evt.target.value)}
             />
             <button class={style.login} type="submit">
-              <I18nSpan text="Change Username" />
+              <I18nSpan text="user.change_username" />
             </button>
           </form>
 
           <h3 class={style.h3}>
-            <I18nSpan text="Change Password" />
+            <I18nSpan text="user.change_password" />
           </h3>
 
           <form
@@ -214,7 +214,7 @@ export default function (props: any) {
               style={{ display: "none" }}
             />
             <label class={style["input-label"]} for="newPassword">
-              <I18nSpan text="New Password" />
+              <I18nSpan text="user.new_password" />
             </label>
             <input
               type="password"
@@ -225,7 +225,7 @@ export default function (props: any) {
               onChange={(evt) => setNewPassword(evt.target.value)}
             />
             <label class={style["input-label"]} for="confirmNewPassword">
-              <I18nSpan text="Confirm New Password" />
+              <I18nSpan text="user.confirm_new_password" />
             </label>
             <input
               type="password"
@@ -236,7 +236,7 @@ export default function (props: any) {
               onChange={(evt) => setConfirmNewPassword(evt.target.value)}
             />
             <button class={style.login} type="submit">
-              <I18nSpan text="Change Password" />
+              <I18nSpan text="user.change_password" />
             </button>
           </form>
         </Show>

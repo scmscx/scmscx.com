@@ -25,13 +25,7 @@ pub async fn etag(req: Request, next: Next) -> Response {
 
     let res = next.run(req).await;
 
-    let is_html = res
-        .headers()
-        .get(header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|v| v.starts_with("text/html"));
-
-    if !is_html {
+    if !super::response_is_html(&res) {
         return res;
     }
 

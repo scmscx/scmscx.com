@@ -10,16 +10,14 @@
   color: $menu-green;
 }
 
-.h4 {
+// The questions sit directly under the "Frequently Asked Questions" h2, so they
+// are h3s. They were h4s, which skipped a level for screen readers and outline
+// tools; the styling is unchanged.
+.h3 {
   @extend .menu-font;
   margin-top: 32px;
   margin-bottom: 0px;
   color: $menu-green;
-}
-
-.h5 {
-  @extend .menu-font;
-  color: $menu-light-green;
 }
 
 .p {
@@ -30,6 +28,12 @@
   text-align: left;
 }
 
+// A few links here are spelled out as full URLs. Left alone they are single
+// unbreakable tokens and push the page wider than a phone viewport.
+.p a {
+  overflow-wrap: anywhere;
+}
+
 .p a:link {
   color: $menu_dark_cyan;
 }
@@ -38,9 +42,11 @@
   color: $menu_pink;
 }
 
-.ul {
-  @extend .menu-font;
-  color: $menu-cyan;
+// API endpoint paths in the FAQ. `anywhere` because these are long unbroken
+// tokens that would otherwise push the panel wider than the viewport on a phone.
+.p code {
+  color: $menu-light-green;
+  overflow-wrap: anywhere;
 }
 
 // The lobby puts running text on a plate rather than straight onto the

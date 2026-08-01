@@ -195,6 +195,20 @@ pub fn append_cookie(resp: &mut Response, cookie: Cookie<'static>) {
     );
 }
 
+/// The language cookie the frontend reads (`app/modules/context.tsx`).
+///
+/// Permanent rather than session-scoped, so it matches what the frontend writes
+/// for the same cookie. Lives here beside the other cookie builders so that a
+/// divergence between them is visible in one place.
+pub fn lang_cookie(lang: String) -> Cookie<'static> {
+    Cookie::build((crate::middleware::LANG_COOKIE, lang))
+        .path("/")
+        .same_site(SameSite::Lax)
+        .secure(true)
+        .permanent()
+        .build()
+}
+
 /// A permanent auth cookie (path=/, SameSite=Lax).
 pub fn auth_cookie(
     name: &'static str,
