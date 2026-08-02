@@ -451,41 +451,43 @@ const SimilarMaps = (props: any) => {
 
   return (
     <Show when={similarMaps()?.v2?.length > 0}>
-      <h3 class={style.h3}>
-        <I18nSpan text="map.similar_maps" />
-      </h3>
-      <div class={style["similar-maps"]}>
-        <For each={similarMaps().v2}>
-          {(map, id) => (
-            <>
-              <A
-                class={style["similar-maps-minimap"]}
-                href={`/map/${map.map_id}`}
-              >
-                <MinimapImg
-                  mapId={map.map_id}
-                  max-width="128"
-                  max-height="128"
-                />{" "}
-              </A>
-              <A href={`/map/${map.map_id}`}>
-                <div class={style["similar-maps-scenario"]}>
-                  <ColoredTextMenu text={map.scenario_name} />
-                </div>
-                <div class={style["similar-maps-details"]}>
-                  {unix_time_to_timestamp(map.last_modified_time)}
-                </div>
-                <div class={style["similar-maps-details"]}>
-                  {map.width}x{map.height}
-                </div>
-                <div class={style["similar-maps-details"]}>
-                  <I18nSpan text={map_era_to_tileset_key(map.tileset % 8)} />
-                </div>
-              </A>
-            </>
-          )}
-        </For>
-      </div>
+      <section class={style.card}>
+        <h3 class={style.h3}>
+          <I18nSpan text="map.similar_maps" />
+        </h3>
+        <div class={style["similar-maps"]}>
+          <For each={similarMaps().v2}>
+            {(map, id) => (
+              <div class={style["similar-map"]}>
+                <A
+                  class={style["similar-maps-minimap"]}
+                  href={`/map/${map.map_id}`}
+                >
+                  <MinimapImg
+                    mapId={map.map_id}
+                    max-width="128"
+                    max-height="128"
+                  />{" "}
+                </A>
+                <A href={`/map/${map.map_id}`}>
+                  <div class={style["similar-maps-scenario"]}>
+                    <ColoredTextMenu text={map.scenario_name} />
+                  </div>
+                  <div class={style["similar-maps-details"]}>
+                    {unix_time_to_timestamp(map.last_modified_time)}
+                  </div>
+                  <div class={style["similar-maps-details"]}>
+                    {map.width}x{map.height}
+                  </div>
+                  <div class={style["similar-maps-details"]}>
+                    <I18nSpan text={map_era_to_tileset_key(map.tileset % 8)} />
+                  </div>
+                </A>
+              </div>
+            )}
+          </For>
+        </div>
+      </section>
     </Show>
   );
 };
@@ -802,100 +804,137 @@ export default function (prop: any) {
 
         <Show when={filenames() && filetimes() && replays() && units()}>
           <Show when={map()} keyed>
-            <h1 class={style.h1}>
-              <ColoredTextMenu text={map().scenario} />
-            </h1>
-            <h2 class={style.h2}>
-              <ColoredTextMenu text={map().scenario_description} />
-            </h2>
-            <a
-              class={style["download-button"]}
-              href={`/api/maps/${map()?.meta.mpq_hash}`}
-              download={filenames()[0]}
-            >
-              <I18nSpan text="map.download" /> (
-              {(map()?.meta.mpq_size / 1024) | 0}
-              KB)
-            </a>
-            <h3 class={style.h3}>
-              <I18nSpan text="map.minimap" />
-            </h3>
-            <div class={style.minimap}>
-              <MinimapImg
-                mapId={params.mapId}
-                max-width={512}
-                max-height={512}
-              />
+            <header class={style.header}>
+              <h1 class={style.h1}>
+                <ColoredTextMenu text={map().scenario} />
+              </h1>
+              <h2 class={style.h2}>
+                <ColoredTextMenu text={map().scenario_description} />
+              </h2>
+              <a
+                class={style["download-button"]}
+                href={`/api/maps/${map()?.meta.mpq_hash}`}
+                download={filenames()[0]}
+              >
+                <I18nSpan text="map.download" /> (
+                {(map()?.meta.mpq_size / 1024) | 0}
+                KB)
+              </a>
+            </header>
+            <div class={style.cards}>
+              <section class={style.card}>
+                <h3 class={style.h3}>
+                  <I18nSpan text="map.minimap" />
+                </h3>
+                <div class={style.minimap}>
+                  <MinimapImg
+                    mapId={params.mapId}
+                    max-width={512}
+                    max-height={512}
+                  />
+                </div>
+              </section>
+              <Show when={mapImage()}>
+                <section class={style.card}>
+                  <h3 class={style.h3}>
+                    <I18nSpan text="map.map_image" />
+                  </h3>
+                  <div class={style.mapimg}>
+                    <MapImg url={mapImage()} />
+                  </div>
+                </section>
+              </Show>
+              <section class={style.card}>
+                <h3 class={style.h3}>
+                  <I18nSpan text="map.scenario_properties" />
+                </h3>
+                <ScenarioProperties map={map()} />
+              </section>
+              <section class={style.card}>
+                <h3 class={style.h3}>
+                  <I18nSpan text="common.forces" />
+                </h3>
+                <Forces map={map()} />
+              </section>
+              <section class={style.card}>
+                <h3 class={style.h3}>
+                  <I18nSpan text="map.eud" />
+                </h3>
+                <Eud map={map()} />
+              </section>
+              <section class={style.card}>
+                <h3 class={style.h3}>
+                  <I18nSpan text="map.flags" />
+                </h3>
+                <Flags
+                  mapId={params.mapId}
+                  uploadedBy={map().meta.uploaded_by}
+                />
+              </section>
+              <section class={style.card}>
+                <h3 class={style.h3}>
+                  <I18nSpan text="map.tags" />
+                </h3>
+                <Tags mapId={params.mapId} />
+              </section>
+              <section class={style.card}>
+                <h3 class={style.h3}>
+                  <I18nSpan text="map.meta" />
+                </h3>
+                <Meta map={map()} />
+              </section>
+              <Show when={replays()?.length > 0}>
+                <section class={style.card}>
+                  <h3 class={style.h3}>
+                    <I18nSpan text="map.replays" />
+                  </h3>
+                  <Replays replays={replays()} />
+                </section>
+              </Show>
+              <section class={style.card}>
+                <h3 class={style.h3}>
+                  <I18nSpan text="map.known_filenames" />
+                </h3>
+                <KnownFilenames2
+                  filenames2={filenames2()}
+                  mpqHash={map().meta.mpq_hash}
+                />
+              </section>
+              <section class={style.card}>
+                <h3 class={style.h3}>
+                  <I18nSpan text="map.known_filenames" />
+                </h3>
+                <KnownFilenames
+                  filenames={filenames()}
+                  mpqHash={map().meta.mpq_hash}
+                />
+              </section>
+              <section class={style.card}>
+                <h3 class={style.h3}>
+                  <I18nSpan text="map.known_timestamps" />
+                </h3>
+                <KnownFiletimes filetimes={filetimes()} />
+              </section>
+              <Show when={map().wavs?.length > 0}>
+                <section class={style.card}>
+                  <h3 class={style.h3}>
+                    <I18nSpan text="map.wavs" />
+                  </h3>
+                  <Wavs map={map()} />
+                </section>
+              </Show>
+              <Show when={units()?.length > 0}>
+                <section class={style.card}>
+                  <h3 class={style.h3}>
+                    <I18nSpan text="common.units" />
+                  </h3>
+                  <Units units={units()} />
+                </section>
+              </Show>
             </div>
-            <Show when={mapImage()}>
-              <h3 class={style.h3}>
-                <I18nSpan text="map.map_image" />
-              </h3>
-              <div class={style.mapimg}>
-                <MapImg url={mapImage()} />
-              </div>
-            </Show>
-            <h3 class={style.h3}>
-              <I18nSpan text="map.scenario_properties" />
-            </h3>
-            <ScenarioProperties map={map()} />
-            <h3 class={style.h3}>
-              <I18nSpan text="common.forces" />
-            </h3>
-            <Forces map={map()} />
-            <Show when={replays()?.length > 0}>
-              <h3 class={style.h3}>
-                <I18nSpan text="map.replays" />
-              </h3>
-              <Replays replays={replays()} />
-            </Show>
-            <h3 class={style.h3}>
-              <I18nSpan text="map.known_filenames" />
-            </h3>
-            <KnownFilenames2
-              filenames2={filenames2()}
-              mpqHash={map().meta.mpq_hash}
-            />
-            <h3 class={style.h3}>
-              <I18nSpan text="map.eud" />
-            </h3>
-            <Eud map={map()} />
-            <Show when={units()?.length > 0}>
-              <h3 class={style.h3}>
-                <I18nSpan text="common.units" />
-              </h3>
-              <Units units={units()} />
-            </Show>
-            <Show when={map().wavs?.length > 0}>
-              <h3 class={style.h3}>
-                <I18nSpan text="map.wavs" />
-              </h3>
-              <Wavs map={map()} />
-            </Show>
+            {/* Full width rather than in a column: the tiles are the widest
+                thing on the page and lay out several across on their own. */}
             <SimilarMaps mapId={params.mapId} />
-            <h3 class={style.h3}>
-              <I18nSpan text="map.flags" />
-            </h3>
-            <Flags mapId={params.mapId} uploadedBy={map().meta.uploaded_by} />
-            <h3 class={style.h3}>
-              <I18nSpan text="map.tags" />
-            </h3>
-            <Tags mapId={params.mapId} />
-            <h3 class={style.h3}>
-              <I18nSpan text="map.meta" />
-            </h3>
-            <Meta map={map()} />
-            <h3 class={style.h3}>
-              <I18nSpan text="map.known_filenames" />
-            </h3>
-            <KnownFilenames
-              filenames={filenames()}
-              mpqHash={map().meta.mpq_hash}
-            />
-            <h3 class={style.h3}>
-              <I18nSpan text="map.known_timestamps" />
-            </h3>
-            <KnownFiletimes filetimes={filetimes()} />
             <Admin map={map()} map_id={params.mapId} />
           </Show>
         </Show>

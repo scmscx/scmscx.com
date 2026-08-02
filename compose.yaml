@@ -30,7 +30,7 @@ services:
       SC_DATA_PATH: /starcraft
       RENDER_SKIN: carbothd2
       # RENDER_SKIN: remasteredhd
-      RENDER_BATCH_SIZE: 10
+      RENDER_BATCH_SIZE: 1
       RENDER_POLL_INTERVAL_SECS: 1
       RENDER_WEBP_QUALITY: 40
 

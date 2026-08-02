@@ -13,36 +13,68 @@
 // `@use "./global.scss" as *` keep seeing them unchanged.
 @forward "./variables.scss";
 @use "./variables.scss" as *;
+// meta.inspect keeps the quotes on a font list when it is interpolated into a
+// custom property; bare interpolation strips them, which happens to still parse
+// for the names below but stops the moment one of them needs quoting.
+@use "sass:meta";
+
+
+$readable-latin: "Noto Sans", "Helvetica", "Arial";
+$readable-ko:
+  "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans CJK KR";
+$readable-ja:
+  "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI",
+  "Yu Gothic", Meiryo, "Noto Sans CJK JP", "IPAexGothic", "IPAGothic";
+$readable-zh:
+  "Noto Sans TC", "PingFang TC", "Hiragino Sans CNS", "Microsoft JhengHei",
+  "Noto Sans CJK TC", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC",
+  "WenQuanYi Zen Hei";
+
+$display-ko: "Nanum Gothic";
+$display-ja: "M PLUS U";
+$display-zh: "Chiron GoRound TC";
 
 :root {
-  --menu-font: "Noto Sans", "Helvetica", "Arial", "Noto Sans KR",
-    "Noto Sans JP", "Noto Sans TC", Sans-Serif;
+  --menu-font:
+    #{meta.inspect($readable-latin)}, #{meta.inspect($readable-ko)},
+    #{meta.inspect($readable-ja)}, #{meta.inspect($readable-zh)}, Sans-Serif;
 
-  --space-font: "Michroma", var(--menu-font);
+  --space-font:
+    "Michroma", #{meta.inspect($display-ko)}, #{meta.inspect($display-ja)},
+    #{meta.inspect($display-zh)}, var(--menu-font);
 }
 
 html[lang="ru"] {
-  --space-font: "Unbounded", var(--menu-font);
+  --space-font:
+    "Unbounded", #{meta.inspect($display-ko)}, #{meta.inspect($display-ja)},
+    #{meta.inspect($display-zh)}, var(--menu-font);
 }
 
 html[lang="ja"] {
-  --space-font: "M PLUS U", var(--menu-font);
-  --menu-font: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN",
-    "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans CJK JP", "IPAexGothic",
-    "IPAGothic", Sans-Serif;
+  --space-font:
+    #{meta.inspect($display-ja)}, #{meta.inspect($display-ko)},
+    #{meta.inspect($display-zh)}, var(--menu-font);
+  --menu-font:
+    #{meta.inspect($readable-ja)}, #{meta.inspect($readable-latin)},
+    #{meta.inspect($readable-ko)}, #{meta.inspect($readable-zh)}, Sans-Serif;
 }
 
 html[lang="zh"] {
-  --space-font: "Chiron GoRound TC", var(--menu-font);
-  --menu-font: "Noto Sans TC", "PingFang TC", "Hiragino Sans CNS",
-    "Microsoft JhengHei", "Noto Sans CJK TC", "PingFang SC", "Microsoft YaHei",
-    "Noto Sans CJK SC", "WenQuanYi Zen Hei", Sans-Serif;
+  --space-font:
+    #{meta.inspect($display-zh)}, #{meta.inspect($display-ko)},
+    #{meta.inspect($display-ja)}, var(--menu-font);
+  --menu-font:
+    #{meta.inspect($readable-zh)}, #{meta.inspect($readable-latin)},
+    #{meta.inspect($readable-ko)}, #{meta.inspect($readable-ja)}, Sans-Serif;
 }
 
 html[lang="ko"] {
-  --space-font: "Nanum Gothic", var(--menu-font);
-  --menu-font: "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo",
-    "Noto Sans CJK KR", Sans-Serif;
+  --space-font:
+    #{meta.inspect($display-ko)}, #{meta.inspect($display-ja)},
+    #{meta.inspect($display-zh)}, var(--menu-font);
+  --menu-font:
+    #{meta.inspect($readable-ko)}, #{meta.inspect($readable-latin)},
+    #{meta.inspect($readable-ja)}, #{meta.inspect($readable-zh)}, Sans-Serif;
 }
 
 // Global defaults
@@ -54,8 +86,14 @@ html[lang="ko"] {
   font-family: var(--menu-font);
 }
 
+// Ends in the same chain as everything else, because this is used on things
+// that are only mostly ASCII: the similar-maps blurb sets a map's tileset in it,
+// and a Korean tileset name in a bare `monospace` had nothing whatsoever to fall
+// back to -- the generic resolves to a Latin typewriter face and the text landed
+// on whatever the OS keeps for the leftovers. The generic still leads, so
+// timestamps and hashes are unaffected: they are ASCII and never reach past it.
 .monospace-font {
-  font-family: monospace;
+  font-family: monospace, var(--menu-font);
 }
 
 html {

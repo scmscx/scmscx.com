@@ -1,9 +1,29 @@
 @use "../global.scss" as *;
 
+$wide: 1000px;
+$extra-wide: 1600px;
+
 .vertical-container {
   margin: auto;
   max-width: 640px;
   width: 100%;
+}
+
+@media (width >= #{$wide}) {
+  .vertical-container {
+    max-width: 1400px;
+  }
+}
+
+@media (width >= #{$extra-wide}) {
+  .vertical-container {
+    max-width: 2200px;
+  }
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 24px;
 }
 
 .h1 {
@@ -19,6 +39,19 @@
   margin: 64px 0px;
   overflow: hidden;
   white-space: pre-wrap;
+  text-align: left;
+}
+
+@media (width >= #{$wide}) {
+  .h1 {
+    margin: 32px 0px 24px;
+  }
+
+  .h2 {
+    margin: 0px auto 32px;
+    max-width: 80ch;
+    width: fit-content;
+  }
 }
 
 .h3 {
@@ -27,6 +60,21 @@
   font-size: 24px;
   margin: 24px 0px;
   overflow: hidden;
+}
+
+.card {
+  break-inside: avoid;
+  margin-bottom: 24px;
+}
+
+.card .h3 {
+  margin-top: 0px;
+}
+
+
+.cards {
+  column-width: 440px;
+  column-gap: 32px;
 }
 
 .minimap {
@@ -80,7 +128,10 @@
 .table-container {
   @extend .standard-panel;
   text-overflow: ellipsis;
-  overflow-x: scroll;
+  // `auto`, not `scroll`: with a visible scrollbar (below) `scroll` would draw
+  // an inert horizontal one under every panel on the page, most of which have
+  // nothing to scroll.
+  overflow-x: auto;
   scrollbar-width: none;
 }
 
@@ -135,14 +186,49 @@
   color: $menu_pink;
 }
 
+@media (width >= #{$wide}) {
+  .table-container {
+    max-height: 70vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: $menu-dark-red transparent;
+  }
+
+  .table td {
+    text-wrap: wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .table thead th {
+    position: sticky;
+    top: -6px;
+    z-index: 1;
+    background-color: $menu-panel-fill-opaque;
+    box-shadow: 0px -6px $menu-panel-fill-opaque;
+  }
+}
+
 .similar-maps {
   @extend .standard-panel;
   @extend .space-font;
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: 1fr;
   gap: 10px;
 
   word-break: break-all;
+}
+
+.similar-map {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+@media (width >= #{$wide}) {
+  .similar-maps {
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  }
 }
 
 .similar-maps a {
@@ -163,6 +249,14 @@
   @extend .standard-panel;
   @extend .space-font;
   color: $menu-green;
+}
+
+@media (width >= #{$wide}) {
+  .flags {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 32px;
+  }
 }
 
 .flag {
