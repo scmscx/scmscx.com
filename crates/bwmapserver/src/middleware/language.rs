@@ -26,10 +26,10 @@ pub const LANG_COOKIE: &str = "lang2";
 /// cookie already present and adopts this decision rather than making its own
 /// from `navigator.languages`.
 ///
-/// Falling back to English is deliberately NOT stored. Someone browsing in
-/// Japanese would otherwise be pinned to English by their own cookie, and adding
-/// Japanese later would never reach them; leaving them cookie-less means every
-/// request re-resolves and they get it the day it exists.
+/// Falling back to English is deliberately NOT stored. Someone browsing in Thai
+/// would otherwise be pinned to English by their own cookie, and adding Thai
+/// later would never reach them; leaving them cookie-less means every request
+/// re-resolves and they get it the day it exists.
 pub async fn language(
     Extension(strings): Extension<Arc<Strings>>,
     mut req: Request,
@@ -138,7 +138,7 @@ mod tests {
     /// cookie-less so that adding their language later just starts working.
     #[tokio::test]
     async fn an_unsupported_language_is_not_stored() {
-        let res = run(&[("accept-language", "ja,th;q=0.9")]).await;
+        let res = run(&[("accept-language", "th,vi;q=0.9")]).await;
         assert!(
             !set_cookies(&res).iter().any(|c| c.starts_with("lang2=")),
             "got {:?}",

@@ -8,14 +8,14 @@ import table from "../../i18n/strings.json";
  *
  * Keying on English reads nicely but means editing an English string silently
  * orphans every translation of it -- nothing errors, the page just reverts to
- * English in six languages. Keys are opaque instead, so English is simply
+ * English in seven languages. Keys are opaque instead, so English is simply
  * another entry and rewording it touches nothing else.
  *
  * All languages for a key live together, which gives a translator the English
  * source as context right beside the line they are editing. (Note this is the
  * inverse of i18next's file-per-language layout.)
  *
- * Every key MUST carry all 7 languages: `make i18n` fails on a gap, and
+ * Every key MUST carry all 8 languages: `make i18n` fails on a gap, and
  * there is deliberately no fall back to English at runtime -- a silent fallback
  * is exactly the failure this structure exists to prevent. A key that somehow
  * goes missing renders as the key itself, which is visibly wrong rather than
@@ -23,7 +23,8 @@ import table from "../../i18n/strings.json";
  *
  * The `about.*` entries are machine-drafted and not yet reviewed by native
  * speakers, unlike the rest, which came from the translators credited on the
- * About page.
+ * About page. Japanese is machine-drafted throughout for the same reason: there
+ * is no `about.credits.ja`, and its absence is what says so.
  */
 
 /** What a `{name}` or `<name>` slot renders as. See `I18nText`. */
