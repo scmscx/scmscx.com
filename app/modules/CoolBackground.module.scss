@@ -59,12 +59,32 @@
   // Behind the content, but still in front of the canvas background.
   z-index: -1;
   pointer-events: none;
-
-  will-change: transform;
 }
 
-// All three layers draw the same tile, so sharing a scale and an origin makes
-// them line up and read as three copies of one texture sliding over each
+// The layer at infinity. Nothing that distant shifts as you move past it, so
+// this one takes no scroll offset at all: no transform, no animation, no CSS
+// variable, and nothing for the TSX to publish. It is first in the DOM, so it
+// paints beneath the drifting layers and gives them something to move against
+// -- without it the furthest thing on screen is still sliding, and the depth
+// has no floor.
+//
+// Being static, it needs no overhang either: one viewport is the whole of it.
+.layer0 {
+  @extend .parallax-layer;
+
+  height: 100vh;
+  height: 100lvh;
+
+  // Smallest tile, dimmest of the four -- the far end of the same progression
+  // the moving layers follow. The origin is offset off-grid like the others so
+  // its repeat never lines up with theirs.
+  background-size: 288px 576px;
+  background-position: 143px 59px;
+  opacity: 1.0;
+}
+
+// All four layers draw the same tile, so sharing a scale and an origin makes
+// them line up and read as four copies of one texture sliding over each
 // other. Each gets its own tile size, its own origin offset (deliberately not
 // round fractions of the tile, so the grids never coincide) and its own
 // opacity. Smaller, dimmer and slower reads as further away.
@@ -74,6 +94,10 @@
 // so the two must agree. Keep TILE_HEIGHTS there in sync with these.
 @mixin parallax-depth($tile-w, $tile-h, $origin-x, $origin-y, $alpha) {
   @extend .parallax-layer;
+
+  // Only the drifting layers are promoted; .layer0 never moves and would just
+  // be an extra composited surface.
+  will-change: transform;
 
   // lvh, not vh: on mobile the toolbar shows and hides as you scroll, and a
   // layer sized to the dynamic viewport would resize underneath the effect
@@ -91,7 +115,7 @@
 }
 
 .layer1 {
-  @include parallax-depth(384px, 768px, 0px, 0px, 0.45);
+  @include parallax-depth(384px, 768px, 0px, 0px, 0.5);
   transform: translate3d(0, var(--parallax-1, 0px), 0);
 }
 
@@ -101,7 +125,7 @@
 }
 
 .layer5 {
-  @include parallax-depth(704px, 1408px, 97px, 631px, 1);
+  @include parallax-depth(576px, 1152px, 97px, 631px, 0.7);
   transform: translate3d(0, var(--parallax-5, 0px), 0);
 }
 
@@ -153,12 +177,9 @@
   }
 }
 
-// Honour the OS setting: the layers still render, they just stop moving.
-@media (prefers-reduced-motion: reduce) {
-  .layer1,
-  .layer3,
-  .layer5 {
-    transform: none;
-    animation: none;
-  }
-}
+// Deliberately no prefers-reduced-motion opt-out. The drift is slow, small and
+// scroll-linked -- it only moves while the reader is already moving the page --
+// so it is closer to depth than to animation, and freezing it flattens the
+// background into a static texture for no gain. If this ever gets a faster or
+// self-running layer, that judgement stops holding and the opt-out should come
+// back.
