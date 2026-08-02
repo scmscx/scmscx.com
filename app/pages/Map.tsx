@@ -411,6 +411,9 @@ const Units = (props: any) => (
       <thead>
         <tr>
           <th>
+            <I18nSpan text="map.unit_id" />
+          </th>
+          <th>
             <I18nSpan text="map.unit" />
           </th>
           <th>
@@ -423,6 +426,9 @@ const Units = (props: any) => (
           {(unit, id) => (
             <>
               <tr>
+                <td>
+                  <span>{unit.unit_id}</span>
+                </td>
                 <td>
                   <span>
                     <I18nSpan text={unit_id_to_name(unit.unit_id)} />

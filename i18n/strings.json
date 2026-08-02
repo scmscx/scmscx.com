@@ -1597,6 +1597,16 @@
     "fr": "Unité",
     "de": "Einheit"
   },
+  "map.unit_id": {
+    "en": "Unit ID",
+    "ko": "유닛 ID",
+    "zh": "單位 ID",
+    "ja": "ユニット ID",
+    "es": "ID de unidad",
+    "ru": "ID юнита",
+    "fr": "ID d'unité",
+    "de": "Einheiten-ID"
+  },
   "map.uploaded_by": {
     "en": "Uploaded by",
     "ko": "업로드한 사람",
