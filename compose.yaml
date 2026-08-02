@@ -10,6 +10,7 @@ services:
   bwrender:
     image: "registry.zxcv.io/bwrender:${GIT_VERSION}-debug"
     network_mode: host
+    mem_limit: 16g
     volumes:
       - /starcraft:/starcraft
       - /tmp/bwrender-runtime:/run/user/0
@@ -33,6 +34,7 @@ services:
       RENDER_BATCH_SIZE: 10
       RENDER_POLL_INTERVAL_SECS: 1
       RENDER_WEBP_QUALITY: 40
+      RENDER_MAX_CONCURRENT_ENCODES: 1
 
   scmscx:
     image: "registry.zxcv.io/scmscx.com:${GIT_VERSION}-debug"

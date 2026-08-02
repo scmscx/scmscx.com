@@ -13,36 +13,87 @@
 // `@use "./global.scss" as *` keep seeing them unchanged.
 @forward "./variables.scss";
 @use "./variables.scss" as *;
+// meta.inspect keeps the quotes on a font list when it is interpolated into a
+// custom property; bare interpolation strips them, which happens to still parse
+// for the names below but stops the moment one of them needs quoting.
+@use "sass:meta";
+
+
+// Both chains are built the same way: one face per script, and the only thing
+// the UI language changes is which CJK face comes first.
+//
+// That last part is the whole reason language matters here. Han unification
+// gave Chinese, Japanese and Korean the same codepoints for characters their
+// readers draw differently, so U+76F4 has no single correct glyph -- only a
+// correct glyph *for a given reader*. Every other script does have one correct
+// answer, so every other script is pinned to one face regardless of language.
+//
+// Order the CJK faces primary-first and leave the rest alone. The fallbacks
+// past the primary are what render a map name written in a language the reader
+// did not pick, which is common: map names are not in the UI language.
+
+// --space-font. Latin is always Michroma and Cyrillic is always Unbounded, on
+// every page including Russian ones -- neither has a per-language correct form.
+// Michroma covers only U+0000-00FF plus a little punctuation, so Latin-Extended
+// (Vietnamese, Polish, Czech) falls past it into Unbounded's latin-ext, which is
+// why Unbounded sits second rather than last.
+$display-latin: "Michroma";
+$display-cyrillic: "Unbounded";
+$display-ko: "Nanum Gothic";
+$display-ja: "M PLUS U";
+$display-zh: "Chiron GoRound TC";
+
+// --menu-font is Noto Sans and nothing else: the Latin/Greek/Cyrillic face
+// first, then the three CJK cuts. No system-font fallbacks -- all four are
+// loaded unconditionally in index.tsx, so naming Malgun Gothic or PingFang
+// behind them only decided what happened in the seconds before the webfont
+// arrived, at the cost of a chain nobody could reason about.
+$readable-latin: "Noto Sans";
+$readable-ko: "Noto Sans KR";
+$readable-ja: "Noto Sans JP";
+$readable-zh: "Noto Sans TC";
+
+// Everything a display face does not claim -- Greek, Thai, Arabic -- drops out
+// of --space-font into --menu-font at the end of the chain. Nanum Gothic used
+// to absorb a lot of that by accident; the Noto Sans cuts cover it deliberately.
+//
+// CJK punctuation is not in that list. narrow_font_coverage.py leaves it in all
+// three display faces precisely so it never reaches this tail: a heading has to
+// draw 「直線」 in one typeface, not brackets in Noto Sans and ideographs in the
+// display face.
+@mixin space-font($cjk...) {
+  --space-font:
+    #{meta.inspect($display-latin)}, #{meta.inspect($display-cyrillic)},
+    #{meta.inspect($cjk)}, var(--menu-font);
+}
+
+@mixin menu-font($cjk...) {
+  --menu-font: #{meta.inspect($readable-latin)}, #{meta.inspect($cjk)}, Sans-Serif;
+}
 
 :root {
-  --menu-font: "Noto Sans", "Helvetica", "Arial", "Noto Sans KR",
-    "Noto Sans JP", "Noto Sans TC", Sans-Serif;
-
-  --space-font: "Michroma", var(--menu-font);
+  @include space-font($display-ko, $display-ja, $display-zh);
+  @include menu-font($readable-ko, $readable-ja, $readable-zh);
 }
 
-html[lang="ru"] {
-  --space-font: "Unbounded", var(--menu-font);
-}
+// No --space-font override for Russian any more. Unbounded is in every chain
+// above as the Cyrillic face, so Russian Cyrillic still renders in it; what
+// changed is that Latin inside Russian text now gets Michroma like everywhere
+// else, instead of Unbounded because the whole chain had been swapped out.
 
 html[lang="ja"] {
-  --space-font: "M PLUS U", var(--menu-font);
-  --menu-font: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN",
-    "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans CJK JP", "IPAexGothic",
-    "IPAGothic", Sans-Serif;
+  @include space-font($display-ja, $display-ko, $display-zh);
+  @include menu-font($readable-ja, $readable-ko, $readable-zh);
 }
 
 html[lang="zh"] {
-  --space-font: "Chiron GoRound TC", var(--menu-font);
-  --menu-font: "Noto Sans TC", "PingFang TC", "Hiragino Sans CNS",
-    "Microsoft JhengHei", "Noto Sans CJK TC", "PingFang SC", "Microsoft YaHei",
-    "Noto Sans CJK SC", "WenQuanYi Zen Hei", Sans-Serif;
+  @include space-font($display-zh, $display-ko, $display-ja);
+  @include menu-font($readable-zh, $readable-ko, $readable-ja);
 }
 
 html[lang="ko"] {
-  --space-font: "Nanum Gothic", var(--menu-font);
-  --menu-font: "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo",
-    "Noto Sans CJK KR", Sans-Serif;
+  @include space-font($display-ko, $display-ja, $display-zh);
+  @include menu-font($readable-ko, $readable-ja, $readable-zh);
 }
 
 // Global defaults
@@ -54,8 +105,14 @@ html[lang="ko"] {
   font-family: var(--menu-font);
 }
 
+// Ends in the same chain as everything else, because this is used on things
+// that are only mostly ASCII: the similar-maps blurb sets a map's tileset in it,
+// and a Korean tileset name in a bare `monospace` had nothing whatsoever to fall
+// back to -- the generic resolves to a Latin typewriter face and the text landed
+// on whatever the OS keeps for the leftovers. The generic still leads, so
+// timestamps and hashes are unaffected: they are ASCII and never reach past it.
 .monospace-font {
-  font-family: monospace;
+  font-family: monospace, var(--menu-font);
 }
 
 html {

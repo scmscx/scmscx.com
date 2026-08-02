@@ -107,7 +107,7 @@ const Eud = (props: any) => (
 );
 
 const Wavs = (props: any) => (
-  <div class={style["table-container"]}>
+  <div class={style["list-panel-tall"]}>
     <table class={style.table}>
       <thead>
         <tr>
@@ -262,7 +262,7 @@ const Forces = (props: any) => (
 );
 
 const KnownFilenames = (props: any) => (
-  <div class={style["table-container"]}>
+  <div class={style["list-panel"]}>
     <table class={style.table}>
       <thead>
         <tr>
@@ -295,7 +295,7 @@ const KnownFilenames = (props: any) => (
 );
 
 const KnownFiletimes = (props: any) => (
-  <div class={style["table-container"]}>
+  <div class={style["list-panel"]}>
     <table class={style.table}>
       <thead>
         <tr>
@@ -324,7 +324,7 @@ const KnownFiletimes = (props: any) => (
 );
 
 const KnownFilenames2 = (props: any) => (
-  <div class={style["table-container"]}>
+  <div class={style["list-panel"]}>
     <table class={style.table}>
       <thead>
         <tr>
@@ -365,7 +365,7 @@ const KnownFilenames2 = (props: any) => (
 );
 
 const Replays = (props: any) => (
-  <div class={style["table-container"]}>
+  <div class={style["list-panel-tall"]}>
     <table class={style.table}>
       <thead>
         <tr>
@@ -406,7 +406,7 @@ const Replays = (props: any) => (
 );
 
 const Units = (props: any) => (
-  <div class={style["table-container"]}>
+  <div class={style["list-panel-tall"]}>
     <table class={style.table}>
       <thead>
         <tr>
@@ -451,41 +451,43 @@ const SimilarMaps = (props: any) => {
 
   return (
     <Show when={similarMaps()?.v2?.length > 0}>
-      <h3 class={style.h3}>
-        <I18nSpan text="map.similar_maps" />
-      </h3>
-      <div class={style["similar-maps"]}>
-        <For each={similarMaps().v2}>
-          {(map, id) => (
-            <>
-              <A
-                class={style["similar-maps-minimap"]}
-                href={`/map/${map.map_id}`}
-              >
-                <MinimapImg
-                  mapId={map.map_id}
-                  max-width="128"
-                  max-height="128"
-                />{" "}
-              </A>
-              <A href={`/map/${map.map_id}`}>
-                <div class={style["similar-maps-scenario"]}>
-                  <ColoredTextMenu text={map.scenario_name} />
-                </div>
-                <div class={style["similar-maps-details"]}>
-                  {unix_time_to_timestamp(map.last_modified_time)}
-                </div>
-                <div class={style["similar-maps-details"]}>
-                  {map.width}x{map.height}
-                </div>
-                <div class={style["similar-maps-details"]}>
-                  <I18nSpan text={map_era_to_tileset_key(map.tileset % 8)} />
-                </div>
-              </A>
-            </>
-          )}
-        </For>
-      </div>
+      <section class={style.card}>
+        <h3 class={style.h3}>
+          <I18nSpan text="map.similar_maps" />
+        </h3>
+        <div class={style["similar-maps"]}>
+          <For each={similarMaps().v2}>
+            {(map, id) => (
+              <div class={style["similar-map"]}>
+                <A
+                  class={style["similar-maps-minimap"]}
+                  href={`/map/${map.map_id}`}
+                >
+                  <MinimapImg
+                    mapId={map.map_id}
+                    max-width="128"
+                    max-height="128"
+                  />{" "}
+                </A>
+                <A href={`/map/${map.map_id}`}>
+                  <div class={style["similar-maps-scenario"]}>
+                    <ColoredTextMenu text={map.scenario_name} />
+                  </div>
+                  <div class={style["similar-maps-details"]}>
+                    {unix_time_to_timestamp(map.last_modified_time)}
+                  </div>
+                  <div class={style["similar-maps-details"]}>
+                    {map.width}x{map.height}
+                  </div>
+                  <div class={style["similar-maps-details"]}>
+                    <I18nSpan text={map_era_to_tileset_key(map.tileset % 8)} />
+                  </div>
+                </A>
+              </div>
+            )}
+          </For>
+        </div>
+      </section>
     </Show>
   );
 };
@@ -703,7 +705,7 @@ const Tags = (props: any) => {
 
   return (
     <Show when={tags()}>
-      <div class={style["table-container"]}>
+      <div class={style["list-panel"]}>
         <table class={style.table}>
           <thead>
             <tr>
@@ -802,100 +804,167 @@ export default function (prop: any) {
 
         <Show when={filenames() && filetimes() && replays() && units()}>
           <Show when={map()} keyed>
-            <h1 class={style.h1}>
-              <ColoredTextMenu text={map().scenario} />
-            </h1>
-            <h2 class={style.h2}>
-              <ColoredTextMenu text={map().scenario_description} />
-            </h2>
-            <a
-              class={style["download-button"]}
-              href={`/api/maps/${map()?.meta.mpq_hash}`}
-              download={filenames()[0]}
-            >
-              <I18nSpan text="map.download" /> (
-              {(map()?.meta.mpq_size / 1024) | 0}
-              KB)
-            </a>
-            <h3 class={style.h3}>
-              <I18nSpan text="map.minimap" />
-            </h3>
-            <div class={style.minimap}>
-              <MinimapImg
-                mapId={params.mapId}
-                max-width={512}
-                max-height={512}
-              />
-            </div>
-            <Show when={mapImage()}>
-              <h3 class={style.h3}>
-                <I18nSpan text="map.map_image" />
-              </h3>
-              <div class={style.mapimg}>
-                <MapImg url={mapImage()} />
+            <header class={style.header}>
+              <h1 class={style.h1}>
+                <ColoredTextMenu text={map().scenario} />
+              </h1>
+              <h2 class={style.h2}>
+                <ColoredTextMenu text={map().scenario_description} />
+              </h2>
+              <a
+                class={style["download-button"]}
+                href={`/api/maps/${map()?.meta.mpq_hash}`}
+                download={filenames()[0]}
+              >
+                <I18nSpan text="map.download" /> (
+                {(map()?.meta.mpq_size / 1024) | 0}
+                KB)
+              </a>
+            </header>
+            {/* Three fixed columns above the breakpoint, one stack below it.
+                A panel's position is decided by which column it is written
+                into, not by how tall the map's data happens to make the
+                panels before it, so the page is laid out the same way on
+                every map. Moving a panel between columns changes where users
+                find it -- treat the grouping as the contract it is. */}
+            <div class={style.columns}>
+              {/* The art, and the other maps that look like it. Fixed-width
+                  rail: both images are capped at 512px by their own components,
+                  so this column never resizes. */}
+              <div class={style.column}>
+                <section class={style.card}>
+                  <h3 class={style.h3}>
+                    <I18nSpan text="map.minimap" />
+                  </h3>
+                  <div class={style.minimap}>
+                    <MinimapImg
+                      mapId={params.mapId}
+                      max-width={512}
+                      max-height={512}
+                    />
+                  </div>
+                </section>
+                <Show when={mapImage()}>
+                  <section class={style.card}>
+                    <h3 class={style.h3}>
+                      <I18nSpan text="map.map_image" />
+                    </h3>
+                    <div class={style.mapimg}>
+                      <MapImg url={mapImage()} />
+                    </div>
+                  </section>
+                </Show>
+                {/* In the rail rather than full width under the columns. Four
+                    tiles across the page left each one too narrow for a
+                    timestamp, so the details wrapped; one tile across a 518px
+                    column has room to spare. It also gives the rail something
+                    to do -- it is two images tall and the lists column is not,
+                    so the whitespace was all on this side. */}
+                <SimilarMaps mapId={params.mapId} />
               </div>
-            </Show>
-            <h3 class={style.h3}>
-              <I18nSpan text="map.scenario_properties" />
-            </h3>
-            <ScenarioProperties map={map()} />
-            <h3 class={style.h3}>
-              <I18nSpan text="common.forces" />
-            </h3>
-            <Forces map={map()} />
-            <Show when={replays()?.length > 0}>
-              <h3 class={style.h3}>
-                <I18nSpan text="map.replays" />
-              </h3>
-              <Replays replays={replays()} />
-            </Show>
-            <h3 class={style.h3}>
-              <I18nSpan text="map.known_filenames" />
-            </h3>
-            <KnownFilenames2
-              filenames2={filenames2()}
-              mpqHash={map().meta.mpq_hash}
-            />
-            <h3 class={style.h3}>
-              <I18nSpan text="map.eud" />
-            </h3>
-            <Eud map={map()} />
-            <Show when={units()?.length > 0}>
-              <h3 class={style.h3}>
-                <I18nSpan text="common.units" />
-              </h3>
-              <Units units={units()} />
-            </Show>
-            <Show when={map().wavs?.length > 0}>
-              <h3 class={style.h3}>
-                <I18nSpan text="map.wavs" />
-              </h3>
-              <Wavs map={map()} />
-            </Show>
-            <SimilarMaps mapId={params.mapId} />
-            <h3 class={style.h3}>
-              <I18nSpan text="map.flags" />
-            </h3>
-            <Flags mapId={params.mapId} uploadedBy={map().meta.uploaded_by} />
-            <h3 class={style.h3}>
-              <I18nSpan text="map.tags" />
-            </h3>
-            <Tags mapId={params.mapId} />
-            <h3 class={style.h3}>
-              <I18nSpan text="map.meta" />
-            </h3>
-            <Meta map={map()} />
-            <h3 class={style.h3}>
-              <I18nSpan text="map.known_filenames" />
-            </h3>
-            <KnownFilenames
-              filenames={filenames()}
-              mpqHash={map().meta.mpq_hash}
-            />
-            <h3 class={style.h3}>
-              <I18nSpan text="map.known_timestamps" />
-            </h3>
-            <KnownFiletimes filetimes={filetimes()} />
+
+              {/* What the map is. Every panel here is a fixed or near-fixed
+                  number of rows, which is why they share a column: it barely
+                  changes height between maps, so it reads next to the art
+                  without either one shifting. */}
+              <div class={style.column}>
+                <section class={style.card}>
+                  <h3 class={style.h3}>
+                    <I18nSpan text="map.scenario_properties" />
+                  </h3>
+                  <ScenarioProperties map={map()} />
+                </section>
+                <section class={style.card}>
+                  <h3 class={style.h3}>
+                    <I18nSpan text="common.forces" />
+                  </h3>
+                  <Forces map={map()} />
+                </section>
+                <section class={style.card}>
+                  <h3 class={style.h3}>
+                    <I18nSpan text="map.eud" />
+                  </h3>
+                  <Eud map={map()} />
+                </section>
+                <section class={style.card}>
+                  <h3 class={style.h3}>
+                    <I18nSpan text="map.meta" />
+                  </h3>
+                  <Meta map={map()} />
+                </section>
+              </div>
+
+              {/* Lists and actions. These are the panels whose length is map
+                  data -- a map can have two filenames or nine hundred -- so
+                  they are kept together and that variance is confined to one
+                  column instead of being spread across the page. The two
+                  fixed-size ones lead so the top of the column is stable. */}
+              <div class={style.column}>
+                <section class={style.card}>
+                  <h3 class={style.h3}>
+                    <I18nSpan text="map.flags" />
+                  </h3>
+                  <Flags
+                    mapId={params.mapId}
+                    uploadedBy={map().meta.uploaded_by}
+                  />
+                </section>
+                <section class={style.card}>
+                  <h3 class={style.h3}>
+                    <I18nSpan text="map.tags" />
+                  </h3>
+                  <Tags mapId={params.mapId} />
+                </section>
+                <Show when={replays()?.length > 0}>
+                  <section class={style.card}>
+                    <h3 class={style.h3}>
+                      <I18nSpan text="map.replays" />
+                    </h3>
+                    <Replays replays={replays()} />
+                  </section>
+                </Show>
+                <section class={style.card}>
+                  <h3 class={style.h3}>
+                    <I18nSpan text="map.known_filenames" />
+                  </h3>
+                  <KnownFilenames2
+                    filenames2={filenames2()}
+                    mpqHash={map().meta.mpq_hash}
+                  />
+                </section>
+                <section class={style.card}>
+                  <h3 class={style.h3}>
+                    <I18nSpan text="map.known_filenames" />
+                  </h3>
+                  <KnownFilenames
+                    filenames={filenames()}
+                    mpqHash={map().meta.mpq_hash}
+                  />
+                </section>
+                <section class={style.card}>
+                  <h3 class={style.h3}>
+                    <I18nSpan text="map.known_timestamps" />
+                  </h3>
+                  <KnownFiletimes filetimes={filetimes()} />
+                </section>
+                <Show when={map().wavs?.length > 0}>
+                  <section class={style.card}>
+                    <h3 class={style.h3}>
+                      <I18nSpan text="map.wavs" />
+                    </h3>
+                    <Wavs map={map()} />
+                  </section>
+                </Show>
+                <Show when={units()?.length > 0}>
+                  <section class={style.card}>
+                    <h3 class={style.h3}>
+                      <I18nSpan text="common.units" />
+                    </h3>
+                    <Units units={units()} />
+                  </section>
+                </Show>
+              </div>
+            </div>
             <Admin map={map()} map_id={params.mapId} />
           </Show>
         </Show>

@@ -1,9 +1,35 @@
 @use "../global.scss" as *;
 
+// One breakpoint, deliberately. The page has exactly two layouts -- the 640px
+// stack below and the three-column desktop layout above -- because the point of
+// the desktop one is that people learn where things are, and a panel that moves
+// between three or four intermediate arrangements is never learned.
+//
+// 1400px is where the three columns first have room to be useful: the visual
+// rail is a fixed 518px, so the two data columns get ~395px each at the
+// threshold, and comfortably more on the sizes this actually targets (1440,
+// 1512, 1728, 1920). Anything narrower -- 1280 and 1366 laptops included --
+// keeps the stack, which is what those widths get today anyway.
+$desktop: 1400px;
+
 .vertical-container {
   margin: auto;
   max-width: 640px;
   width: 100%;
+}
+
+@media (width >= #{$desktop}) {
+  .vertical-container {
+    // 518 + 32 + 569 + 32 + 569. Wide enough that the data columns are
+    // comfortable at 1920, capped so the tables do not stretch into
+    // unreadable line lengths on an ultrawide.
+    max-width: 1720px;
+  }
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 24px;
 }
 
 .h1 {
@@ -19,6 +45,19 @@
   margin: 64px 0px;
   overflow: hidden;
   white-space: pre-wrap;
+  text-align: left;
+}
+
+@media (width >= #{$desktop}) {
+  .h1 {
+    margin: 32px 0px 24px;
+  }
+
+  .h2 {
+    margin: 0px auto 32px;
+    max-width: 80ch;
+    width: fit-content;
+  }
 }
 
 .h3 {
@@ -27,6 +66,57 @@
   font-size: 24px;
   margin: 24px 0px;
   overflow: hidden;
+}
+
+.card {
+  margin-bottom: 24px;
+}
+
+.card .h3 {
+  margin-top: 0px;
+}
+
+// Below the breakpoint the three columns are plain blocks and stack in DOM
+// order, which is the mobile layout. Above it they become the three tracks of
+// a grid.
+//
+// The columns are real elements rather than `column-width` (what this used to
+// be) or grid auto-placement, and that is the whole point of the change. A
+// multi-column flow packs cards into column 1 until it is full and spills the
+// rest, so where a panel lands is a function of the heights of every panel
+// before it -- and those heights are map data. Two maps therefore got two
+// different arrangements and neither could be learned. With a column per
+// element, a panel's position is decided by which column it was written into,
+// so it is the same on every map. A map with 900 filenames makes the right
+// column taller and does not move the minimap at all.
+//
+// The cost, accepted deliberately: the columns have very different natural
+// heights, so the short ones leave whitespace below. That is the trade for
+// positions that hold still.
+@media (width >= #{$desktop}) {
+  .columns {
+    display: grid;
+    // Fixed track, not a fraction: MinimapImg and MapImg are both capped at
+    // 512px by the components themselves, so 512 + the 3px panel border on
+    // each side is exactly the rail they need and it never has to reflow.
+    // minmax(0, 1fr) on the data columns rather than a bare 1fr -- a bare 1fr
+    // floors at min-content, and one long unbroken filename would then push
+    // the track wider and knock the rail out of alignment.
+    grid-template-columns: 518px minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 32px;
+    // Each column sizes to its own content instead of stretching to match the
+    // tallest, so an empty-looking rail does not get a 3000px box.
+    align-items: start;
+  }
+}
+
+// The three grid items. Below the breakpoint they are plain blocks and there is
+// nothing to do, but min-width matters above it: a grid item's automatic
+// minimum is min-content, so without this the widest untruncatable cell in a
+// table sets the track width and `overflow-x: auto` on .table-container never
+// gets the chance to scroll instead.
+.column {
+  min-width: 0;
 }
 
 .minimap {
@@ -77,10 +167,35 @@
   color: $menu-light-green;
 }
 
+// The header is centred, which is right on desktop -- the title, the blurb and
+// the button are one centred block there. In the mobile stack it is not: the
+// blurb, every section heading and every panel sit on the left edge, so the
+// button was the one element off that edge. It measured dead centre and still
+// read as misplaced, because there was nothing else centred to line it up with.
+//
+// Block with a fit-content width rather than a text-align change: text-align
+// only moves inline content, and the button has to keep shrink-wrapping to its
+// label either way. Scoped to .header so .continue-random-button, which extends
+// .download-button and centres itself with auto margins, is left alone.
+.header .download-button {
+  display: block;
+  width: fit-content;
+}
+
+@media (width >= #{$desktop}) {
+  .header .download-button {
+    display: inline;
+    width: auto;
+  }
+}
+
 .table-container {
   @extend .standard-panel;
   text-overflow: ellipsis;
-  overflow-x: scroll;
+  // `auto`, not `scroll`: with a visible scrollbar (below) `scroll` would draw
+  // an inert horizontal one under every panel on the page, most of which have
+  // nothing to scroll.
+  overflow-x: auto;
   scrollbar-width: none;
 }
 
@@ -135,14 +250,112 @@
   color: $menu_pink;
 }
 
+@media (width >= #{$desktop}) {
+  .table td {
+    text-wrap: wrap;
+    overflow-wrap: anywhere;
+  }
+
+  // Sticky only bites inside .list-panel, which is the only scrolling
+  // container; in the fixed-size tables there is nothing to scroll past and it
+  // sits inert. The pull up to -6px and the matching shadow cover the panel's
+  // own top padding, which the rows would otherwise slide through.
+  .table thead th {
+    position: sticky;
+    top: -6px;
+    z-index: 1;
+    background-color: $menu-panel-fill-opaque;
+    box-shadow: 0px -6px $menu-panel-fill-opaque;
+  }
+}
+
+// A panel whose length is map data rather than a property of the page:
+// filenames, timestamps, replays, wavs, units, tags. Everything else on the
+// page has a row count fixed by the code (Scenario Properties is always ten
+// rows, EUD always six), so only these can shove their neighbours around.
+//
+// On desktop they get a fixed height, not a max-height. A cap alone still
+// leaves a panel free to be 60px on one map and 560px on the next, and
+// everything below it in the column moves by the difference -- measured at
+// nearly 2000px of drift for the bottom of the lists column between a sparse
+// map and a dense one, which defeats the point of fixing the columns. A fixed
+// slot spends the same space on every map: short lists leave the box part
+// empty, long ones scroll inside it, and the panel below always starts at the
+// same y.
+//
+// The empty space is the price of that, and it is a price worth paying here --
+// a half-full bordered box is exactly how the game's own lobby list reads, so
+// it looks deliberate rather than broken.
+// Two slot sizes rather than one. A single size has to be big enough for the
+// lists that are usually long, which then reserves that much for the ones that
+// are usually a single row -- and filenames and timestamps are a single row on
+// most maps, so three near-empty boxes stacked up was most of the column. The
+// size is still a fixed property of the panel and not of the map, so the
+// determinism above is unaffected; it is just chosen per panel.
+.list-panel {
+  @extend .table-container;
+}
+
+// For the lists that are long whenever they are present at all: replays, wavs,
+// units. Still scrolls past the slot -- this is the reserved space, not a cap
+// on the data.
+.list-panel-tall {
+  @extend .list-panel;
+}
+
+@media (width >= #{$desktop}) {
+  .list-panel {
+    height: 200px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: $menu-dark-red transparent;
+  }
+
+  .list-panel-tall {
+    height: 400px;
+  }
+}
+
 .similar-maps {
   @extend .standard-panel;
   @extend .space-font;
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: 1fr;
   gap: 10px;
 
   word-break: break-all;
+}
+
+.similar-map {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+// One tile per row at every width -- no desktop override on the columns. This
+// panel lives in the 518px art rail, so a tile is 128px of minimap plus ~350px
+// of details, which is more than the timestamp needs. Laying several across the
+// full page was what squeezed the details into wrapping in the first place.
+//
+// Fixed slot on desktop for the same reason the list tables get one: how many
+// similar maps come back is map data, and a tile is ~57px, so left to grow this
+// one panel made the rail twice the height of the whole rest of the page.
+//
+// 600px rather than the 400px the list panels use -- this is the only variable
+// panel in a column whose other two are a fixed 518px each, so there is
+// vertical room here that the lists column does not have, and 400 would have
+// shown seven tiles out of twenty-odd.
+@media (width >= #{$desktop}) {
+  .similar-maps {
+    height: 600px;
+    overflow-y: auto;
+    // Without this the tiles stretch to fill the slot when a map has only two
+    // or three similar maps, which turns a short list into three very tall rows.
+    align-content: start;
+    scrollbar-width: thin;
+    scrollbar-color: $menu-dark-red transparent;
+  }
 }
 
 .similar-maps a {
@@ -163,6 +376,14 @@
   @extend .standard-panel;
   @extend .space-font;
   color: $menu-green;
+}
+
+@media (width >= #{$desktop}) {
+  .flags {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 32px;
+  }
 }
 
 .flag {
@@ -191,4 +412,9 @@
 .similar-maps-details {
   @extend .monospace-font;
   color: $menu-cyan;
+  // The break-all on .similar-maps is there for scenario names, which are
+  // arbitrary user text with no spaces to break at. Inherited down here it
+  // splits a timestamp mid-number when the tile is tight -- "00:26:0" then a
+  // lone "6" -- so opt these lines back out and let them wrap at the space.
+  word-break: normal;
 }
