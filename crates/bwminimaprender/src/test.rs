@@ -17,8 +17,10 @@ fn test_minimap_rendering_badlands() {
     let mtxm = include_bytes!("test_vectors/badlands_mtxm");
     let bytes = include_bytes!("test_vectors/badlands_rendered.png");
     let view: Vec<u16> = mtxm
-        .chunks_exact(2)
-        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|c| u16::from_le_bytes(*c))
         .collect();
     let png = crate::render_minimap(&view, 128, 128, 0).unwrap();
     // std::fs::write(
@@ -34,8 +36,10 @@ fn test_minimap_rendering_jungle() {
     let mtxm = include_bytes!("test_vectors/jungle_mtxm");
     let bytes = include_bytes!("test_vectors/jungle_rendered.png");
     let view: Vec<u16> = mtxm
-        .chunks_exact(2)
-        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|c| u16::from_le_bytes(*c))
         .collect();
     let png = crate::render_minimap(&view, 128, 256, 4).unwrap();
     // std::fs::write(

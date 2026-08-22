@@ -125,7 +125,9 @@ pub fn calculate_perceptual_hash(png: &[u8]) -> Result<[u8; 16 * 16 / 8]> {
         .iter()
         .map(|x| u8::from(*x >= ph16x16_avg))
         .collect::<Vec<u8>>()
-        .chunks_exact(8)
+        .as_chunks::<8>()
+        .0
+        .iter()
         .map(|x| x.iter().fold(0u8, |acc, x| (acc << 1) | *x))
         .collect();
 
