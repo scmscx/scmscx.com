@@ -76,8 +76,7 @@ E2E_PG_PASSWORD ?= anotverysecurepassword
 e2e: $(RUST_SOURCE) dist/vite postgres-image
 	podman rm -f $(E2E_PG_CONTAINER) >/dev/null 2>&1 || true
 	podman run -d --name $(E2E_PG_CONTAINER) -p 127.0.0.1:$(E2E_PG_PORT):5432 \
-		-e POSTGRES_PASSWORD=$(E2E_PG_PASSWORD) registry.zxcv.io/postgres:latest \
-		-c max_connections=500
+		-e POSTGRES_PASSWORD=$(E2E_PG_PASSWORD) registry.zxcv.io/postgres:latest
 	@echo "waiting for postgres schema (bounding.net) ..."
 	@for i in $$(seq 1 60); do \
 		podman exec $(E2E_PG_CONTAINER) psql -U bounding.net -d bounding.net -tAc 'select 1' >/dev/null 2>&1 && break; \
@@ -128,8 +127,7 @@ ci: fmt clippy i18n test e2e scmscx.com-image-debug
 mutants: $(RUST_SOURCE) dist/vite postgres-image
 	podman rm -f $(E2E_PG_CONTAINER) >/dev/null 2>&1 || true
 	podman run -d --name $(E2E_PG_CONTAINER) -p 127.0.0.1:$(E2E_PG_PORT):5432 \
-		-e POSTGRES_PASSWORD=$(E2E_PG_PASSWORD) registry.zxcv.io/postgres:latest \
-		-c max_connections=500
+		-e POSTGRES_PASSWORD=$(E2E_PG_PASSWORD) registry.zxcv.io/postgres:latest
 	@echo "waiting for postgres schema (bounding.net) ..."
 	@for i in $$(seq 1 60); do \
 		podman exec $(E2E_PG_CONTAINER) psql -U bounding.net -d bounding.net -tAc 'select 1' >/dev/null 2>&1 && break; \
