@@ -26,63 +26,59 @@ pub async fn handler(
 
     let con = pool.acquire().await?;
 
-    let nearest2 = {
-        let rows = con
-            .query(
-                "
-                select 
-                    map.id,
-                    chkdenorm.scenario_name,
-                    chkdenorm.chkblob,
-                    min(modified_time) as lmt,
-                    chkdenorm.width,
-                    chkdenorm.height,
-                    chkdenorm.tileset,
-                    minimap.hamming_distance
-                from (
-                    select
-                        minimap.chkhash,
-                        vector <~> (select vector from minimap join map on map.chkblob = minimap.chkhash where map.id = $1 limit 1) as hamming_distance
-                    from
-                        minimap
-                    order by
-                        hamming_distance
-                    limit 25
-                ) minimap
-                join map on map.chkblob = minimap.chkhash
-                join chkdenorm on chkdenorm.chkblob = map.chkblob
-                join filetime on filetime.map = map.id
-                where
-                    map.id != $1 and
-                    nsfw = false and
-                    outdated = false and
-                    unfinished = false and
-                    broken = false and
-                    blackholed = false and
-                    chkdenorm.scenario_name is not null
-                group by
-                    map.id, chkdenorm.scenario_name, chkdenorm.chkblob, hamming_distance, chkdenorm.width, chkdenorm.height, chkdenorm.tileset
-                order by
-                    hamming_distance
-            ",
-                &[&map_id],
-            )
-            .await?;
+    let rows = con
+        .query("
+          select
+        map.id,
+        chkdenorm.scenario_name,
+        chkdenorm.chkblob,
+        min(modified_time) as lmt,
+        chkdenorm.width,
+        chkdenorm.height,
+        chkdenorm.tileset,
+        minimap.hamming_distance
+    from (
+        select
+            minimap.chkhash,
+            vector <~> (select vector from minimap join map on map.chkblob = minimap.chkhash where map.id = $1 limit 1) as hamming_distance
+        from
+            minimap
+        order by
+            hamming_distance
+    ) minimap
+    join map on map.chkblob = minimap.chkhash
+    join chkdenorm on chkdenorm.chkblob = map.chkblob
+    join filetime on filetime.map = map.id
+    where
+        map.id != $1 and
+        nsfw = false and
+        outdated = false and
+        unfinished = false and
+        broken = false and
+        blackholed = false and
+        chkdenorm.scenario_name is not null
+    group by
+        map.id, chkdenorm.scenario_name, chkdenorm.chkblob, hamming_distance, chkdenorm.width, chkdenorm.height, chkdenorm.tileset
+    order by
+        hamming_distance
+    limit 25
+    ", &[&map_id])
+        .await?;
 
-        rows.into_iter()
-            .map(|row| {
-                Ok(Chk {
-                    map_id: get_web_id_from_db_id(row.try_get("id")?, crate::util::SEED_MAP_ID)?,
-                    hamming_distance: row.try_get::<_, f64>("hamming_distance")? as i64,
-                    scenario_name: row.try_get("scenario_name")?,
-                    last_modified_time: row.try_get("lmt")?,
-                    width: row.try_get("width")?,
-                    height: row.try_get("height")?,
-                    tileset: row.try_get("tileset")?,
-                })
+    let nearest2 = rows
+        .into_iter()
+        .map(|row| {
+            Ok(Chk {
+                map_id: get_web_id_from_db_id(row.try_get("id")?, crate::util::SEED_MAP_ID)?,
+                hamming_distance: row.try_get::<_, f64>("hamming_distance")? as i64,
+                scenario_name: row.try_get("scenario_name")?,
+                last_modified_time: row.try_get("lmt")?,
+                width: row.try_get("width")?,
+                height: row.try_get("height")?,
+                tileset: row.try_get("tileset")?,
             })
-            .collect::<Result<Vec<_>>>()
-    }?;
+        })
+        .collect::<Result<Vec<_>>>()?;
 
     #[derive(Debug, Serialize, Deserialize)]
     struct Chk {
