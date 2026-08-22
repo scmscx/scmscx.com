@@ -170,8 +170,13 @@ pub struct MaybeUser(pub Option<UserSession>);
 impl<S: Sync> FromRequestParts<S> for MaybeUser {
     type Rejection = std::convert::Infallible;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        Ok(MaybeUser(parts.extensions.get::<UserSession>().cloned()))
+    fn from_request_parts(
+        parts: &mut Parts,
+        _state: &S,
+    ) -> impl std::future::Future<Output = Result<Self, Self::Rejection>> + Send {
+        std::future::ready(Ok(MaybeUser(
+            parts.extensions.get::<UserSession>().cloned(),
+        )))
     }
 }
 
