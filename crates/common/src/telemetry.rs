@@ -186,7 +186,10 @@ pub fn latency_buckets() -> Vec<f64> {
     ]
 }
 
-/// Byte-size histogram buckets, 19 buckets spanning 1KiB to 256MiB (powers of two).
+/// Byte-size histogram buckets, 21 buckets spanning 1KiB to 1GiB (powers of two).
+///
+/// The top end reaches 1GiB so raw render buffers land in a real bucket rather
+/// than all piling into `+Inf`: a 256x256 map renders to 16384x16384 RGB, 768MiB.
 pub fn size_buckets() -> Vec<f64> {
     vec![
         1024.0,
@@ -208,6 +211,8 @@ pub fn size_buckets() -> Vec<f64> {
         67_108_864.0,
         134_217_728.0,
         268_435_456.0,
+        536_870_912.0,
+        1_073_741_824.0,
     ]
 }
 
@@ -310,6 +315,8 @@ pub fn spawn_runtime_metrics_reporter(version: &'static str) {
             )
             .set(start.elapsed().as_secs() as i64);
 
+            record_process_memory();
+
             #[cfg(tokio_unstable)]
             if let Some(interval) = intervals.next() {
                 record_runtime_interval(&interval);
@@ -341,6 +348,59 @@ pub fn spawn_runtime_metrics_reporter(version: &'static str) {
             tokio::time::sleep(RUNTIME_SAMPLE_INTERVAL).await;
         }
     });
+}
+
+/// Publish process memory gauges, read from `/proc/self/status`.
+///
+/// `VmHWM` (peak RSS) matters as much as `VmRSS` here: memory in these services
+/// moves in very large, very short-lived steps (bwrender holds hundreds of MiB of
+/// raw pixels per in-flight map), so a burst big enough to get the process
+/// OOM-killed can easily begin and end between two scrapes. The high-water mark
+/// is monotonic and cannot be missed that way — use `increase()` over a window to
+/// see how high a spike actually went.
+///
+/// Best-effort and Linux-specific: if `/proc` is unreadable or the fields are
+/// missing, this publishes nothing rather than failing.
+fn record_process_memory() {
+    let Ok(status) = std::fs::read_to_string("/proc/self/status") else {
+        return;
+    };
+
+    // Lines look like `VmRSS:\t  123456 kB`.
+    let field_bytes = |name: &str| -> Option<i64> {
+        let line = status
+            .lines()
+            .find(|l| l.starts_with(name) && l[name.len()..].starts_with(':'))?;
+        let kb: i64 = line.split_whitespace().nth(1)?.parse().ok()?;
+        kb.checked_mul(1024)
+    };
+
+    if let Some(bytes) = field_bytes("VmRSS") {
+        register_gauge!(
+            "scmscx",
+            process_resident_memory_bytes,
+            "Resident set size of this process, in bytes"
+        )
+        .set(bytes);
+    }
+
+    if let Some(bytes) = field_bytes("VmHWM") {
+        register_gauge!(
+            "scmscx",
+            process_resident_memory_peak_bytes,
+            "Peak resident set size of this process since it started, in bytes"
+        )
+        .set(bytes);
+    }
+
+    if let Some(bytes) = field_bytes("VmSize") {
+        register_gauge!(
+            "scmscx",
+            process_virtual_memory_bytes,
+            "Virtual memory size of this process, in bytes"
+        )
+        .set(bytes);
+    }
 }
 
 /// Publish one `tokio-metrics` runtime interval. Per-interval totals are recorded
@@ -711,5 +771,30 @@ mod tests {
             "{output}"
         );
         assert!(output.contains("# EOF"), "{output}");
+    }
+
+    #[test]
+    fn process_memory_gauges_are_published() {
+        record_process_memory();
+
+        let output = encode_metrics();
+        for metric in [
+            "scmscx_process_resident_memory_bytes",
+            "scmscx_process_resident_memory_peak_bytes",
+            "scmscx_process_virtual_memory_bytes",
+        ] {
+            let line = output
+                .lines()
+                .find(|l| l.starts_with(metric) && !l.starts_with('#'))
+                .unwrap_or_else(|| panic!("{metric} missing from:\n{output}"));
+            // A live process always has a nonzero RSS; a zero here means the
+            // /proc parsing silently produced nothing useful.
+            let value: i64 = line
+                .rsplit(' ')
+                .next()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(|| panic!("unparseable value in {line:?}"));
+            assert!(value > 0, "{metric} should be positive, got {value}");
+        }
     }
 }

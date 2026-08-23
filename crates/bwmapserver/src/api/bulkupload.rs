@@ -4,9 +4,9 @@ use bb8_postgres::tokio_postgres::IsolationLevel;
 use bwmap::ParsedChk;
 use rand::Rng;
 use sha1::Digest;
-use std::fmt::Debug;
+use std::fmt::Display;
 use std::time::Duration;
-use tracing::error;
+use tracing::{error, warn};
 
 /// A parsed + validated map, ready to be staged for delivery and inserted.
 pub(crate) struct ParsedMap {
@@ -115,27 +115,6 @@ pub(crate) async fn insert_parsed_map(
         .as_secs() as i64;
 
     // begin db stuff
-    async fn retry_n_times<T, E, R>(n: usize, f: impl Fn() -> R) -> Result<T, anyhow::Error>
-    where
-        E: Debug,
-        R: futures::Future<Output = Result<T, E>>,
-    {
-        for _ in 0..n {
-            match f().await {
-                Ok(x) => return Ok(x),
-                Err(e) => {
-                    error!("failed to attempt transaction: error: {:?}", e);
-                    // Compute the delay before awaiting so the non-Send ThreadRng
-                    // isn't held across the await point (axum needs Send futures).
-                    let delay = rand::rng().random_range(300..2000);
-                    tokio::time::sleep(Duration::from_millis(delay)).await;
-                }
-            }
-        }
-
-        Err(anyhow::anyhow!("failed {} times", n))
-    }
-
     let f = || async {
         let mut con = pool.acquire().await?;
         let mut tx = con
@@ -217,6 +196,60 @@ pub(crate) async fn insert_parsed_map(
     anyhow::Ok(map_id)
 }
 
+/// Run `f`, retrying up to `n` times with a randomized backoff.
+///
+/// The upload transaction runs at SERIALIZABLE, so concurrent uploads routinely
+/// trip serialization failures (SQLSTATE 40001) that are resolved simply by
+/// retrying — frequently without any real conflict, because a lookup against a
+/// small table plans as a sequential scan and so takes a relation-level predicate
+/// lock covering every other uploader's rows.
+///
+/// A failed attempt is therefore normal contention, not a fault: it is logged at
+/// WARN, with the error chain but no backtrace. Only exhausting every attempt is
+/// an ERROR, because that is the case that actually fails the request.
+async fn retry_n_times<T, E, R>(n: usize, f: impl Fn() -> R) -> Result<T, anyhow::Error>
+where
+    E: Display,
+    R: futures::Future<Output = Result<T, E>>,
+{
+    let mut last_error = None;
+
+    for attempt in 1..=n {
+        match f().await {
+            Ok(x) => return Ok(x),
+            Err(e) => {
+                // `{e:#}` is anyhow's single-line cause chain: the Postgres
+                // message with its DETAIL and HINT, without the backtrace that
+                // `{e:?}` would dump for every retryable conflict.
+                last_error = Some(format!("{e:#}"));
+
+                // The last failure is reported by the error! below, so only warn
+                // when a retry actually follows — and don't sleep before giving up.
+                if attempt == n {
+                    break;
+                }
+
+                warn!(
+                    attempt,
+                    max_attempts = n,
+                    "upload transaction attempt failed, retrying: {e:#}"
+                );
+
+                // Compute the delay before awaiting so the non-Send ThreadRng
+                // isn't held across the await point (axum needs Send futures).
+                let delay = rand::rng().random_range(300..2000);
+                tokio::time::sleep(Duration::from_millis(delay)).await;
+            }
+        }
+    }
+
+    let last_error = last_error.unwrap_or_else(|| "no attempts were made".to_string());
+    error!(max_attempts = n, "upload transaction failed: {last_error}");
+    Err(anyhow::anyhow!(
+        "upload transaction failed after {n} attempts: {last_error}"
+    ))
+}
+
 fn sanitize_sc_scenario_string(s: &str) -> String {
     // split string by left or right marks
 
@@ -228,5 +261,71 @@ fn sanitize_sc_scenario_string(s: &str) -> String {
         String::new()
     } else {
         strings[0].to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// A serialization failure shaped like the one Postgres actually returns, so
+    /// the assertions below exercise the same formatting path as a real conflict.
+    fn conflict() -> anyhow::Error {
+        anyhow::anyhow!("db error: ERROR: could not serialize access due to read/write dependencies among transactions")
+    }
+
+    #[tokio::test]
+    async fn returns_immediately_when_the_first_attempt_succeeds() {
+        let calls = AtomicUsize::new(0);
+        let got: i32 = retry_n_times(7, || async {
+            calls.fetch_add(1, Ordering::Relaxed);
+            Ok::<_, anyhow::Error>(42)
+        })
+        .await
+        .expect("should succeed");
+
+        assert_eq!(got, 42);
+        assert_eq!(
+            calls.load(Ordering::Relaxed),
+            1,
+            "must not retry on success"
+        );
+    }
+
+    #[tokio::test]
+    async fn retries_a_conflict_until_it_succeeds() {
+        let calls = AtomicUsize::new(0);
+        let got: i32 = retry_n_times(7, || async {
+            if calls.fetch_add(1, Ordering::Relaxed) < 2 {
+                Err(conflict())
+            } else {
+                Ok(7)
+            }
+        })
+        .await
+        .expect("should succeed on the third attempt");
+
+        assert_eq!(got, 7);
+        assert_eq!(calls.load(Ordering::Relaxed), 3);
+    }
+
+    #[tokio::test]
+    async fn gives_up_after_n_attempts_and_reports_the_last_error() {
+        let calls = AtomicUsize::new(0);
+        let err = retry_n_times::<i32, _, _>(3, || async {
+            calls.fetch_add(1, Ordering::Relaxed);
+            Err(conflict())
+        })
+        .await
+        .expect_err("should give up");
+
+        assert_eq!(calls.load(Ordering::Relaxed), 3, "must try exactly n times");
+        let msg = format!("{err:#}");
+        assert!(msg.contains("after 3 attempts"), "{msg}");
+        assert!(
+            msg.contains("could not serialize access"),
+            "the giving-up error must carry the last failure: {msg}"
+        );
     }
 }

@@ -54,6 +54,69 @@ impl Drop for InFlightGuard {
     }
 }
 
+/// Tracks how many bytes of raw, unencoded pixel data the pipeline currently
+/// owns: everything sitting on the encode queue plus everything an encode worker
+/// is mid-encode on.
+///
+/// This, and not the job *count*, is what decides whether the renderer fits in
+/// memory. The encode queue is bounded by number of jobs, but a raw map image is
+/// `width * height * 3` bytes — a 256x256 map renders to 16384x16384 RGB, 768MiB
+/// — so a queue of ten large maps is several GiB of RGB with the job count still
+/// nominally "10".
+#[derive(Default)]
+struct RawBytesTracker {
+    current: std::sync::atomic::AtomicI64,
+    /// Monotonic high-water mark. Sampled gauges miss bursts that start and end
+    /// between two scrapes, which is exactly the shape of the traffic here.
+    peak: std::sync::atomic::AtomicI64,
+}
+
+impl RawBytesTracker {
+    /// Charge `bytes` to the tracker, returning a guard that refunds them on drop.
+    fn charge(self: &Arc<Self>, bytes: usize) -> RawBytesGuard {
+        use std::sync::atomic::Ordering::Relaxed;
+        let bytes = bytes as i64;
+        let current = self.current.fetch_add(bytes, Relaxed) + bytes;
+        self.peak.fetch_max(current, Relaxed);
+        RawBytesGuard {
+            bytes,
+            tracker: self.clone(),
+        }
+    }
+
+    fn snapshot(&self) -> (i64, i64) {
+        use std::sync::atomic::Ordering::Relaxed;
+        (self.current.load(Relaxed), self.peak.load(Relaxed))
+    }
+}
+
+/// RAII refund for [`RawBytesTracker::charge`]. Rides on the `EncodeJob` alongside
+/// the pixels it accounts for, so the bytes are released whether the job is
+/// encoded, fails, or is dropped on a closed channel.
+struct RawBytesGuard {
+    bytes: i64,
+    tracker: Arc<RawBytesTracker>,
+}
+
+impl Drop for RawBytesGuard {
+    fn drop(&mut self) {
+        self.tracker
+            .current
+            .fetch_sub(self.bytes, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// Permit for one of the `max_maps_in_flight` end-to-end pipeline slots. Acquired
+/// by the download worker before it fetches anything and carried on the job all
+/// the way to the end of upload, so a slot covers a map's entire lifetime rather
+/// than its time in any one stage.
+///
+/// This — not the per-stage worker counts — is what bounds memory. Each stage
+/// hands its output to the next stage's channel and immediately starts the next
+/// map, so limiting renders to one at a time still lets the renderer run ahead
+/// and leave a queue full of 768MiB raw images behind it.
+type PipelineSlot = tokio::sync::OwnedSemaphorePermit;
+
 /// Item on the download queue: the map to fetch plus its in-flight guard.
 struct DownloadJob {
     map: UnrenderedMap,
@@ -65,6 +128,7 @@ struct PipelineTimings {
     download_ms: u128,
     download_source: &'static str,
     render_ms: u128,
+    resize_ms: u128,
     encode_ms: u128,
     map_size: u64,
 }
@@ -79,6 +143,10 @@ struct RenderJob {
     download_source: &'static str,
     map_size: u64,
     guard: InFlightGuard,
+    // Held only to keep this map's pipeline slot occupied. Never read, hence the
+    // allow.
+    #[allow(dead_code)]
+    slot: PipelineSlot,
 }
 
 /// Job passed from the render thread to encode workers.
@@ -92,6 +160,14 @@ struct EncodeJob {
     render_ms: u128,
     map_size: u64,
     guard: InFlightGuard,
+    // Accounts for `render_result`'s raw pixel buffers; dropped by the encode
+    // worker once they are encoded. Never read, hence the allow.
+    #[allow(dead_code)]
+    raw_bytes: RawBytesGuard,
+    // Held only to keep this map's pipeline slot occupied. Never read, hence the
+    // allow.
+    #[allow(dead_code)]
+    slot: PipelineSlot,
 }
 
 /// Job passed from encode workers to upload workers.
@@ -106,6 +182,10 @@ struct UploadJob {
     // fully processed. Never read, hence the allow.
     #[allow(dead_code)]
     guard: InFlightGuard,
+    // Released when this job is dropped at the end of upload, freeing the slot
+    // for the next map. Never read, hence the allow.
+    #[allow(dead_code)]
+    slot: PipelineSlot,
 }
 
 /// Snapshot of all queue lengths for logging.
@@ -179,10 +259,13 @@ async fn run() -> Result<()> {
         render_skin = ?config.render_skin,
         poll_interval_secs = config.render_poll_interval_secs,
         webp_quality = config.render_webp_quality,
+        webp_method = config.render_webp_method,
+        resize_filter = ?config.render_resize_filter,
         max_concurrent_downloads = config.max_concurrent_downloads,
         max_concurrent_renders = config.max_concurrent_renders,
         max_concurrent_encodes = config.max_concurrent_encodes,
         max_concurrent_uploads = config.max_concurrent_uploads,
+        max_maps_in_flight = config.max_maps_in_flight,
         render_channel_bound = render_channel_bound,
         encode_channel_bound = encode_channel_bound,
         upload_channel_bound = upload_channel_bound,
@@ -212,6 +295,14 @@ async fn run() -> Result<()> {
     // Stage 4: encode workers -> upload_tx
     let (upload_tx, upload_rx) = async_channel::bounded::<UploadJob>(upload_channel_bound);
 
+    // Raw-pixel accounting for the render -> encode section of the pipeline.
+    let raw_bytes = Arc::new(RawBytesTracker::default());
+
+    // End-to-end admission control: a map takes a slot before it is downloaded
+    // and holds it until its upload finishes, so the whole pipeline never has
+    // more than `max_maps_in_flight` maps (and their raw pixel buffers) alive.
+    let pipeline_slots = Arc::new(tokio::sync::Semaphore::new(config.max_maps_in_flight));
+
     // Queue refs for snapshotting lengths from upload workers
     let queue_refs = Arc::new(QueueRefs {
         download_rx: download_rx.clone(),
@@ -224,6 +315,9 @@ async fn run() -> Result<()> {
     // visible even when no map is completing.
     {
         let queue_refs = queue_refs.clone();
+        let raw_bytes = raw_bytes.clone();
+        let pipeline_slots = pipeline_slots.clone();
+        let max_maps_in_flight = config.max_maps_in_flight;
         tokio::spawn(async move {
             loop {
                 let q = queue_refs.snapshot();
@@ -241,6 +335,36 @@ async fn run() -> Result<()> {
                     )
                     .set(depth as i64);
                 }
+
+                // Queue *depth* understates memory pressure badly, because one
+                // job can be anywhere from a few MiB to 768MiB of raw pixels.
+                let (current, peak) = raw_bytes.snapshot();
+                register_gauge!(
+                    "scmscx",
+                    render_raw_bytes_in_flight,
+                    "Bytes of raw unencoded pixel data currently held by the render pipeline"
+                )
+                .set(current);
+                register_gauge!(
+                    "scmscx",
+                    render_raw_bytes_in_flight_peak,
+                    "High-water mark of raw unencoded pixel data held by the render pipeline, in bytes"
+                )
+                .set(peak);
+
+                register_gauge!(
+                    "scmscx",
+                    render_maps_in_flight,
+                    "Maps currently occupying an end-to-end pipeline slot"
+                )
+                .set((max_maps_in_flight - pipeline_slots.available_permits()) as i64);
+                register_gauge!(
+                    "scmscx",
+                    render_maps_in_flight_limit,
+                    "Configured end-to-end pipeline slot limit (RENDER_MAX_MAPS_IN_FLIGHT)"
+                )
+                .set(max_maps_in_flight as i64);
+
                 tokio::time::sleep(std::time::Duration::from_secs(2)).await;
             }
         });
@@ -257,8 +381,18 @@ async fn run() -> Result<()> {
         let config = config.clone();
         let client = http_client.clone();
         let b2_auth = b2_auth.clone();
+        let pipeline_slots = pipeline_slots.clone();
         tokio::spawn(async move {
-            download_worker(worker_id, rx, tx, &config, &client, &b2_auth).await;
+            download_worker(
+                worker_id,
+                rx,
+                tx,
+                &config,
+                &client,
+                &b2_auth,
+                &pipeline_slots,
+            )
+            .await;
         });
     }
     drop(download_rx);
@@ -276,8 +410,9 @@ async fn run() -> Result<()> {
         let rx = render_rx.clone();
         let tx = encode_tx.clone();
         let config = config.clone();
+        let raw_bytes = raw_bytes.clone();
         tokio::spawn(async move {
-            render_worker(worker_id, rx, tx, &config, &render_ctx).await;
+            render_worker(worker_id, rx, tx, &config, &render_ctx, &raw_bytes).await;
         });
     }
     drop(render_rx);
@@ -412,10 +547,19 @@ async fn download_worker(
     config: &Config,
     client: &reqwest::Client,
     b2_auth: &Mutex<B2Auth>,
+    pipeline_slots: &Arc<tokio::sync::Semaphore>,
 ) {
     info!(worker_id = worker_id, "Download worker started");
 
     while let Ok(DownloadJob { map, guard }) = rx.recv().await {
+        // Take a pipeline slot before spending any bandwidth or disk on this
+        // map. The permit rides the job to the end of upload; the semaphore is
+        // never closed, so this only fails if the process is shutting down.
+        let Ok(slot) = pipeline_slots.clone().acquire_owned().await else {
+            error!("Pipeline slot semaphore closed");
+            break;
+        };
+
         let start = std::time::Instant::now();
 
         let temp_path = format!(
@@ -575,6 +719,7 @@ async fn download_worker(
                 download_source,
                 map_size,
                 guard,
+                slot,
             })
             .await
             .is_err()
@@ -595,6 +740,7 @@ async fn render_worker(
     tx: async_channel::Sender<EncodeJob>,
     config: &Config,
     render_ctx: &RenderContext,
+    raw_bytes: &Arc<RawBytesTracker>,
 ) {
     info!(worker_id = worker_id, "Render worker started");
 
@@ -655,6 +801,20 @@ async fn render_worker(
             }
         };
 
+        // Account for the raw pixels before handing them to the encode queue, and
+        // record how big this render was: encoding is far slower than rendering,
+        // so these buffers are what accumulates when the pipeline falls behind.
+        let raw_size = render_result.map_image.rgb_data.len();
+        register_histogram!(
+            "scmscx",
+            render_raw_image_bytes,
+            "Size of a rendered raw (unencoded) map image, in bytes",
+            common::telemetry::size_buckets(),
+        )
+        .observe(raw_size as f64);
+        let raw_bytes_guard =
+            raw_bytes.charge(raw_size + render_result.minimap_image.rgb_data.len());
+
         if tx
             .send(EncodeJob {
                 render_result,
@@ -666,6 +826,8 @@ async fn render_worker(
                 render_ms,
                 map_size: job.map_size,
                 guard: job.guard,
+                raw_bytes: raw_bytes_guard,
+                slot: job.slot,
             })
             .await
             .is_err()
@@ -688,30 +850,57 @@ async fn encode_worker(
     info!(worker_id = worker_id, "Encode worker started");
 
     while let Ok(job) = rx.recv().await {
-        let start = std::time::Instant::now();
         let chkblob_hash = job.chkblob_hash;
         let mapblob_hash = job.mapblob_hash;
 
         let webp_quality = config.render_webp_quality;
+        let webp_method = config.render_webp_method;
+        let resize_filter = config.render_resize_filter;
         let render_result = job.render_result;
+        // Moved into the closure so the raw-bytes accounting is refunded exactly
+        // when the buffers it covers are dropped, not when the job was received.
+        let raw_bytes_guard = job.raw_bytes;
 
         let encode_result = tokio::task::spawn_blocking(move || {
-            let webp_data = encode::encode_rgb_to_webp(
-                &render_result.map_image.rgb_data,
-                render_result.map_image.width,
-                render_result.map_image.height,
-                webp_quality,
-            )?;
+            let RenderResult {
+                map_image,
+                minimap_image,
+            } = render_result;
+
+            // Downscaling and encoding are timed apart because they cost wildly
+            // different amounts and answer to different knobs: resizing dominates
+            // for oversized maps and is set by RENDER_RESIZE_FILTER, while WebP is
+            // roughly fixed per output pixel and is set by RENDER_WEBP_METHOD.
+            //
+            // The raw pixels are moved (not lent) into the downscale: the map
+            // image can be 768 MiB, and this frees it as soon as the smaller
+            // image exists rather than holding both through the encode.
+            let resize_start = std::time::Instant::now();
+            let (pixels, width, height) = encode::downscale_to_cap(
+                map_image.rgb_data,
+                map_image.width,
+                map_image.height,
+                resize_filter,
+            );
+            let resize_ms = resize_start.elapsed().as_millis();
+
+            let encode_start = std::time::Instant::now();
+            let webp_data =
+                encode::encode_rgb_to_webp(&pixels, width, height, webp_quality, webp_method)?;
+            drop(pixels);
             let minimap_png = encode::encode_rgb_to_png(
-                &render_result.minimap_image.rgb_data,
-                render_result.minimap_image.width,
-                render_result.minimap_image.height,
+                &minimap_image.rgb_data,
+                minimap_image.width,
+                minimap_image.height,
             )?;
-            anyhow::Ok((webp_data, minimap_png))
+            let encode_ms = encode_start.elapsed().as_millis();
+
+            drop(raw_bytes_guard);
+            anyhow::Ok((webp_data, minimap_png, resize_ms, encode_ms))
         })
         .await;
 
-        let (webp_data, minimap_png) = match encode_result {
+        let (webp_data, minimap_png, resize_ms, encode_ms) = match encode_result {
             Ok(Ok(data)) => data,
             Ok(Err(e)) => {
                 register_counter!(
@@ -739,8 +928,6 @@ async fn encode_worker(
             }
         };
 
-        let encode_ms = start.elapsed().as_millis();
-
         register_counter!(
             "scmscx",
             render_stage,
@@ -749,6 +936,14 @@ async fn encode_worker(
             result = "success"
         )
         .inc();
+        register_histogram!(
+            "scmscx",
+            render_stage_duration_seconds,
+            "Time spent in a render pipeline stage, in seconds, by stage",
+            common::telemetry::latency_buckets(),
+            stage = "resize"
+        )
+        .observe(resize_ms as f64 / 1000.0);
         register_histogram!(
             "scmscx",
             render_stage_duration_seconds,
@@ -777,10 +972,12 @@ async fn encode_worker(
                     download_ms: job.download_ms,
                     download_source: job.download_source,
                     render_ms: job.render_ms,
+                    resize_ms,
                     encode_ms,
                     map_size: job.map_size,
                 },
                 guard: job.guard,
+                slot: job.slot,
             })
             .await
             .is_err()
@@ -912,6 +1109,7 @@ async fn upload_worker(
             download_src = job.timings.download_source,
             download_ms = job.timings.download_ms,
             render_ms = job.timings.render_ms,
+            resize_ms = job.timings.resize_ms,
             encode_ms = job.timings.encode_ms,
             upload_ms = upload_ms,
             q_download = queues.download,
@@ -1028,6 +1226,26 @@ async fn download_from_b2_and_upload_to_gsfs(
 mod tests {
     use super::*;
 
+    #[test]
+    fn raw_bytes_tracker_refunds_on_drop_and_keeps_a_peak() {
+        let tracker = Arc::new(RawBytesTracker::default());
+        assert_eq!(tracker.snapshot(), (0, 0));
+
+        let first = tracker.charge(100);
+        assert_eq!(tracker.snapshot(), (100, 100));
+
+        let second = tracker.charge(50);
+        assert_eq!(tracker.snapshot(), (150, 150));
+
+        drop(first);
+        // Peak is a high-water mark, so it must survive the refund — that is the
+        // whole point: a burst can start and finish between two scrapes.
+        assert_eq!(tracker.snapshot(), (50, 150));
+
+        drop(second);
+        assert_eq!(tracker.snapshot(), (0, 150));
+    }
+
     /// Integration test that renders a map through the full encode pipeline.
     ///
     /// Requires external files:
@@ -1123,13 +1341,14 @@ mod tests {
             );
 
             // Encode and write
-            let webp_data = encode::encode_rgb_to_webp(
-                &raw_image.rgb_data,
+            let (pixels, width, height) = encode::downscale_to_cap(
+                raw_image.rgb_data,
                 raw_image.width,
                 raw_image.height,
-                70.0,
-            )
-            .expect("Failed to encode WebP");
+                image::imageops::FilterType::Lanczos3,
+            );
+            let webp_data = encode::encode_rgb_to_webp(&pixels, width, height, 70.0, 4)
+                .expect("Failed to encode WebP");
 
             let decoder = webp::Decoder::new(&webp_data);
             let decoded = decoder.decode().expect("Failed to decode WebP");
