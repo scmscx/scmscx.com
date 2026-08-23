@@ -265,3 +265,13 @@
 .scenario-name {
   max-width: 200px;
 }
+
+.filename {
+  max-width: 200px;
+}
+
+.filename-text {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+}

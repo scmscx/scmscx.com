@@ -14,8 +14,8 @@ async fn random_core(
     let query_params = query_params.0;
 
     match query_params.sort.as_str() {
-        "relevancy" | "scenario" | "lastmodifiedold" | "lastmodifiednew" | "timeuploadedold"
-        | "timeuploadednew" => {}
+        "relevancy" | "scenario" | "scenariodesc" | "filename" | "filenamedesc"
+        | "lastmodifiedold" | "lastmodifiednew" | "timeuploadedold" | "timeuploadednew" => {}
         _ => {
             return Err(anyhow::anyhow!("unknown sort").into());
         }

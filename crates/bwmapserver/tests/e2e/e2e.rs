@@ -338,6 +338,9 @@ async fn search_accepts_every_sort_order() {
     for sort in [
         "relevancy",
         "scenario",
+        "scenariodesc",
+        "filename",
+        "filenamedesc",
         "lastmodifiedold",
         "lastmodifiednew",
         "timeuploadedold",

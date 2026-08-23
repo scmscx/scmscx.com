@@ -44,6 +44,18 @@ const mapSort = (x: string | undefined): string => {
     return "scenario";
   }
 
+  if (x === "scenariodesc") {
+    return "scenariodesc";
+  }
+
+  if (x === "filename") {
+    return "filename";
+  }
+
+  if (x === "filenamedesc") {
+    return "filenamedesc";
+  }
+
   if (x === "lastmodifiedold") {
     return "lastmodifiedold";
   }
@@ -1247,7 +1259,61 @@ export default function (prop: any) {
                   });
                 }}
               />
-              <I18nSpan text="search.scenario" />
+              <I18nSpan text="search.scenario_ascending" />
+            </label>
+          </div>
+          <div class={style["sort-flag"]}>
+            <label for="sort-scenario-desc">
+              <input
+                type="radio"
+                id="sort-scenario-desc"
+                name="sorting"
+                value="scenariodesc"
+                checked={formData().sort === "scenariodesc"}
+                onChange={() => {
+                  setFormData({
+                    ...formData(),
+                    sort: "scenariodesc",
+                  });
+                }}
+              />
+              <I18nSpan text="search.scenario_descending" />
+            </label>
+          </div>
+          <div class={style["sort-flag"]}>
+            <label for="sort-filename">
+              <input
+                type="radio"
+                id="sort-filename"
+                name="sorting"
+                value="filename"
+                checked={formData().sort === "filename"}
+                onChange={() => {
+                  setFormData({
+                    ...formData(),
+                    sort: "filename",
+                  });
+                }}
+              />
+              <I18nSpan text="search.filename_ascending" />
+            </label>
+          </div>
+          <div class={style["sort-flag"]}>
+            <label for="sort-filename-desc">
+              <input
+                type="radio"
+                id="sort-filename-desc"
+                name="sorting"
+                value="filenamedesc"
+                checked={formData().sort === "filenamedesc"}
+                onChange={() => {
+                  setFormData({
+                    ...formData(),
+                    sort: "filenamedesc",
+                  });
+                }}
+              />
+              <I18nSpan text="search.filename_descending" />
             </label>
           </div>
           <div class={style["sort-flag"]}>
@@ -1342,8 +1408,12 @@ export default function (prop: any) {
                     onClick={() => {
                       setFormData({
                         ...formData(),
+                        // Ascending first: a name column reads A-Z by default,
+                        // unlike the timestamp columns that lead with newest.
                         sort:
                           formData().sort === "scenario"
+                            ? "scenariodesc"
+                            : formData().sort === "scenariodesc"
                             ? "relevancy"
                             : "scenario",
                       });
@@ -1353,7 +1423,30 @@ export default function (prop: any) {
                   >
                     <I18nSpan text="search.scenario" />
                     <Switch>
-                      <Match when={formData().sort === "scenario"}>▼</Match>
+                      <Match when={formData().sort === "scenario"}>▲</Match>
+                      <Match when={formData().sort === "scenariodesc"}>▼</Match>
+                    </Switch>
+                  </th>
+                  <th
+                    class={style["click-sortable"]}
+                    onClick={() => {
+                      setFormData({
+                        ...formData(),
+                        sort:
+                          formData().sort === "filename"
+                            ? "filenamedesc"
+                            : formData().sort === "filenamedesc"
+                            ? "relevancy"
+                            : "filename",
+                      });
+                      setSortShown(false);
+                      doNavigate(false);
+                    }}
+                  >
+                    <I18nSpan text="common.filename" />
+                    <Switch>
+                      <Match when={formData().sort === "filename"}>▲</Match>
+                      <Match when={formData().sort === "filenamedesc"}>▼</Match>
                     </Switch>
                   </th>
                   <th
@@ -1426,6 +1519,11 @@ export default function (prop: any) {
                               />
                             </A>
                           </MinimapHover>
+                        </td>
+                        <td class={style.filename}>
+                          <span class={style["filename-text"]}>
+                            {searchResult.filename}
+                          </span>
                         </td>
                         <td>
                           <span class={style.monospace}>

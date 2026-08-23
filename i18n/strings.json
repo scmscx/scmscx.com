@@ -1907,6 +1907,26 @@
     "fr": "Accueil",
     "de": "Startseite"
   },
+  "search.filename_ascending": {
+    "en": "Filename (Ascending)",
+    "ko": "파일 이름(오름차순)",
+    "zh": "檔案名(升序)",
+    "ja": "ファイル名（昇順）",
+    "es": "Nombre de archivo (ascendente)",
+    "ru": "Имя файла (по возрастанию)",
+    "fr": "Nom de Fichier (Croissant)",
+    "de": "Dateiname (Aufsteigend)"
+  },
+  "search.filename_descending": {
+    "en": "Filename (Descending)",
+    "ko": "파일 이름(내림차순)",
+    "zh": "檔案名(降序)",
+    "ja": "ファイル名（降順）",
+    "es": "Nombre de archivo (descendente)",
+    "ru": "Имя файла (по убыванию)",
+    "fr": "Nom de Fichier (Décroissant)",
+    "de": "Dateiname (Absteigend)"
+  },
   "search.filenames": {
     "en": "Filenames",
     "ko": "파일 이름",
@@ -2136,6 +2156,26 @@
     "ru": "Сценарии",
     "fr": "Scénario",
     "de": "Szenario"
+  },
+  "search.scenario_ascending": {
+    "en": "Scenario (Ascending)",
+    "ko": "시나리오(오름차순)",
+    "zh": "場景名(升序)",
+    "ja": "シナリオ名（昇順）",
+    "es": "Escenario (ascendente)",
+    "ru": "Сценарий (по возрастанию)",
+    "fr": "Scénario (Croissant)",
+    "de": "Szenario (Aufsteigend)"
+  },
+  "search.scenario_descending": {
+    "en": "Scenario (Descending)",
+    "ko": "시나리오(내림차순)",
+    "zh": "場景名(降序)",
+    "ja": "シナリオ名（降順）",
+    "es": "Escenario (descendente)",
+    "ru": "Сценарий (по убыванию)",
+    "fr": "Scénario (Décroissant)",
+    "de": "Szenario (Absteigend)"
   },
   "search.scenario_descriptions": {
     "en": "Scenario Descriptions",

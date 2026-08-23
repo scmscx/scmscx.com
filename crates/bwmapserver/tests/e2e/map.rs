@@ -216,9 +216,23 @@ async fn upload_bytes(
     sha256: &str,
     bytes: Vec<u8>,
 ) -> String {
+    upload_bytes_at(c, h, auth, filename, sha256, bytes, 1_700_000_000_000).await
+}
+
+/// [`upload_bytes`] with the file's `last_modified` (ms) spelled out, for tests
+/// that need two filenames of one map to carry different times.
+async fn upload_bytes_at(
+    c: &Client,
+    h: &Harness,
+    auth: Option<&Auth>,
+    filename: &str,
+    sha256: &str,
+    bytes: Vec<u8>,
+    last_modified: i64,
+) -> String {
     // Metadata rides in the query string; the raw bytes are the request body.
     let url = h.url(&format!(
-        "/api/uiv2/upload-map?filename={filename}&sha256={sha256}&last_modified=1700000000000&length={}&playlist=e2e",
+        "/api/uiv2/upload-map?filename={filename}&sha256={sha256}&last_modified={last_modified}&length={}&playlist=e2e",
         bytes.len(),
     ));
     let mut req = c.post(url).body(bytes);
@@ -1321,12 +1335,212 @@ async fn search_time_bounds_divide_millis_to_seconds() {
     }
 }
 
-/// A search result's `last_modified` is `min(filetime.modified_time)`, which is
-/// NULL for a map with no `filetime` row — both query branches report that as the
-/// sentinel `-1` rather than a real timestamp. Nothing else in the suite ever sees
-/// a map without a file time (upload always writes one), so this deletes the row
-/// to reach the NULL case, and asserts the sentinel's *sign* — the whole point of
-/// it — alongside a control map that still carries its uploaded time.
+/// The two name sorts each run in both directions. `search_accepts_every_sort_order`
+/// only proves the four orderings are accepted and the SQL executes; this pins which
+/// way round each one actually sorts, so swapping an `asc` for a `desc` fails here.
+///
+/// Two different maps, so the scenario names differ too. The expected orders are
+/// spelled out rather than computed, because Postgres decides them under the
+/// database's collation and Rust's own `sort()` disagrees: the collation orders
+/// "| iCCup | Fighting Spirit 1.3" before "LotR: ..." (the leading punctuation does
+/// not count, so it compares as "iCCup" vs "LotR"), while a bytewise sort puts the
+/// `|` (0x7C) last. The filenames are ours and carry no punctuation, so those sort
+/// the same either way.
+#[tokio::test]
+async fn name_sorts_run_in_both_directions() {
+    let h = Harness::start().await;
+    let c = client();
+    let owner = register(&c, &h, "namesortowner").await;
+
+    upload_map(&c, &h, Some(&owner), "zzzlast.scx").await;
+    upload_fixture(
+        &c,
+        &h,
+        Some(&owner),
+        "aaafirst.scx",
+        FIGHTING_SPIRIT_SHA256,
+        FIGHTING_SPIRIT_LEN,
+    )
+    .await;
+
+    let column = |sort: &'static str, field: &'static str| {
+        let (c, h) = (&c, &h);
+        async move {
+            let body = json_body(
+                c.get(h.url(&format!("/api/uiv2/search?sort={sort}")))
+                    .send()
+                    .await
+                    .unwrap(),
+            )
+            .await;
+            body["maps"]
+                .as_array()
+                .unwrap_or_else(|| panic!("search sort={sort} returned no maps array: {body}"))
+                .iter()
+                .map(|m| m[field].as_str().unwrap().to_string())
+                .collect::<Vec<_>>()
+        }
+    };
+
+    let by_scenario = [
+        "| iCCup | Fighting Spirit 1.3",
+        "LotR: The March of Sauron II V4.3",
+    ];
+    let by_filename = ["aaafirst.scx", "zzzlast.scx"];
+
+    for (field, asc, desc, ascending) in [
+        ("scenario_name", "scenario", "scenariodesc", by_scenario),
+        ("filename", "filename", "filenamedesc", by_filename),
+    ] {
+        assert_eq!(
+            column(asc, field).await,
+            ascending,
+            "sort={asc} is ascending by {field}"
+        );
+
+        let descending: Vec<&str> = ascending.iter().rev().copied().collect();
+        assert_eq!(
+            column(desc, field).await,
+            descending,
+            "sort={desc} is descending by {field}"
+        );
+    }
+}
+
+/// A search result is a row per known filename rather than per map: the same
+/// bytes uploaded under two filenames are one map, listed twice, and each row
+/// carries the time of *its* file instead of one time smeared across the map.
+///
+/// Also pins `total_results` as a count of rows rather than of maps, and the keyword
+/// branch's filename filter: a query that matched a filename lists only the
+/// filenames it matched, not the map's other ones. The two filenames below share no
+/// substring, so trigram matching cannot reach across them and the filter's effect
+/// is unambiguous.
+#[tokio::test]
+async fn search_returns_a_row_per_filename() {
+    let h = Harness::start().await;
+    let c = client();
+    let owner = register(&c, &h, "perfilenameowner").await;
+
+    let bytes = sample_map().await.to_vec();
+    let first = upload_bytes_at(
+        &c,
+        &h,
+        Some(&owner),
+        "aardvarkzzz.scx",
+        MAP_SHA256,
+        bytes.clone(),
+        1_000_000_000_000,
+    )
+    .await;
+    let second = upload_bytes_at(
+        &c,
+        &h,
+        Some(&owner),
+        "quixotry.scm",
+        MAP_SHA256,
+        bytes,
+        1_600_000_000_000,
+    )
+    .await;
+    assert_eq!(first, second, "the same bytes are one map, not two");
+
+    // Empty-query branch: this database holds exactly the one map, so both of its
+    // filenames are the whole result set.
+    let body = json_body(c.get(h.url("/api/uiv2/search")).send().await.unwrap()).await;
+    assert_eq!(
+        body["total_results"], 2,
+        "one row per filename, not per map"
+    );
+
+    let mut rows: Vec<(String, String, i64)> = body["maps"]
+        .as_array()
+        .unwrap_or_else(|| panic!("search returned no maps array: {body}"))
+        .iter()
+        .map(|m| {
+            (
+                m["id"].as_str().unwrap().to_string(),
+                m["filename"].as_str().unwrap().to_string(),
+                m["last_modified"].as_i64().unwrap(),
+            )
+        })
+        .collect();
+    rows.sort();
+
+    assert_eq!(
+        rows,
+        vec![
+            (first.clone(), "aardvarkzzz.scx".to_string(), 1_000_000_000),
+            (first.clone(), "quixotry.scm".to_string(), 1_600_000_000),
+        ],
+        "each row names one file and reports that file's own modified time"
+    );
+
+    // Sorting is per row, so it can order one map's filenames against each other.
+    // `filename` is alphabetical; `lastmodifiednew` puts the newer file first, and
+    // the two disagree here, so neither assertion can pass by accident.
+    let filenames_sorted_by = |sort: &'static str| {
+        let (c, h) = (&c, &h);
+        async move {
+            let body = json_body(
+                c.get(h.url(&format!("/api/uiv2/search?sort={sort}")))
+                    .send()
+                    .await
+                    .unwrap(),
+            )
+            .await;
+            body["maps"]
+                .as_array()
+                .unwrap_or_else(|| panic!("search sort={sort} returned no maps array: {body}"))
+                .iter()
+                .map(|m| m["filename"].as_str().unwrap().to_string())
+                .collect::<Vec<_>>()
+        }
+    };
+    assert_eq!(
+        filenames_sorted_by("filename").await,
+        vec!["aardvarkzzz.scx", "quixotry.scm"],
+        "sort=filename orders a map's rows alphabetically by filename"
+    );
+    assert_eq!(
+        filenames_sorted_by("filenamedesc").await,
+        vec!["quixotry.scm", "aardvarkzzz.scx"],
+        "sort=filenamedesc reverses it"
+    );
+    assert_eq!(
+        filenames_sorted_by("lastmodifiednew").await,
+        vec!["quixotry.scm", "aardvarkzzz.scx"],
+        "sort=lastmodifiednew orders by each row's own file time"
+    );
+
+    // Keyword branch: matching one filename must not drag the other one in.
+    let body = json_body(
+        c.get(h.url("/api/uiv2/search/aardvarkzzz"))
+            .send()
+            .await
+            .unwrap(),
+    )
+    .await;
+    let filenames: Vec<&str> = body["maps"]
+        .as_array()
+        .unwrap_or_else(|| panic!("search returned no maps array: {body}"))
+        .iter()
+        .map(|m| m["filename"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        filenames,
+        vec!["aardvarkzzz.scx"],
+        "a filename match lists only the filenames that matched"
+    );
+}
+
+/// A search result's `last_modified` is the time of the row's own filename (from
+/// `filenames2`), falling back to the map-wide `min(filetime.modified_time)`. With
+/// neither, both query branches report the sentinel `-1` rather than a real
+/// timestamp. Nothing else in the suite ever sees a map without a file time (upload
+/// always writes both rows), so this deletes them to reach the NULL case, and
+/// asserts the sentinel's *sign* — the whole point of it — alongside a control map
+/// that still carries its uploaded time.
 #[tokio::test]
 async fn search_reports_unknown_modified_time_as_minus_one() {
     let h = Harness::start().await;
@@ -1346,8 +1560,13 @@ async fn search_reports_unknown_modified_time_as_minus_one() {
     .await;
 
     let missing_internal = map_internal_id(&c, &h, &missing).await;
+    // Both sources, or the surviving one still supplies a time.
     h.db_execute(&format!(
         "delete from filetime where map = {missing_internal}"
+    ))
+    .await;
+    h.db_execute(&format!(
+        "delete from filenames2 where map_id = {missing_internal}"
     ))
     .await;
 
@@ -1364,7 +1583,7 @@ async fn search_reports_unknown_modified_time_as_minus_one() {
     assert_eq!(
         search_last_modified(&c, &h, "/api/uiv2/search", &missing).await,
         -1,
-        "a map with no filetime row reports the -1 sentinel"
+        "a map with no time from either source reports the -1 sentinel"
     );
 
     // Keyword branch — one search per map, so each has its own cache key.
@@ -1376,7 +1595,7 @@ async fn search_reports_unknown_modified_time_as_minus_one() {
     assert_eq!(
         search_last_modified(&c, &h, "/api/uiv2/search/filetimedropmarker", &missing).await,
         -1,
-        "a map with no filetime row reports the -1 sentinel"
+        "a map with no time from either source reports the -1 sentinel"
     );
 }
 
