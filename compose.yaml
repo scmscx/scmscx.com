@@ -28,11 +28,14 @@ services:
       BACKBLAZE_DISABLED: "true"
       PROMETHEUS_ENDPOINT: "0.0.0.0:9102"
       SC_DATA_PATH: /starcraft
-      RENDER_SKIN: carbothd2
+      RENDER_SKIN: classic
       # RENDER_SKIN: remasteredhd
       RENDER_BATCH_SIZE: 10
       RENDER_POLL_INTERVAL_SECS: 1
       RENDER_WEBP_QUALITY: 40
+      RENDER_WEBP_METHOD: 0
+      RENDER_RESIZE_FILTER: nearest
+      RENDER_MAX_MAPS_IN_FLIGHT: 5
 
   scmscx:
     image: "registry.zxcv.io/scmscx.com:${GIT_VERSION}-debug"
