@@ -16,6 +16,9 @@ fn is_valid_sort(sort: &str) -> bool {
         sort,
         "relevancy"
             | "scenario"
+            | "scenariodesc"
+            | "filename"
+            | "filenamedesc"
             | "lastmodifiedold"
             | "lastmodifiednew"
             | "timeuploadedold"
@@ -38,6 +41,8 @@ async fn handler(
     let maps = search2(query.as_str(), allow_nsfw, &query_params, pool.clone()).await?;
 
     Ok(Json(json!({
+        // Rows, one per (map, filename) -- so a map known under several filenames
+        // counts once per filename, and this is what paging is against.
         "total_results": maps.0,
         "maps": maps.1,
     }))

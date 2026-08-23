@@ -4,9 +4,17 @@ use bb8_postgres::{bb8::Pool, tokio_postgres::NoTls, PostgresConnectionManager};
 use cached::proc_macro::cached;
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
+use std::sync::Arc;
 use std::time::Duration;
 
 /// Public entry point. In dev mode this goes straight to the database.
+///
+/// The rows come back as an `Arc<[Map]>` rather than a `Vec<Map>` because the cache
+/// clones its value on every hit, and a whole-database search holds hundreds of
+/// thousands of rows: as a `Vec` that clone was a per-request deep copy of every row
+/// and every string in it, paid even by searches that never touch the database.
+/// Behind an `Arc` it is a refcount bump, and only the page handed to the caller is
+/// actually copied.
 ///
 /// The cache below holds a result for an hour, which is the right call in
 /// production but makes local work confusing: upload a map, search for it, and
@@ -17,7 +25,7 @@ pub async fn search_cache(
     allow_nsfw: bool,
     query_params: &SearchParams,
     pool: Pool<PostgresConnectionManager<NoTls>>,
-) -> Result<Vec<Map>> {
+) -> Result<Arc<[Map]>> {
     if crate::util::is_dev_mode() {
         search_uncached(query, allow_nsfw, query_params, pool).await
     } else {
@@ -37,8 +45,80 @@ async fn search_cached(
     allow_nsfw: bool,
     query_params: &SearchParams,
     pool: Pool<PostgresConnectionManager<NoTls>>,
-) -> Result<Vec<Map>> {
+) -> Result<Arc<[Map]>> {
     search_uncached(query, allow_nsfw, query_params, pool).await
+}
+
+/// The predicate that decides which of a map's filenames become result rows.
+///
+/// The keyword branch knows which strings the query actually matched, and a map
+/// that matched on one of its filenames lists only the filenames that matched --
+/// searching "bgh" should not answer with the same map's `big game v2.scx`. A map
+/// that matched on something else (its scenario name, a unit name, ...) has a NULL
+/// `matched_filenames` and keeps all of its filenames. The empty-query branch has
+/// nothing to match against, so every filename is a row.
+///
+/// `alias` is the `filename` table alias the predicate is written against, because
+/// [`filename_rows`] applies it under two different ones. It is `&'static str`
+/// rather than `&str` so that only a literal in this file can reach the SQL:
+/// anything a request carries arrives as an owned `String` and will not compile
+/// here. Same rule as `flags::validate_flag`.
+fn filename_filter(has_matched_filenames: bool, alias: &'static str) -> String {
+    if has_matched_filenames {
+        format!("(sq2.matched_filenames is null or {alias}.filename = any(sq2.matched_filenames))")
+    } else {
+        "true".to_owned()
+    }
+}
+
+/// A correlated subquery producing one row -- filename and last-modified time --
+/// per known filename of `map.id`. This is the unit of a search result: a map with
+/// three known filenames is three rows, each carrying the time that belongs to
+/// *its* file rather than one time smeared across the whole map.
+///
+/// Joined with LEFT JOIN LATERAL ... ON TRUE, so a map we have no filename for at
+/// all still produces its one row, with a NULL filename.
+fn filename_rows(has_matched_filenames: bool) -> String {
+    let filter = filename_filter(has_matched_filenames, "f");
+    // The `not exists` below re-applies the filter under its own alias.
+    let filter_inner = filename_filter(has_matched_filenames, "f2");
+
+    format!(
+        "
+            -- Preferred source: filenames2 records a modified time per (map,
+            -- filename) pair. The same filename can be observed with several
+            -- times (different copies of the same file); collapse those to the
+            -- oldest, the same convention the map-wide time used. A filename
+            -- observed only with unknown times falls back to the map-wide one.
+            select f.filename,
+                   coalesce(
+                       extract(epoch from min(fn2.modified_time))::int8,
+                       (select min(ft.modified_time) from filetime ft where ft.map = map.id)
+                   ) as modified_time
+            from filenames2 fn2
+            join filename f on f.id = fn2.filename_id
+            where fn2.map_id = map.id and {filter}
+            group by f.filename
+
+            union all
+
+            -- Fallback for maps uploaded before filenames2 existed: mapfilename
+            -- knows the filenames but not which time belongs to which, so every
+            -- row shows the map-wide oldest -- exactly what the search used to
+            -- show for the whole map.
+            select distinct f.filename,
+                   (select min(ft.modified_time) from filetime ft where ft.map = map.id)
+            from mapfilename mf
+            join filename f on f.id = mf.filename
+            where mf.map = map.id and {filter}
+              and not exists (
+                  select 1
+                  from filenames2 fn2
+                  join filename f2 on f2.id = fn2.filename_id
+                  where fn2.map_id = map.id and {filter_inner}
+              )
+        "
+    )
 }
 
 async fn search_uncached(
@@ -46,7 +126,7 @@ async fn search_uncached(
     allow_nsfw: bool,
     query_params: &SearchParams,
     pool: Pool<PostgresConnectionManager<NoTls>>,
-) -> Result<Vec<Map>> {
+) -> Result<Arc<[Map]>> {
     let mut allowed_tilesets: Vec<i64> = Vec::new();
 
     if query_params.tileset_badlands {
@@ -74,7 +154,11 @@ async fn search_uncached(
         allowed_tilesets.push(7);
     }
 
-    let (sort, sortorder) = match query_params.sort.as_str() {
+    // `sort` is the one request-carried value that reaches the query *text* rather
+    // than a bind parameter, so the match launders it into a literal. The
+    // annotation is what enforces that: without it the type is inferred, and an arm
+    // that handed back a slice of `query_params.sort` would still compile.
+    let (sort, sortorder): (&'static str, &'static str) = match query_params.sort.as_str() {
         "relevancy" => {
             if query.is_empty() {
                 ("uploaded_time", "desc")
@@ -82,9 +166,14 @@ async fn search_uncached(
                 ("dist2", "desc")
             }
         }
+        // `scenario` and `filename` are the ascending sorts; their names predate
+        // the descending variants, so they keep them.
         "scenario" => ("chkdenorm.scenario_name", "asc"),
-        "lastmodifiedold" => ("min(filetime.modified_time)", "asc NULLS FIRST"),
-        "lastmodifiednew" => ("min(filetime.modified_time)", "desc NULLS LAST"),
+        "scenariodesc" => ("chkdenorm.scenario_name", "desc"),
+        "filename" => ("filerow.filename", "asc"),
+        "filenamedesc" => ("filerow.filename", "desc"),
+        "lastmodifiedold" => ("filerow.modified_time", "asc NULLS FIRST"),
+        "lastmodifiednew" => ("filerow.modified_time", "desc NULLS LAST"),
         "timeuploadedold" => ("uploaded_time", "asc NULLS FIRST"),
         "timeuploadednew" => ("uploaded_time", "desc NULLS LAST"),
         _ => {
@@ -92,14 +181,24 @@ async fn search_uncached(
         }
     };
 
+    // Rows of one map differ only in the filename, so keep them together and in a
+    // fixed order instead of letting them scatter through a tie in the sort key.
+    // The filename sorts already lead with the filename, which makes the trailing
+    // copy redundant -- but a redundant sort key is only ever consulted once the
+    // ones before it have tied, and filename plus map.id tying means the rows are
+    // identical. Spelling it unconditionally is the same ordering and the same
+    // work, without a branch whose two sides no caller can tell apart.
+    let order_by = format!("{sort} {sortorder}, map.id, filerow.filename");
+
     let maps = if query.is_empty() {
         let con = pool.acquire().await?;
 
+        let rows = filename_rows(false);
         let qs = format!("
-            select distinct map.id, chkdenorm.scenario_name, uploaded_time, min(filetime.modified_time) as modified_time, uploaded_time, chkdenorm.width, chkdenorm.height, chkdenorm.tileset, chkdenorm.human_players, chkdenorm.computer_players from map
-            left join filetime on filetime.map = map.id
+            select map.id, chkdenorm.scenario_name, filerow.filename, filerow.modified_time, map.uploaded_time from map
             join chkdenorm on chkdenorm.chkblob = map.chkblob
             left join account on account.id = map.uploaded_by
+            left join lateral ({rows}) filerow on true
             where
                 (map.nsfw = false or ($14 = true and $15 = true)) and
                 (map.outdated = false or $16 = true) and
@@ -113,10 +212,9 @@ async fn search_uncached(
                 chkdenorm.human_players >= $6 and chkdenorm.human_players <= $7 and
                 chkdenorm.computer_players >= $8 and chkdenorm.computer_players <= $9 and
                 map.uploaded_time <= $10 and map.uploaded_time >= $11 and
-                ((modified_time <= $12 and modified_time >= $13) or modified_time is null) and
+                ((filerow.modified_time <= $12 and filerow.modified_time >= $13) or filerow.modified_time is null) and
                 ($19 = '' or account.username = $19)
-            group by map.id, chkdenorm.scenario_name, uploaded_time, chkdenorm.width, chkdenorm.height, chkdenorm.tileset, chkdenorm.human_players, chkdenorm.computer_players
-            order by {sort} {sortorder}
+            order by {order_by}
             ");
 
         con.query(
@@ -147,8 +245,9 @@ async fn search_uncached(
         .into_iter()
         .map(|row| {
             anyhow::Ok(Map {
-                id: bwcommon::get_web_id_from_db_id(row.try_get(0)?, crate::util::SEED_MAP_ID)?,
-                scenario_name: row.try_get(1)?,
+                id: bwcommon::get_web_id_from_db_id(row.try_get("id")?, crate::util::SEED_MAP_ID)?,
+                scenario_name: row.try_get("scenario_name")?,
+                filename: row.try_get("filename")?,
                 last_modified: row
                     .try_get::<_, Option<i64>>("modified_time")?
                     .unwrap_or(-1),
@@ -159,14 +258,16 @@ async fn search_uncached(
     } else {
         let con = pool.acquire().await?;
 
+        let rows = filename_rows(true);
         let qs =
                 format!("
-                select mapid as id, scenario_name, modified_time, uploaded_time, dist2 from (
-                    select map.id as mapid, chkdenorm.scenario_name, min(filetime.modified_time) as modified_time, map.uploaded_time, dist2 from (
-                        select max(dist*weight) as dist2, id as mapid from (
-                            select word_similarity($1, data) as dist, map as id,
+                select map.id, chkdenorm.scenario_name, filerow.filename, filerow.modified_time, map.uploaded_time from (
+                    select max(dist*weight) as dist2, id as mapid,
+                           array_agg(distinct data) filter (where file_names) as matched_filenames
+                    from (
+                        select word_similarity($1, data) as dist, map as id, data, file_names,
 
-                            CASE
+                        CASE
 							    WHEN scenario_name THEN 1.25
 							    WHEN file_names THEN 1.2
 							    WHEN scenario_description THEN 1.1
@@ -174,28 +275,26 @@ async fn search_uncached(
 							    ELSE 1.0
 							end as weight
 
-                            from stringmap2
-                            where $1 <% data and ((scenario_name = true and $3) or (scenario_description = true and $4) or (unit_names = true and $5) or (force_names = true and $6) or (file_names = true and $7))
-                        ) as sq1
-                        group by id
-                    ) as sq2
-                    join map on map.id = sq2.mapid
-                    left join filetime on filetime.map = map.id
-                    join chkdenorm on chkdenorm.chkblob = map.chkblob
-                    left join account on account.id = map.uploaded_by
-                    where (map.nsfw = false or ($2 = true and $21 = true)) and (map.outdated = false or $22 = true) and (map.unfinished = false or $23 = true) and (map.broken = false or $24 = true) and map.blackholed = false and
-                        chkdenorm.scenario_name is not null and
-                        chkdenorm.width >= $8 and chkdenorm.width <= $9 and
-                        chkdenorm.height >= $10 and chkdenorm.height <= $11 and
-                        chkdenorm.tileset = any($12) and
-                        chkdenorm.human_players >= $13 and chkdenorm.human_players <= $14 and
-                        chkdenorm.computer_players >= $15 and chkdenorm.computer_players <= $16 and
-                        map.uploaded_time <= $17 and map.uploaded_time >= $18 and
-                        ((modified_time <= $19 and modified_time >= $20) or modified_time is null) and
-                        ($25 = '' or account.username = $25)
-                    group by map.id, chkdenorm.scenario_name, dist2
-                    order by {sort} {sortorder}
-                ) as sq3");
+                        from stringmap2
+                        where $1 <% data and ((scenario_name = true and $3) or (scenario_description = true and $4) or (unit_names = true and $5) or (force_names = true and $6) or (file_names = true and $7))
+                    ) as sq1
+                    group by id
+                ) as sq2
+                join map on map.id = sq2.mapid
+                join chkdenorm on chkdenorm.chkblob = map.chkblob
+                left join account on account.id = map.uploaded_by
+                left join lateral ({rows}) filerow on true
+                where (map.nsfw = false or ($2 = true and $21 = true)) and (map.outdated = false or $22 = true) and (map.unfinished = false or $23 = true) and (map.broken = false or $24 = true) and map.blackholed = false and
+                    chkdenorm.scenario_name is not null and
+                    chkdenorm.width >= $8 and chkdenorm.width <= $9 and
+                    chkdenorm.height >= $10 and chkdenorm.height <= $11 and
+                    chkdenorm.tileset = any($12) and
+                    chkdenorm.human_players >= $13 and chkdenorm.human_players <= $14 and
+                    chkdenorm.computer_players >= $15 and chkdenorm.computer_players <= $16 and
+                    map.uploaded_time <= $17 and map.uploaded_time >= $18 and
+                    ((filerow.modified_time <= $19 and filerow.modified_time >= $20) or filerow.modified_time is null) and
+                    ($25 = '' or account.username = $25)
+                order by {order_by}");
 
         con.query(
             &qs,
@@ -231,16 +330,19 @@ async fn search_uncached(
         .into_iter()
         .map(|row| {
             anyhow::Ok(Map {
-                id: bwcommon::get_web_id_from_db_id(row.try_get(0)?, crate::util::SEED_MAP_ID)?,
-                scenario_name: row.try_get(1)?,
-                last_modified: row.try_get::<_, Option<i64>>(2)?.unwrap_or(-1),
-                uploaded_time: row.try_get::<_, i64>(3)?,
+                id: bwcommon::get_web_id_from_db_id(row.try_get("id")?, crate::util::SEED_MAP_ID)?,
+                scenario_name: row.try_get("scenario_name")?,
+                filename: row.try_get("filename")?,
+                last_modified: row
+                    .try_get::<_, Option<i64>>("modified_time")?
+                    .unwrap_or(-1),
+                uploaded_time: row.try_get::<_, i64>("uploaded_time")?,
             })
         })
         .collect::<Result<Vec<_>, _>>()?
     };
 
-    Ok(maps)
+    Ok(maps.into())
 }
 
 fn defaultrelevancy() -> String {
@@ -354,14 +456,22 @@ pub struct SearchParams {
     pub(crate) include_nsfw: bool,
 }
 
+/// One search result row: a map as it is known under one particular filename.
+/// The same map appears once per filename we know for it.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Map {
     pub(crate) id: String,
     scenario_name: String,
+    /// The filename this row stands for, or null for a map we know no filename
+    /// for at all.
+    filename: Option<String>,
+    /// The modified time of *this* filename, or -1 when we have none.
     last_modified: i64,
     uploaded_time: i64,
 }
 
+/// The total number of rows a search matched, and the rows themselves starting at
+/// `query_params.offset`.
 pub async fn search2(
     query: &str,
     allow_nsfw: bool,
@@ -378,8 +488,7 @@ pub async fn search2(
 
     Ok((
         maps.len(),
-        maps[query_params.offset as usize..min(query_params.offset as usize + 300, maps.len())]
-            .to_vec(),
+        maps[offset..min(offset + 300, maps.len())].to_vec(),
     ))
 }
 
