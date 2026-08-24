@@ -58,16 +58,44 @@ async fn search_cached(
 /// `matched_filenames` and keeps all of its filenames. The empty-query branch has
 /// nothing to match against, so every filename is a row.
 ///
-/// `alias` is the `filename` table alias the predicate is written against, because
-/// [`filename_rows`] applies it under two different ones. It is `&'static str`
-/// rather than `&str` so that only a literal in this file can reach the SQL:
-/// anything a request carries arrives as an owned `String` and will not compile
-/// here. Same rule as `flags::validate_flag`.
-fn filename_filter(has_matched_filenames: bool, alias: &'static str) -> String {
+/// Nothing a request carries reaches this SQL: the only request-derived value in
+/// play is `matched_filenames`, which is a bind-parameter-free reference to a
+/// column of `sq2`. Same rule as `flags::validate_flag`.
+fn filename_filter(has_matched_filenames: bool) -> String {
     if has_matched_filenames {
-        format!("(sq2.matched_filenames is null or {alias}.filename = any(sq2.matched_filenames))")
+        "(sq2.matched_filenames is null or f.filename = any(sq2.matched_filenames))".to_owned()
     } else {
         "true".to_owned()
+    }
+}
+
+/// The guard on the `mapfilename` fallback arm: this map has no usable
+/// `filenames2` row at all, so the pre-`filenames2` table is all we know about it.
+///
+/// `filenames2.filename_id` is `NOT NULL` with a foreign key to `filename`, so
+/// joining `filename` here can never remove a row on its own. When no filename
+/// filter applies the join is pure cost, and it was the second-largest consumer of
+/// buffers in the whole search -- 810k of them on an unfiltered pass, to answer a
+/// question the `filenames2` index alone already answers. When a filter does
+/// apply the join is only needed for the rows the filter actually inspects, so it
+/// moves inside an `exists` that the `is null` branch short-circuits past.
+fn filenames2_absent(has_matched_filenames: bool) -> String {
+    if has_matched_filenames {
+        "not exists (
+                  select 1
+                  from filenames2 fn2
+                  where fn2.map_id = map.id
+                    and (sq2.matched_filenames is null
+                         or exists (
+                             select 1
+                             from filename f2
+                             where f2.id = fn2.filename_id
+                               and f2.filename = any(sq2.matched_filenames)
+                         ))
+              )"
+        .to_owned()
+    } else {
+        "not exists (select 1 from filenames2 fn2 where fn2.map_id = map.id)".to_owned()
     }
 }
 
@@ -79,9 +107,8 @@ fn filename_filter(has_matched_filenames: bool, alias: &'static str) -> String {
 /// Joined with LEFT JOIN LATERAL ... ON TRUE, so a map we have no filename for at
 /// all still produces its one row, with a NULL filename.
 fn filename_rows(has_matched_filenames: bool) -> String {
-    let filter = filename_filter(has_matched_filenames, "f");
-    // The `not exists` below re-applies the filter under its own alias.
-    let filter_inner = filename_filter(has_matched_filenames, "f2");
+    let filter = filename_filter(has_matched_filenames);
+    let absent = filenames2_absent(has_matched_filenames);
 
     format!(
         "
@@ -90,15 +117,30 @@ fn filename_rows(has_matched_filenames: bool) -> String {
             -- times (different copies of the same file); collapse those to the
             -- oldest, the same convention the map-wide time used. A filename
             -- observed only with unknown times falls back to the map-wide one.
+            --
+            -- The inner aggregate collapses the duplicate observations *before*
+            -- `filename` is touched, and this is the single most expensive thing
+            -- the search does. filenames2 holds one row per observed time, so a
+            -- (map, filename) pair repeats ~2.8 times on average -- 965k rows for
+            -- 344k distinct pairs -- and joining first paid a `filename` lookup
+            -- for every repeat. Grouping on `filename_id` rather than on the text
+            -- is what makes that legal, and it is the same grouping: `filename`
+            -- is UNIQUE on `id` and UNIQUE on `filename`, so id and text are in
+            -- bijection and no two ids can collapse into one name.
             select f.filename,
                    coalesce(
-                       extract(epoch from min(fn2.modified_time))::int8,
+                       g.modified_time,
                        (select min(ft.modified_time) from filetime ft where ft.map = map.id)
                    ) as modified_time
-            from filenames2 fn2
-            join filename f on f.id = fn2.filename_id
-            where fn2.map_id = map.id and {filter}
-            group by f.filename
+            from (
+                select fn2.filename_id,
+                       extract(epoch from min(fn2.modified_time))::int8 as modified_time
+                from filenames2 fn2
+                where fn2.map_id = map.id
+                group by fn2.filename_id
+            ) g
+            join filename f on f.id = g.filename_id
+            where {filter}
 
             union all
 
@@ -106,17 +148,18 @@ fn filename_rows(has_matched_filenames: bool) -> String {
             -- knows the filenames but not which time belongs to which, so every
             -- row shows the map-wide oldest -- exactly what the search used to
             -- show for the whole map.
-            select distinct f.filename,
+            --
+            -- No `distinct`: mapfilename is UNIQUE(map, filename) on the filename
+            -- *id*, and ids are in bijection with names, so one map cannot reach
+            -- the same name twice. The de-duplication was a sort executed once per
+            -- candidate map -- 260k times on an unfiltered search -- that had
+            -- nothing to remove.
+            select f.filename,
                    (select min(ft.modified_time) from filetime ft where ft.map = map.id)
             from mapfilename mf
             join filename f on f.id = mf.filename
             where mf.map = map.id and {filter}
-              and not exists (
-                  select 1
-                  from filenames2 fn2
-                  join filename f2 on f2.id = fn2.filename_id
-                  where fn2.map_id = map.id and {filter_inner}
-              )
+              and {absent}
         "
     )
 }
@@ -262,8 +305,15 @@ async fn search_uncached(
         let qs =
                 format!("
                 select map.id, chkdenorm.scenario_name, filerow.filename, filerow.modified_time, map.uploaded_time from (
+                    -- No `distinct`: stringmap2 is PRIMARY KEY (map, data), so
+                    -- within one `group by id` the data values are already
+                    -- distinct. The de-duplication forced a sort of every matched
+                    -- string -- 197k rows, ~21MB, per parallel worker -- where a
+                    -- plain array_agg lets this hash-aggregate instead. The array
+                    -- is only ever used as the right side of `= any(...)`, so the
+                    -- ordering `distinct` imposed was never load-bearing either.
                     select max(dist*weight) as dist2, id as mapid,
-                           array_agg(distinct data) filter (where file_names) as matched_filenames
+                           array_agg(data) filter (where file_names) as matched_filenames
                     from (
                         select word_similarity($1, data) as dist, map as id, data, file_names,
 

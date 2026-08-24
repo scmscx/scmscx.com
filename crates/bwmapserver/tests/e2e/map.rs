@@ -1534,6 +1534,92 @@ async fn search_returns_a_row_per_filename() {
     );
 }
 
+/// The `mapfilename` fallback arm: maps imported before `filenames2` existed have
+/// their names only in `mapfilename`, and the search has to fall back to it.
+///
+/// An upload writes both tables (`bulkupload::insert_map`), so the arm only fires
+/// for rows that predate `filenames2` -- production still has a few thousand of
+/// them, and no upload the suite can perform will produce one. This builds the
+/// legacy shape by hand: extra `mapfilename` names, no `filenames2` rows at all,
+/// and a `stringmap2` file_names entry for one of the added names so the keyword
+/// branch has something to match on.
+///
+/// Both branches matter here. The empty-query branch takes every fallback name;
+/// the keyword branch has to apply the matched-filename filter to them, which is
+/// the one place the filter is evaluated against `mapfilename` rather than
+/// `filenames2`.
+#[tokio::test]
+async fn search_falls_back_to_mapfilename_when_filenames2_is_empty() {
+    let h = Harness::start().await;
+    let c = client();
+    let owner = register(&c, &h, "legacynameowner").await;
+
+    let web_id = upload_map(&c, &h, Some(&owner), "legacyuploadname.scx").await;
+    let id = map_internal_id(&c, &h, &web_id).await;
+
+    // Rewrite this map into the pre-filenames2 shape. The `stringmap2` row is what
+    // the keyword branch searches; `mapfilename` is what the fallback arm reads.
+    h.db_execute(&format!(
+        "delete from filenames2 where map_id = {id};
+         insert into filename (filename)
+              values ('legacyalpha.scx'), ('legacybravo.scx')
+         on conflict (filename) do nothing;
+         insert into mapfilename (map, filename)
+              select {id}, f.id from filename f
+               where f.filename in ('legacyalpha.scx', 'legacybravo.scx');
+         insert into stringmap2 (map, data, file_names) values ({id}, 'legacyalpha.scx', true)
+         on conflict (map, data) do update set file_names = true;"
+    ))
+    .await;
+
+    // Every search below runs *after* the rewrite: the harness runs in prod mode,
+    // where a result is cached for an hour, so searching beforehand would answer
+    // from a pre-rewrite entry.
+
+    // Empty-query branch: this database holds the one map, and the fallback arm
+    // supplies both of its legacy names.
+    let body = json_body(c.get(h.url("/api/uiv2/search")).send().await.unwrap()).await;
+    let mut filenames: Vec<&str> = body["maps"]
+        .as_array()
+        .unwrap_or_else(|| panic!("search returned no maps array: {body}"))
+        .iter()
+        .map(|m| m["filename"].as_str().unwrap())
+        .collect();
+    filenames.sort_unstable();
+    assert_eq!(
+        filenames,
+        vec![
+            "legacyalpha.scx",
+            "legacybravo.scx",
+            // The upload wrote this one to `mapfilename` too, so dropping the
+            // map's `filenames2` rows leaves all three names on the legacy path.
+            "legacyuploadname.scx",
+        ],
+        "a map with no filenames2 rows is listed under every one of its mapfilename names"
+    );
+
+    // Keyword branch: the matched-filename filter has to narrow the fallback arm
+    // too, so the name that did not match must not come along.
+    let body = json_body(
+        c.get(h.url("/api/uiv2/search/legacyalpha"))
+            .send()
+            .await
+            .unwrap(),
+    )
+    .await;
+    let filenames: Vec<&str> = body["maps"]
+        .as_array()
+        .unwrap_or_else(|| panic!("search returned no maps array: {body}"))
+        .iter()
+        .map(|m| m["filename"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        filenames,
+        vec!["legacyalpha.scx"],
+        "the fallback arm lists only the filenames the query matched"
+    );
+}
+
 /// A search result's `last_modified` is the time of the row's own filename (from
 /// `filenames2`), falling back to the map-wide `min(filetime.modified_time)`. With
 /// neither, both query branches report the sentinel `-1` rather than a real
