@@ -1274,6 +1274,21 @@ psql -v ON_ERROR_STOP=1 --username "postgres" -d "bounding.net" <<-'EOSQL'
 
 
     --
+    -- Name: filename_id_include_filename_idx; Type: INDEX; Schema: public; Owner: bounding.net
+    --
+    -- Covering index for the search's hottest lookup: filename_id -> filename.
+    -- Both search branches resolve every result row's name through it, and on the
+    -- primary key that is an index descent plus a heap fetch. INCLUDE (filename)
+    -- makes it an index-only scan, which measured ~3.2 buffers against ~4.0 for
+    -- the heap-fetching form.
+    --
+    -- Kept in sync with postgres/migrations/0001_search_perf.sql.
+    --
+
+    CREATE INDEX filename_id_include_filename_idx ON public.filename USING btree (id) INCLUDE (filename);
+
+
+    --
     -- Name: filetime_map_idx; Type: INDEX; Schema: public; Owner: bounding.net
     --
 
@@ -1646,4 +1661,42 @@ psql -v ON_ERROR_STOP=1 --username "postgres" -d "bounding.net" <<-'EOSQL'
     -- Carry over the previously hard-coded administrator. A freshly initialised
     -- dev/e2e database has no account 4, so this is a no-op there.
     UPDATE public.account SET role = 'admin' WHERE id = 4;
+EOSQL
+
+#
+# Per-table autovacuum and statistics settings.
+#
+# The defaults are proportional (autovacuum_analyze_scale_factor 0.1,
+# autovacuum_vacuum_scale_factor 0.2), which is the wrong shape for the two tables
+# the search reads hardest. stringmap2 carries ~14M rows in production, so the
+# default thresholds mean ~1.4M modifications before an ANALYZE and ~2.8M dead
+# tuples before a VACUUM -- it had gone six weeks between autovacuums with a
+# million dead tuples on the books.
+#
+# filenames2 matters for a second reason: both search branches read it through an
+# index-only scan, and an index-only scan still visits the heap for every row whose
+# page is not marked all-visible. With its visibility map cold that was ~295k heap
+# fetches on a single unfiltered search, about 9% of the query's buffer traffic.
+# Only VACUUM sets those bits, so it has to run often enough to keep up.
+#
+# The raised statistics targets are for the columns the per-map lookups key on.
+# n_distinct for filenames2.map_id was estimated at 95,649 against an actual
+# 261,846, which is what made the planner size the per-map filename expansion at 9
+# rows instead of 4 and the whole search at 655 rows instead of 77,677.
+#
+# Kept in sync with postgres/migrations/0001_search_perf.sql.
+#
+psql -v ON_ERROR_STOP=1 --username "postgres" -d "bounding.net" <<-'EOSQL'
+    ALTER TABLE public.stringmap2 SET (
+        autovacuum_vacuum_scale_factor = 0.02,
+        autovacuum_analyze_scale_factor = 0.01
+    );
+    ALTER TABLE public.filenames2 SET (
+        autovacuum_vacuum_scale_factor = 0.05,
+        autovacuum_analyze_scale_factor = 0.02
+    );
+
+    ALTER TABLE public.filenames2 ALTER COLUMN map_id SET STATISTICS 1000;
+    ALTER TABLE public.mapfilename ALTER COLUMN map SET STATISTICS 1000;
+    ALTER TABLE public.filetime ALTER COLUMN map SET STATISTICS 1000;
 EOSQL
