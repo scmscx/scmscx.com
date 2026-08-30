@@ -202,7 +202,7 @@ pub async fn b2_upload_file<S>(
     stream: S,
 ) -> Result<(), B2Error>
 where
-    S: futures_core::stream::TryStream + Send + Sync + 'static,
+    S: futures_core::stream::TryStream + Send + 'static,
     S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     Bytes: From<S::Ok>,
 {
