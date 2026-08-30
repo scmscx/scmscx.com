@@ -50,7 +50,11 @@ pub async fn map_info(
                     nsfw,
                     blackholed
                 from map
-                join chkblob on chkblob.hash = map.chkblob
+                -- LEFT, not inner: a map is visible as soon as it is uploaded,
+                -- and its chkblob only exists once the background processor has
+                -- run. An inner join here turned a freshly uploaded map into a
+                -- 500 (`query_one` on zero rows).
+                left join chkblob on chkblob.hash = map.chkblob
                 left join account on map.uploaded_by = account.id
                 where map.id = $1
                 ",
@@ -60,15 +64,26 @@ pub async fn map_info(
 
         // Downloads, Views, Last Downloaded, Last Viewed
 
-        let length = row.try_get::<_, i64>("length")? as usize;
-        let ver = row.try_get::<_, i64>("ver")?;
-        let data = row.try_get::<_, Vec<u8>>("data")?;
-
-        bwcommon::ensure!(ver == 1);
+        // All three are NULL together until the map has been processed. Every
+        // chk-derived field below already copes with a section it cannot parse,
+        // so an empty chk degrades the response to nulls and zeros rather than
+        // needing a second code path.
+        let chk_bytes = match (
+            row.try_get::<_, Option<i64>>("length")?,
+            row.try_get::<_, Option<i64>>("ver")?,
+            row.try_get::<_, Option<Vec<u8>>>("data")?,
+        ) {
+            (Some(length), Some(ver), Some(data)) => {
+                bwcommon::ensure!(ver == 1);
+                zstd::bulk::decompress(data.as_slice(), length as usize)?
+            }
+            _ => Vec::new(),
+        };
+        let length = chk_bytes.len();
 
         (
-            zstd::bulk::decompress(data.as_slice(), length)?,
-            row.try_get::<_, String>("chkblob")?,
+            chk_bytes,
+            row.try_get::<_, Option<String>>("chkblob")?,
             length,
             row.try_get::<_, String>("mapblob2")?,
             row.try_get::<_, i64>("mapblob_size")?,
@@ -379,6 +394,10 @@ pub async fn map_info(
     }
 
     Ok(Json(json!({
+        // False until the background processor has produced this map's derived
+        // data. The chk-derived fields below are null/zero while it is true, so
+        // a client can tell "this map has no triggers" from "we don't know yet".
+        "processing": chkhash.is_none(),
         "scenario": scenario_name,
         "scenario_description": scenario_description,
         "player_owners": player_owners,
