@@ -58,7 +58,9 @@ pub async fn units(
             .query_opt(
                 "select length, ver, data, spoiler_unit_names, blackholed
                 from map
-                join chkblob on chkblob.hash = map.chkblob
+                -- LEFT, not inner: an unprocessed map has no chkblob yet and
+                -- should report no units, not 404 as though it did not exist.
+                left join chkblob on chkblob.hash = map.chkblob
                 where map.id = $1
                 ",
                 &[&map_id],
@@ -72,15 +74,20 @@ pub async fn units(
             return Ok(StatusCode::NOT_FOUND.into_response());
         }
 
-        let length = row.try_get::<_, i64>("length")? as usize;
-        let ver = row.try_get::<_, i64>("ver")?;
-        let data = row.try_get::<_, Vec<u8>>("data")?;
-
-        bwcommon::ensure!(ver == 1);
-        (
-            zstd::bulk::decompress(data.as_slice(), length)?,
-            row.try_get::<_, bool>("spoiler_unit_names")?,
-        )
+        // NULL together until the map has been processed; an empty chk parses
+        // to no unit section, so the handler answers with an empty list.
+        let chk = match (
+            row.try_get::<_, Option<i64>>("length")?,
+            row.try_get::<_, Option<i64>>("ver")?,
+            row.try_get::<_, Option<Vec<u8>>>("data")?,
+        ) {
+            (Some(length), Some(ver), Some(data)) => {
+                bwcommon::ensure!(ver == 1);
+                zstd::bulk::decompress(data.as_slice(), length as usize)?
+            }
+            _ => Vec::new(),
+        };
+        (chk, row.try_get::<_, bool>("spoiler_unit_names")?)
     };
 
     let parsed_chk = ParsedChk::from_bytes(chkblob.as_slice());

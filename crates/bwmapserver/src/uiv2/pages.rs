@@ -228,19 +228,23 @@ pub async fn map(
         return Ok(StatusCode::NOT_FOUND.into_response());
     };
 
-    let (chkblob, nsfw, blackholed) = {
+    let (chkblob, denorm_scenario, nsfw, blackholed) = {
         let con = pool.acquire().await?;
         let rows = con
             .query(
                 "select
                     nsfw,
                     blackholed,
+                    denorm_scenario,
                     length,
                     ver,
                     data
                 from
                     map
-                join
+                -- LEFT, not inner: the chkblob only exists once the background
+                -- processor has run, and a map must not 404 between being
+                -- uploaded and being processed.
+                left join
                     chkblob on chkblob.hash = map.chkblob
                 where
                     map.id = $1",
@@ -257,16 +261,22 @@ pub async fn map(
             return Ok(StatusCode::INTERNAL_SERVER_ERROR.into_response());
         }
 
-        let length = rows[0].try_get::<_, i64>("length")? as usize;
-        let ver = rows[0].try_get::<_, i64>("ver")?;
-        let data = rows[0].try_get::<_, Vec<u8>>("data")?;
-
-        bwcommon::ensure!(ver == 1);
-
-        let chkblob = zstd::bulk::decompress(data.as_slice(), length)?;
+        // NULL together until the map has been processed.
+        let chkblob = match (
+            rows[0].try_get::<_, Option<i64>>("length")?,
+            rows[0].try_get::<_, Option<i64>>("ver")?,
+            rows[0].try_get::<_, Option<Vec<u8>>>("data")?,
+        ) {
+            (Some(length), Some(ver), Some(data)) => {
+                bwcommon::ensure!(ver == 1);
+                zstd::bulk::decompress(data.as_slice(), length as usize)?
+            }
+            _ => Vec::new(),
+        };
 
         (
             chkblob,
+            rows[0].try_get::<_, Option<String>>("denorm_scenario")?,
             rows[0].try_get::<_, bool>("nsfw")?,
             rows[0].try_get::<_, bool>("blackholed")?,
         )
@@ -274,6 +284,13 @@ pub async fn map(
 
     let parsed_chk = ParsedChk::from_bytes(chkblob.as_slice());
     let (scenario, description) = scenario_and_description(&parsed_chk);
+    // Before processing there is no chk to read a title out of, but the upload
+    // recorded one, so the page still gets a real name instead of a blank.
+    let scenario = if chkblob.is_empty() {
+        denorm_scenario.unwrap_or(scenario)
+    } else {
+        scenario
+    };
 
     if access::nsfw_requires_login(nsfw, user.session()) {
         return Ok(StatusCode::FORBIDDEN.into_response());
