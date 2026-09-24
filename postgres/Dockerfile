@@ -1,13 +1,13 @@
 
 ARG PG_MAJOR=15
 
-FROM docker.io/postgres:15.6-bullseye
+FROM docker.io/postgres:15.19-trixie
 
 COPY --chown=postgres:postgres postgresql.conf /etc/postgresql/postgresql.conf
 
 RUN \
     apt-get update && \
-    apt-get install -y --no-install-recommends build-essential clang-13 llvm-13 postgresql-server-dev-$PG_MAJOR git ca-certificates && \
+    apt-get install -y --no-install-recommends build-essential clang-19 llvm-19 postgresql-server-dev-$PG_MAJOR git ca-certificates && \
     mkdir -p /tmp/pgvector && \
     cd /tmp/pgvector && \
     git clone --depth 1 --branch v0.8.6 https://github.com/pgvector/pgvector.git && \
