@@ -947,6 +947,16 @@
     "fr": "Administrateur",
     "de": "Administrator"
   },
+  "map.armor": {
+    "en": "Armor",
+    "ko": "방어력",
+    "zh": "護甲",
+    "ja": "アーマー",
+    "es": "Blindaje",
+    "ru": "Броня",
+    "fr": "Armure",
+    "de": "Panzerung"
+  },
   "map.black_holed": {
     "en": "Black Holed",
     "ko": "블랙홀",
@@ -976,6 +986,16 @@
     "ru": "Сломанная",
     "fr": "Dysfonctionnelle",
     "de": "Kaputt"
+  },
+  "map.build_time_frames": {
+    "en": "Build Time (frames)",
+    "ko": "생산 시간 (프레임)",
+    "zh": "建造時間（幀）",
+    "ja": "生産時間（フレーム）",
+    "es": "Tiempo de construcción (fotogramas)",
+    "ru": "Время постройки (кадры)",
+    "fr": "Temps de construction (images)",
+    "de": "Bauzeit (Frames)"
   },
   "map.chk_hash": {
     "en": "CHK Hash",
@@ -1087,6 +1107,16 @@
     "fr": "Drapeaux",
     "de": "Flags"
   },
+  "map.gas": {
+    "en": "Gas",
+    "ko": "가스",
+    "zh": "瓦斯",
+    "ja": "ガス",
+    "es": "Gas",
+    "ru": "Газ",
+    "fr": "Gaz",
+    "de": "Gas"
+  },
   "map.get_death_euds": {
     "en": "Get Death EUDs",
     "ko": "Get Death EUD",
@@ -1096,6 +1126,16 @@
     "ru": "Get Death EUD",
     "fr": "Get Death EUD",
     "de": "Get Death EUD"
+  },
+  "map.hit_points": {
+    "en": "Hit Points",
+    "ko": "체력",
+    "zh": "生命值",
+    "ja": "HP",
+    "es": "Puntos de vida",
+    "ru": "Здоровье",
+    "fr": "Points de vie",
+    "de": "Trefferpunkte"
   },
   "map.is_eud_map": {
     "en": "Is EUD map?",
@@ -1196,6 +1236,16 @@
     "ru": "Метаданные",
     "fr": "Métadonnées",
     "de": "Metadaten"
+  },
+  "map.minerals": {
+    "en": "Minerals",
+    "ko": "미네랄",
+    "zh": "礦物",
+    "ja": "ミネラル",
+    "es": "Minerales",
+    "ru": "Минералы",
+    "fr": "Minerais",
+    "de": "Mineralien"
   },
   "map.minimap": {
     "en": "Minimap",
@@ -1486,6 +1536,16 @@
     "ru": "Set Death EPD",
     "fr": "Set Death EPD",
     "de": "Set Death EPD"
+  },
+  "map.shields": {
+    "en": "Shields",
+    "ko": "보호막",
+    "zh": "護盾",
+    "ja": "シールド",
+    "es": "Escudos",
+    "ru": "Щиты",
+    "fr": "Boucliers",
+    "de": "Schilde"
   },
   "map.similar_maps": {
     "en": "Similar Maps",

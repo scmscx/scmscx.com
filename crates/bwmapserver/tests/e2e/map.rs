@@ -80,6 +80,14 @@ const UNTITLED_EUP_SHA256: &str =
     "dad825509d47223bd11c21eaf993cc873f3a78dc4e2ae61c2294e78fb7d18701";
 const UNTITLED_EUP_LEN: usize = 545_106;
 
+/// An original (pre-Brood War, CHK version 59) map — "Defend the Temple  *FINAL*"
+/// (web id `H8th359V`). It carries only the legacy UNIS unit settings section, no
+/// UNIx, so it is the one fixture that reaches the UNIS branch of the units
+/// endpoint: 58 units override their default settings, 26 of them with a name.
+const DEFEND_THE_TEMPLE_SHA256: &str =
+    "d2dd2df3662ced4dadb30518ff78f436c771b4fc12bc4b1eade2e9efb8a68b74";
+const DEFEND_THE_TEMPLE_LEN: usize = 62_624;
+
 /// On-disk cache location for a pinned map, shared across test *processes*. Keyed by
 /// the map's sha256, so bumping a fixture hash automatically misses the old entry.
 /// Lives under the system temp dir (swept on reboot).
@@ -930,13 +938,13 @@ async fn upload_stages_blob_by_hash_for_delivery() {
     );
 }
 
-/// The units endpoint lists exactly the map's custom-named units — those that are
-/// enabled (`config == 0`) *and* carry a name string (`string_number != 0`),
-/// ordered by unit id. Pinning the count guards that two-part filter: dropping
-/// either half, flipping the equality, or turning the `&&` into `||` changes which
-/// units qualify and so changes the length.
+/// The units endpoint lists exactly the units whose "use default settings" flag is
+/// cleared in UNIx (`config == 0`), ordered by unit id, each with the stats the map
+/// overrides it to and its custom name when it has one (`string_number != 0`).
+/// Pinning both counts guards the two filters independently: 130 units are
+/// overridden, and 124 of those are also renamed.
 #[tokio::test]
-async fn units_endpoint_lists_named_units() {
+async fn units_endpoint_lists_overridden_units() {
     let h = Harness::start().await;
     let c = client();
     let owner = register(&c, &h, "unitsowner").await;
@@ -952,18 +960,125 @@ async fn units_endpoint_lists_named_units() {
     let arr = units.as_array().expect("units is an array");
     assert_eq!(
         arr.len(),
-        124,
-        "the fixture map has exactly 124 custom-named units"
+        130,
+        "the fixture map overrides exactly 130 units"
     );
-    // Ordered by unit id ascending, each entry carries a non-empty name.
     let ids: Vec<i64> = arr.iter().map(|u| u["unit_id"].as_i64().unwrap()).collect();
-    assert_eq!(ids[0], 0, "first custom unit is unit id 0");
     assert!(ids.windows(2).all(|w| w[0] < w[1]), "unit ids ascend");
+
+    // A unit keeping its default name serves `null`, never an empty string.
+    let named = arr.iter().filter(|u| !u["name"].is_null()).count();
+    assert_eq!(named, 124, "124 of the overridden units are also renamed");
     assert!(
         arr.iter()
+            .filter(|u| !u["name"].is_null())
             .all(|u| u["name"].as_str().is_some_and(|n| !n.is_empty())),
-        "every listed unit has a name"
+        "every name that is present is a non-empty string"
     );
+
+    // Unit 0's stats verbatim; unit 4 stores a single 1/256th of a hit point,
+    // which pins the fixed-point conversion.
+    let unit0 = &arr[0];
+    assert_eq!(unit0["unit_id"], 0);
+    assert!(unit0["name"].is_string(), "unit 0 is renamed");
+    assert_eq!(unit0["hit_points"], 580.0);
+    assert_eq!(unit0["shield_points"], 0);
+    assert_eq!(unit0["armor_points"], 0);
+    assert_eq!(unit0["build_time"], 360);
+    assert_eq!(unit0["mineral_cost"], 50);
+    assert_eq!(unit0["gas_cost"], 0);
+    assert_eq!(arr[4]["unit_id"], 4);
+    assert_eq!(arr[4]["hit_points"], 1.0 / 256.0);
+    assert_eq!(arr[4]["shield_points"], 100);
+}
+
+/// The same contract as [`units_endpoint_lists_overridden_units`], through the
+/// legacy UNIS section: every other fixture carries UNIx, which the endpoint reads
+/// first, so without this map the UNIS branch would go unexercised. That includes
+/// the spoiler flag, which the UNIS branch once ignored, serving real names for
+/// spoiler-flagged maps.
+#[tokio::test]
+async fn units_endpoint_reads_legacy_unis_section() {
+    let h = Harness::start().await;
+    let c = client();
+    let owner = register(&c, &h, "unisowner").await;
+    let id = upload_fixture(
+        &c,
+        &h,
+        Some(&owner),
+        "e2eunis.scm",
+        DEFEND_THE_TEMPLE_SHA256,
+        DEFEND_THE_TEMPLE_LEN,
+    )
+    .await;
+
+    let get_units = || async {
+        json_body(
+            c.get(h.url(&format!("/api/uiv2/units/{id}")))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await
+    };
+
+    let units = get_units().await;
+    let arr = units.as_array().expect("units is an array");
+    assert_eq!(arr.len(), 58, "the fixture map overrides exactly 58 units");
+    let named = arr.iter().filter(|u| !u["name"].is_null()).count();
+    assert_eq!(named, 26, "26 of the overridden units are also renamed");
+
+    // Unit 0 overrides its stats but keeps its default name.
+    assert_eq!(
+        arr[0],
+        serde_json::json!({
+            "unit_id": 0,
+            "name": null,
+            "hit_points": 100.0,
+            "shield_points": 0,
+            "armor_points": 0,
+            "build_time": 360,
+            "mineral_cost": 50,
+            "gas_cost": 0,
+        })
+    );
+    // Unit 10 overrides both. Its real name is pinned, not just checked for
+    // presence: "SPOILER" is a non-empty string too, so only the exact name tells
+    // an unflagged map apart from one whose names are being masked.
+    let unit10 = arr
+        .iter()
+        .find(|u| u["unit_id"] == 10)
+        .expect("unit 10 is overridden");
+    assert_eq!(unit10["name"], "Insane One", "unit 10's custom name");
+    assert_eq!(unit10["hit_points"], 160.0);
+    assert_eq!(unit10["armor_points"], 160);
+
+    // With the spoiler flag set, every custom name is masked; units that keep
+    // their default name stay `null` rather than becoming "SPOILER".
+    let resp = c
+        .post(h.url(&format!("/api/flags/{id}/spoiler_unit_names")))
+        .header("content-type", "application/json")
+        .header("cookie", owner.cookie())
+        .body("true")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "owner sets spoiler_unit_names"
+    );
+
+    let spoiled = get_units().await;
+    let spoiled = spoiled.as_array().expect("units is an array");
+    assert_eq!(spoiled.len(), 58);
+    for (before, after) in arr.iter().zip(spoiled) {
+        if before["name"].is_null() {
+            assert!(after["name"].is_null(), "unnamed stays null: {after}");
+        } else {
+            assert_eq!(after["name"], "SPOILER", "named is masked: {after}");
+        }
+    }
 }
 
 /// The paginated map sitemap `/a.txt` lists the web ids of visible maps (first 50k,
