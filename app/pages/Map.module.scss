@@ -127,6 +127,51 @@
   text-wrap: nowrap;
 }
 
+.unit-row {
+  cursor: pointer;
+}
+
+.unit-row:hover td {
+  background-color: rgba($menu-cyan, 0.08);
+}
+
+// Custom names run long and often without spaces, and table cells default to
+// nowrap, so they alone pushed this table past a phone's width.
+.table td.unit-wrap {
+  text-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+
+// Reset to look like the plain cell text it replaces; it is only a button so
+// the row can be expanded from the keyboard.
+.unit-toggle {
+  all: unset;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.unit-toggle:focus-visible {
+  outline: 1px solid $menu-cyan;
+}
+
+// Label/value pairs that wrap onto more lines rather than widen the table.
+.unit-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 2px 0 8px 1.2em;
+  white-space: normal;
+}
+
+.unit-details dt {
+  color: $menu-cyan;
+}
+
+.unit-details dd {
+  color: $menu-white;
+  margin: 0;
+}
+
 .table a:link {
   color: $menu_dark_cyan;
 }

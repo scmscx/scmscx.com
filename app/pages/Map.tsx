@@ -405,6 +405,50 @@ const Replays = (props: any) => (
   </div>
 );
 
+// The stats a map overrides a unit to, shown under its row once expanded. They
+// are kept out of the table's own columns because six more of them made the
+// table wider than a phone screen.
+const UnitDetails = (props: any) => (
+  <dl class={style["unit-details"]}>
+    <div>
+      <dt>
+        <I18nSpan text="map.hit_points" />
+      </dt>
+      <dd>{props.unit.hit_points}</dd>
+    </div>
+    <div>
+      <dt>
+        <I18nSpan text="map.shields" />
+      </dt>
+      <dd>{props.unit.shield_points}</dd>
+    </div>
+    <div>
+      <dt>
+        <I18nSpan text="map.armor" />
+      </dt>
+      <dd>{props.unit.armor_points}</dd>
+    </div>
+    <div>
+      <dt>
+        <I18nSpan text="map.build_time_frames" />
+      </dt>
+      <dd>{props.unit.build_time}</dd>
+    </div>
+    <div>
+      <dt>
+        <I18nSpan text="map.minerals" />
+      </dt>
+      <dd>{props.unit.mineral_cost}</dd>
+    </div>
+    <div>
+      <dt>
+        <I18nSpan text="map.gas" />
+      </dt>
+      <dd>{props.unit.gas_cost}</dd>
+    </div>
+  </dl>
+);
+
 const Units = (props: any) => (
   <div class={style["table-container"]}>
     <table class={style.table}>
@@ -423,23 +467,49 @@ const Units = (props: any) => (
       </thead>
       <tbody>
         <For each={props.units}>
-          {(unit, id) => (
-            <>
-              <tr>
-                <td>
-                  <span>{unit.unit_id}</span>
-                </td>
-                <td>
-                  <span>
-                    <I18nSpan text={unit_id_to_name(unit.unit_id)} />
-                  </span>
-                </td>
-                <td>
-                  <ColoredTextIngame text={unit.name} />
-                </td>
-              </tr>
-            </>
-          )}
+          {(unit, id) => {
+            const [expanded, setExpanded] = createSignal(false);
+
+            // The whole row toggles, so it is an easy target on a phone. The
+            // button inside is what makes it reachable by keyboard; it has no
+            // handler of its own, so its click bubbles here exactly once.
+            return (
+              <>
+                <tr
+                  class={style["unit-row"]}
+                  onClick={() => setExpanded(!expanded())}
+                >
+                  <td>
+                    <button
+                      type="button"
+                      class={style["unit-toggle"]}
+                      aria-expanded={expanded()}
+                    >
+                      <span aria-hidden="true">{expanded() ? "▾" : "▸"}</span>{" "}
+                      {unit.unit_id}
+                    </button>
+                  </td>
+                  <td class={style["unit-wrap"]}>
+                    <span>
+                      <I18nSpan text={unit_id_to_name(unit.unit_id)} />
+                    </span>
+                  </td>
+                  <td class={style["unit-wrap"]}>
+                    <Show when={unit.name != null}>
+                      <ColoredTextIngame text={unit.name} />
+                    </Show>
+                  </td>
+                </tr>
+                <Show when={expanded()}>
+                  <tr>
+                    <td colspan={3}>
+                      <UnitDetails unit={unit} />
+                    </td>
+                  </tr>
+                </Show>
+              </>
+            );
+          }}
         </For>
       </tbody>
     </table>

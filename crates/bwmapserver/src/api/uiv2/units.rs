@@ -4,43 +4,67 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use bwcommon::MyError;
 use bwmap::ParsedChk;
-use serde_json::json;
+use serde::Serialize;
 
 use crate::access;
 use crate::webutil::{MaybeUser, Pool, PoolExt};
 
-/// Units carrying a custom name: entries left at default settings (`config == 0`)
-/// whose `string_number` points at a string.
+#[derive(Debug, Serialize)]
+struct UnitSettings {
+    unit_id: usize,
+    /// `None` when the unit keeps its default name (`string_number == 0`).
+    name: Option<String>,
+    /// In whole hit points. The section stores 1/256ths; the low byte is a
+    /// fractional HP the game never displays, but it is kept rather than rounded.
+    hit_points: f64,
+    shield_points: u16,
+    armor_points: u8,
+    build_time: u16,
+    mineral_cost: u16,
+    gas_cost: u16,
+}
+
+/// Units whose "use default settings" flag is cleared (`config == 0`), with the
+/// name and stats the map overrides them to. The section stores every unit's
+/// settings either way, but the game only reads them for these units.
 ///
-/// The modern UNIx section and the legacy UNIS one declare identical
-/// `config`/`string_number` arrays, so they share this instead of each keeping a
-/// copy of the filter. The UNIS copy had drifted — it ignored
-/// `spoiler_unit_names` and served real names for spoiler-flagged maps — which no
-/// test could see, because every fixture uses UNIx.
-fn named_units(
+/// The modern UNIx section and the legacy UNIS one declare identical per-unit
+/// arrays (they differ only in their weapon arrays), so they share this instead
+/// of each keeping a copy of the filter.
+#[allow(clippy::too_many_arguments)]
+fn overridden_units(
     config: &[u8],
+    hit_points: &[u32],
+    shield_points: &[u16],
+    armor_points: &[u8],
+    build_time: &[u16],
+    mineral_cost: &[u16],
+    gas_cost: &[u16],
     string_number: &[u16],
     parsed_chk: &ParsedChk,
     spoiler_unit_names: bool,
-) -> Vec<serde_json::Value> {
-    let mut v = Vec::new();
-
-    for unit_id in 0..config.len() {
-        if config[unit_id] == 0 && string_number[unit_id] != 0 {
-            v.push(json!({
-                "unit_id": unit_id,
-                "name": if spoiler_unit_names {
-                    "SPOILER".to_owned()
-                } else {
+) -> Vec<UnitSettings> {
+    (0..config.len())
+        .filter(|&unit_id| config[unit_id] == 0)
+        .map(|unit_id| UnitSettings {
+            unit_id,
+            name: match string_number[unit_id] {
+                0 => None,
+                _ if spoiler_unit_names => Some("SPOILER".to_owned()),
+                string_number => Some(
                     parsed_chk
-                        .get_string(string_number[unit_id] as usize)
-                        .unwrap_or_else(|_| "couldn't decode string".to_owned())
-                },
-            }));
-        }
-    }
-
-    v
+                        .get_string(string_number as usize)
+                        .unwrap_or_else(|_| "couldn't decode string".to_owned()),
+                ),
+            },
+            hit_points: hit_points[unit_id] as f64 / 256.0,
+            shield_points: shield_points[unit_id],
+            armor_points: armor_points[unit_id],
+            build_time: build_time[unit_id],
+            mineral_cost: mineral_cost[unit_id],
+            gas_cost: gas_cost[unit_id],
+        })
+        .collect()
 }
 
 pub async fn units(
@@ -93,9 +117,31 @@ pub async fn units(
     let parsed_chk = ParsedChk::from_bytes(chkblob.as_slice());
 
     let units = if let Ok(x) = &parsed_chk.unix {
-        named_units(&x.config, &x.string_number, &parsed_chk, spoiler_unit_names)
+        overridden_units(
+            &x.config,
+            &x.hit_points,
+            &x.shield_points,
+            &x.armor_points,
+            &x.build_time,
+            &x.mineral_cost,
+            &x.gas_cost,
+            &x.string_number,
+            &parsed_chk,
+            spoiler_unit_names,
+        )
     } else if let Ok(x) = &parsed_chk.unis {
-        named_units(&x.config, &x.string_number, &parsed_chk, spoiler_unit_names)
+        overridden_units(
+            &x.config,
+            &x.hit_points,
+            &x.shield_points,
+            &x.armor_points,
+            &x.build_time,
+            &x.mineral_cost,
+            &x.gas_cost,
+            &x.string_number,
+            &parsed_chk,
+            spoiler_unit_names,
+        )
     } else {
         Vec::new()
     };
